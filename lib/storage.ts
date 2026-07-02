@@ -415,6 +415,78 @@ export async function trashNode(id: string): Promise<void> {
   emitTrashChanged();
 }
 
+/** Ancestor chain of a live node (target first excluded), root last. */
+async function ancestorIds(id: string): Promise<string[]> {
+  const chain: string[] = [];
+  let cursor: string | null = id;
+  for (let depth = 0; depth < 60 && cursor !== null; depth++) {
+    const current: string = cursor;
+    const result: { data: { parent_id: string | null } | null } = await supabase
+      .from("nodes")
+      .select("parent_id")
+      .eq("id", current)
+      .maybeSingle<{ parent_id: string | null }>();
+    const parentId = result.data?.parent_id ?? null;
+    if (parentId) chain.push(parentId);
+    cursor = parentId;
+  }
+  return chain;
+}
+
+/**
+ * Moves nodes into another folder/dataroom (same account, any room).
+ * Guards against cycles (a folder can't move into itself or a descendant),
+ * skips no-op moves, and resolves name collisions: files get the usual
+ * " (N)" suffix, containers try their name first and suffix on conflict.
+ * Returns how many nodes actually moved.
+ */
+export async function moveNodes(
+  ids: string[],
+  targetParentId: string,
+): Promise<number> {
+  const target = await getNode(targetParentId);
+  if (!target || target.type === "file") {
+    throw new Error("That destination no longer exists");
+  }
+  if (ids.includes(targetParentId)) {
+    throw new Error("Can't move a folder into itself");
+  }
+  const targetChain = new Set(await ancestorIds(targetParentId));
+  let moved = 0;
+  for (const id of ids) {
+    if (targetChain.has(id)) {
+      throw new Error("Can't move a folder into one of its own subfolders");
+    }
+    const node = await getNode(id);
+    if (!node || node.parentId === targetParentId) continue;
+    if (node.type === "file") {
+      const name = await resolveFileName(targetParentId, node.name, id);
+      const { error } = await supabase
+        .from("nodes")
+        .update({ parent_id: targetParentId, name })
+        .eq("id", id);
+      if (error) throw error;
+      moved++;
+      continue;
+    }
+    // Containers: try the current name, suffix on a unique-index conflict.
+    let name = node.name;
+    for (let attempt = 0; attempt < 100; attempt++) {
+      const { error } = await supabase
+        .from("nodes")
+        .update({ parent_id: targetParentId, name })
+        .eq("id", id);
+      if (!error) {
+        moved++;
+        break;
+      }
+      if (!isUniqueViolation(error)) throw error;
+      name = `${node.name} (${attempt + 2})`.slice(0, MAX_NAME_LENGTH);
+    }
+  }
+  return moved;
+}
+
 /** Bulk variant of trashNode: one UPDATE for a whole selection. */
 export async function trashNodes(ids: string[]): Promise<void> {
   if (ids.length === 0) return;
@@ -448,12 +520,17 @@ export async function listTrash(): Promise<TrashItem[]> {
 }
 
 /**
- * Restores a trashed node to its original spot. If an ancestor was trashed
- * or purged in the meantime, the node is re-homed to its dataroom's root;
- * if the dataroom itself is gone, the restore is refused with a clear
- * message. Container name collisions get a numeric suffix.
+ * Restores a trashed node. By default it returns to its original spot; if
+ * an ancestor was trashed or purged in the meantime, it re-homes to its
+ * dataroom's root, and if the dataroom itself is gone the restore is
+ * refused with a clear message. Passing `intoParentId` (drag-out of the
+ * trash stack) restores straight into that folder instead. Container name
+ * collisions get a numeric suffix.
  */
-export async function restoreNode(id: string): Promise<Node> {
+export async function restoreNode(
+  id: string,
+  intoParentId?: string,
+): Promise<Node> {
   const { data: row, error } = await supabase
     .from("nodes")
     .select(`${NODE_COLUMNS}, deleted_at`)
@@ -461,6 +538,37 @@ export async function restoreNode(id: string): Promise<Node> {
     .maybeSingle<NodeRow & { deleted_at: string | null }>();
   if (error) throw error;
   if (!row || !row.deleted_at) throw new Error("This item isn't in the trash");
+
+  if (intoParentId) {
+    const target = await getNode(intoParentId);
+    if (!target || target.type === "file") {
+      throw new Error("That destination no longer exists");
+    }
+    let name = row.name;
+    if (row.type === "file") {
+      name = await resolveFileName(intoParentId, row.name, id);
+    } else {
+      const taken = await takenContainerNames(intoParentId, id);
+      if (taken.has(name.toLowerCase())) {
+        for (let n = 2; n <= 999; n++) {
+          const candidate = `${row.name} (${n})`.slice(0, MAX_NAME_LENGTH);
+          if (!taken.has(candidate.toLowerCase())) {
+            name = candidate;
+            break;
+          }
+        }
+      }
+    }
+    const { data: restored, error: restoreError } = await supabase
+      .from("nodes")
+      .update({ deleted_at: null, parent_id: intoParentId, name })
+      .eq("id", id)
+      .select(NODE_COLUMNS)
+      .single<NodeRow>();
+    if (restoreError) throw restoreError;
+    emitTrashChanged();
+    return toNode(restored);
+  }
 
   // Walk the ancestor chain: it must be fully live to restore in place.
   interface AncestorRow {
