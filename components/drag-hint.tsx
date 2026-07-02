@@ -30,6 +30,25 @@ export function DragHint() {
     return () => window.removeEventListener("dnd-drag", handle);
   }, []);
 
+  // Safety net: when a drop removes the drag source (row moved to trash),
+  // the browser never fires dragend and no {active:false} event arrives.
+  // Any drop, any dragend, or the first buttons-up pointermove hides the
+  // hint regardless.
+  useEffect(() => {
+    const hide = () => setDrag(null);
+    const onPointerMove = (e: PointerEvent) => {
+      if (e.buttons === 0) setDrag((d) => (d ? null : d));
+    };
+    window.addEventListener("drop", hide, true);
+    window.addEventListener("dragend", hide, true);
+    window.addEventListener("pointermove", onPointerMove, true);
+    return () => {
+      window.removeEventListener("drop", hide, true);
+      window.removeEventListener("dragend", hide, true);
+      window.removeEventListener("pointermove", onPointerMove, true);
+    };
+  }, []);
+
   if (!drag) return null;
   if (drag.kind === "restore" && pathname !== "/") return null;
 

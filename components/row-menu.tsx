@@ -1,12 +1,19 @@
 "use client";
 
 import { useRef } from "react";
-import { EllipsisVertical, Pencil, Trash2 } from "lucide-react";
+import {
+  Download,
+  EllipsisVertical,
+  FolderInput,
+  Pencil,
+  Trash2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
@@ -14,8 +21,14 @@ interface RowMenuProps {
   /** Callbacks receive the kebab element so dialogs can restore focus to it. */
   onRename: (trigger: HTMLElement | null) => void;
   onDelete: (trigger: HTMLElement | null) => void;
+  /** File rows only: single-item download. */
+  onDownload?: () => void;
+  /** Opens the Move to… destination picker for this item. */
+  onMove?: (trigger: HTMLElement | null) => void;
   /** Dataroom cards say "Edit" (name + description + avatar), rows "Rename". */
   renameLabel?: string;
+  /** Names the object for assistive tech: "Actions for {subject}". */
+  subject?: string;
   className?: string;
 }
 
@@ -23,7 +36,10 @@ interface RowMenuProps {
 export function RowMenu({
   onRename,
   onDelete,
+  onDownload,
+  onMove,
   renameLabel = "Rename",
+  subject,
   className,
 }: RowMenuProps) {
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -41,7 +57,7 @@ export function RowMenu({
           ref={triggerRef}
           variant="ghost"
           size="icon-sm"
-          aria-label="More actions"
+          aria-label={subject ? `Actions for ${subject}` : "More actions"}
           className={className}
           onClick={(e) => e.stopPropagation()}
         >
@@ -59,6 +75,12 @@ export function RowMenu({
           if (actionChosenRef.current) e.preventDefault();
         }}
       >
+        {onDownload && (
+          // No dialog follows a download, so focus returns to the kebab.
+          <DropdownMenuItem onSelect={() => onDownload()}>
+            <Download /> Download
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem
           onSelect={() => {
             actionChosenRef.current = true;
@@ -67,6 +89,17 @@ export function RowMenu({
         >
           <Pencil /> {renameLabel}
         </DropdownMenuItem>
+        {onMove && (
+          <DropdownMenuItem
+            onSelect={() => {
+              actionChosenRef.current = true;
+              onMove(triggerRef.current);
+            }}
+          >
+            <FolderInput /> Move to…
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuSeparator />
         <DropdownMenuItem
           variant="destructive"
           onSelect={() => {

@@ -30,10 +30,12 @@ import { flySourcesFor, flyToTrash } from "@/lib/fly-to-trash";
 import { cn } from "@/lib/utils";
 import { partitionPdfs } from "@/lib/validate";
 import { extractPdfText } from "@/lib/extract-pdf-text";
-import { useAsync } from "@/lib/hooks/use-async";
+import { prefetchAsync, useAsync } from "@/lib/hooks/use-async";
 import { useMutation } from "@/lib/hooks/use-mutation";
 import { useCurrentFolder } from "@/lib/hooks/use-current-folder";
 import { useBreadcrumbs } from "@/lib/hooks/use-breadcrumbs";
+import { useDocumentTitle } from "@/lib/hooks/use-document-title";
+import { useSearchHotkey } from "@/lib/hooks/use-search-hotkey";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -42,7 +44,7 @@ import { RequireAuth } from "@/components/require-auth";
 import { SearchResults } from "@/components/search-results";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { RoomToolbar } from "@/components/room-toolbar";
-import { ItemsTable } from "@/components/items-table";
+import { ItemsTable, type ItemsSort } from "@/components/items-table";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
 import { ListSkeleton } from "@/components/list-skeleton";
@@ -120,6 +122,10 @@ function RoomView() {
   const { currentFolderId, isRoot, hrefFor, navigateToFolder } =
     useCurrentFolder(roomId);
   const crumbs = useBreadcrumbs(roomId, currentFolderId);
+  const currentCrumb = crumbs.crumbs?.[crumbs.crumbs.length - 1] ?? null;
+  useDocumentTitle(
+    currentCrumb ? `${currentCrumb.name} — Acme Corp. Data Room` : null,
+  );
   const { state, isStale, reload, setData } = useAsync(
     () => listChildren(currentFolderId),
     currentFolderId,
@@ -140,6 +146,8 @@ function RoomView() {
   const [returnTo, setReturnTo] = useState<HTMLElement | null>(null);
   // A trash-stack item is hovering over the content — show the drop zone.
   const [restoreOver, setRestoreOver] = useState(false);
+  // Column sort lives here so it survives per-folder table remounts.
+  const [sortState, setSortState] = useState<ItemsSort>(null);
   const closeDialog = () => setDialog({ kind: "none" });
 
   // Search: debounced so each keystroke doesn't hit the database. The
@@ -148,6 +156,8 @@ function RoomView() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  useSearchHotkey(searchInputRef);
   const [query, setQuery] = useState(() => searchParams.get("q") ?? "");
   const [debouncedQuery, setDebouncedQuery] = useState(() => query.trim());
   useEffect(() => {
@@ -225,10 +235,12 @@ function RoomView() {
   /**
    * Moving nodes (drag-and-drop or the Move to… dialog). Rows leave the
    * current view when they move elsewhere; errors (cycles, gone targets)
-   * surface as specific toasts.
+   * surface as specific toasts. Undo moves everything back to where the
+   * batch came from — the same promise every trash action makes.
    */
   const handleMove = async (ids: string[], target: Node) => {
     if (target.id === currentFolderId) return;
+    const sourceId = currentFolderId; // every moved row came from this view
     try {
       const moved = await moveNodes(ids, target.id);
       if (moved > 0) {
@@ -238,6 +250,16 @@ function RoomView() {
           moved === 1
             ? `Moved to ${target.name}`
             : `${moved} items moved to ${target.name}`,
+          {
+            action: {
+              label: "Undo",
+              onClick: () => {
+                void moveNodes(ids, sourceId)
+                  .then(() => reload())
+                  .catch(() => toast.error("Couldn't undo the move"));
+              },
+            },
+          },
         );
       }
     } catch (err) {
@@ -251,16 +273,20 @@ function RoomView() {
 
   /** Dragging an item out of the trash stack restores it right here. */
   const handleRestoreDrop = async (ids: string[]) => {
+    let done = 0;
     for (const id of ids) {
       try {
         await restoreNode(id, currentFolderId);
+        done++;
       } catch {
         toast.error("Couldn't restore it");
-        return;
+        break;
       }
     }
-    reload();
-    toast.success(ids.length === 1 ? "Restored" : `${ids.length} restored`);
+    if (done > 0) {
+      reload();
+      toast.success(done === 1 ? "Restored" : `${done} items restored`);
+    }
   };
 
   /** Bulk move-to-trash: one UPDATE, one undo toast for the whole batch. */
@@ -311,36 +337,59 @@ function RoomView() {
     return () => window.removeEventListener("trash-drop-nodes", handle);
   });
 
-  /** Sequential export of the selected files via temporary object URLs. */
+  /**
+   * Sequential export of the selected files via temporary object URLs.
+   * Failures never strand the loading toast: it always settles once, with
+   * an honest count when some files couldn't be fetched.
+   */
   const handleBulkDownload = async (files: Node[]) => {
     if (files.length === 0) return;
     const toastId = toast.loading(
       files.length === 1 ? "Downloading…" : `Downloading 1 of ${files.length}…`,
     );
     let done = 0;
+    let failed = 0;
     for (const file of files) {
-      if (!file.blobKey) continue;
-      toast.loading(`Downloading ${done + 1} of ${files.length}…`, {
+      try {
+        if (!file.blobKey) {
+          failed++;
+          continue;
+        }
+        toast.loading(`Downloading ${done + 1} of ${files.length}…`, {
+          id: toastId,
+        });
+        const blob = await getBlob(file.blobKey);
+        if (!blob) {
+          failed++;
+          continue;
+        }
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = file.name;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 2000);
+        done++;
+        // Small gap keeps browsers from swallowing rapid download triggers.
+        await new Promise((r) => setTimeout(r, 350));
+      } catch {
+        failed++;
+      }
+    }
+    if (done === 0) {
+      toast.error("Couldn't download the files", { id: toastId });
+    } else if (failed > 0) {
+      toast.error(`Downloaded ${done} of ${done + failed} files`, {
         id: toastId,
       });
-      const blob = await getBlob(file.blobKey);
-      if (!blob) continue;
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = file.name;
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 2000);
-      done++;
-      // Small gap keeps browsers from swallowing rapid download triggers.
-      await new Promise((r) => setTimeout(r, 350));
+    } else {
+      toast.success(
+        done === 1 ? "1 file downloaded" : `${done} files downloaded`,
+        { id: toastId },
+      );
     }
-    toast.success(
-      done === 1 ? "1 file downloaded" : `${done} files downloaded`,
-      { id: toastId },
-    );
   };
 
   /**
@@ -354,14 +403,33 @@ function RoomView() {
    */
   const [upload, setUpload] = useState<UploadState | null>(null);
   const uploadCancelRef = useRef(false);
+  // Drops during an in-flight batch APPEND to it instead of clobbering the
+  // panel: one queue, one running loop, indices aligned with panel rows.
+  const uploadQueueRef = useRef<{ file: File; parentId: string }[]>([]);
+  const uploadRunningRef = useRef(false);
+  const uploadIndexRef = useRef(0);
+  const uploadActive = upload !== null && upload.outcome === null;
+
   useEffect(() => {
     if (!upload?.outcome) return;
+    // Failed rows stay on screen until dismissed — evidence beats tidiness.
+    if (upload.files.some((f) => f.status === "error")) return;
     const t = setTimeout(
       () => setUpload(null),
       upload.outcome === "done" ? 4000 : 8000,
     );
     return () => clearTimeout(t);
-  }, [upload?.outcome]);
+  }, [upload]);
+
+  // Refresh/close during an upload would silently drop the queue — warn.
+  useEffect(() => {
+    if (!uploadActive) return;
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [uploadActive]);
 
   const handleFiles = async (incoming: File[]) => {
     if (incoming.length === 0) return;
@@ -370,52 +438,75 @@ function RoomView() {
     if (invalid.length > 0) toast.error(summarizeInvalid(invalid));
     if (valid.length === 0) return;
 
-    uploadCancelRef.current = false;
-    setUpload({
-      files: valid.map((f) => ({ name: f.name, status: "queued" })),
-      outcome: null,
+    uploadQueueRef.current.push(...valid.map((file) => ({ file, parentId })));
+    setUpload((u) => {
+      const fresh = valid.map((f) => ({
+        name: f.name,
+        status: "queued" as const,
+      }));
+      return u && u.outcome === null
+        ? { ...u, files: [...u.files, ...fresh] }
+        : { files: fresh, outcome: null };
     });
-    const setFileStatus = (index: number, status: UploadState["files"][number]["status"]) =>
-      setUpload((u) =>
-        u && {
-          ...u,
-          files: u.files.map((f, j) => (j === index ? { ...f, status } : f)),
-        },
-      );
-    const settle = (outcome: NonNullable<UploadState["outcome"]>) =>
-      setUpload((u) => (u ? { ...u, outcome } : u));
+    if (uploadRunningRef.current) return; // the running loop drains the queue
 
-    for (let i = 0; i < valid.length; i++) {
-      if (uploadCancelRef.current) {
-        settle("cancelled");
-        return;
-      }
-      if (!(await getNode(parentId))) {
-        settle("stopped");
-        return;
-      }
-      setFileStatus(i, "uploading");
-      try {
-        // Extracted text powers content search; scanned PDFs return null.
-        const contentText = await extractPdfText(valid[i]);
-        const node = await saveFile(parentId, valid[i], contentText);
-        setFileStatus(i, "done");
-        // The URL is the source of truth for where the user is NOW.
-        const hereNow =
-          new URLSearchParams(location.search).get("folder") ?? roomId;
-        if (hereNow === parentId) {
-          setData((items) =>
-            items.some((it) => it.id === node.id)
-              ? items
-              : sortNodes([...items, node]),
-          );
+    uploadRunningRef.current = true;
+    uploadCancelRef.current = false;
+    uploadIndexRef.current = 0;
+    const setFileStatus = (
+      index: number,
+      status: UploadState["files"][number]["status"],
+    ) =>
+      setUpload(
+        (u) =>
+          u && {
+            ...u,
+            files: u.files.map((f, j) => (j === index ? { ...f, status } : f)),
+          },
+      );
+
+    try {
+      while (uploadQueueRef.current.length > 0) {
+        if (uploadCancelRef.current) {
+          uploadQueueRef.current = [];
+          break;
         }
-      } catch {
-        // One broken file must never sink the rest of the batch.
-        setFileStatus(i, "error");
+        const job = uploadQueueRef.current.shift();
+        if (!job) break;
+        const index = uploadIndexRef.current++;
+        setFileStatus(index, "uploading");
+        try {
+          if (!(await getNode(job.parentId))) {
+            // Destination vanished mid-flight — fail the file, keep going.
+            setFileStatus(index, "error");
+            continue;
+          }
+          // Extracted text powers content search; scanned PDFs return null.
+          const contentText = await extractPdfText(job.file);
+          const node = await saveFile(job.parentId, job.file, contentText);
+          setFileStatus(index, "done");
+          // The URL is the source of truth for where the user is NOW.
+          const hereNow =
+            new URLSearchParams(location.search).get("folder") ?? roomId;
+          if (hereNow === job.parentId) {
+            setData((items) =>
+              items.some((it) => it.id === node.id)
+                ? items
+                : sortNodes([...items, node]),
+            );
+          }
+        } catch {
+          // One broken file must never sink the rest of the batch.
+          setFileStatus(index, "error");
+        }
       }
+    } finally {
+      uploadRunningRef.current = false;
     }
-    settle("done");
+    setUpload(
+      (u) =>
+        u && { ...u, outcome: uploadCancelRef.current ? "cancelled" : "done" },
+    );
   };
 
   if (crumbs.error) {
@@ -436,6 +527,9 @@ function RoomView() {
 
   return (
     <RoomShell>
+      {/* The visible location lives in the breadcrumbs; this names the
+          page for screen readers and heading navigation. */}
+      {currentCrumb && <h1 className="sr-only">{currentCrumb.name}</h1>}
       <UploadDropzone onFiles={handleFiles}>
         {({ open }) => (
           <div
@@ -465,13 +559,26 @@ function RoomView() {
                 crumbs={crumbs.crumbs ?? []}
                 hrefFor={hrefFor}
                 onDropNodes={(ids, target) => void handleMove(ids, target)}
+                onPrefetch={(id) =>
+                  prefetchAsync(id, () => listChildren(id))
+                }
               />
               <div className="flex flex-wrap items-center gap-2">
                 <div className="relative">
                   <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
+                    ref={searchInputRef}
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key !== "Escape") return;
+                      if (query) {
+                        setQuery("");
+                        e.stopPropagation();
+                      } else {
+                        e.currentTarget.blur();
+                      }
+                    }}
                     placeholder="Search this dataroom"
                     aria-label="Search this dataroom"
                     className="w-56 pl-8 pr-8"
@@ -557,6 +664,17 @@ function RoomView() {
                       <ItemsTable
                         key={currentFolderId} // navigation clears selection
                         items={state.data}
+                        sort={sortState}
+                        onSortChange={setSortState}
+                        onDownloadNode={(node) =>
+                          void handleBulkDownload([node])
+                        }
+                        onMoveNode={(node) =>
+                          openDialog({ kind: "move", nodes: [node] })
+                        }
+                        onPrefetch={(id) =>
+                          prefetchAsync(id, () => listChildren(id))
+                        }
                         hrefFor={hrefFor}
                         onOpenFile={(file, trigger) => {
                           setReturnTo(trigger);
@@ -640,6 +758,7 @@ function RoomView() {
       )}
       <MoveDialog
         key={`move-${dialogGen}`}
+        currentLocationId={currentFolderId}
         open={dialog.kind === "move"}
         movingIds={
           new Set(

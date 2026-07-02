@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowUp } from "lucide-react";
 import type { Node } from "@/types";
 import { cn } from "@/lib/utils";
@@ -17,6 +17,8 @@ import { SelectionBar } from "@/components/selection-bar";
 
 type SortKey = "name" | "size" | "modified";
 type SortDir = "asc" | "desc";
+/** Lifted to the page so the choice survives folder navigation. */
+export type ItemsSort = { key: SortKey; dir: SortDir } | null;
 
 /**
  * Clickable column header. Each click cycles asc → desc → back to the
@@ -69,10 +71,18 @@ function SortableHead({
 interface ItemsTableProps {
   /** Already sorted by the adapter: folders first, then files, name-asc. */
   items: Node[];
+  /** Column sort state, held by the page so navigation keeps it. */
+  sort: ItemsSort;
+  onSortChange: (sort: ItemsSort) => void;
   hrefFor: (id: string) => string;
   onOpenFile: (node: Node, trigger: HTMLElement | null) => void;
   onRename: (node: Node, trigger: HTMLElement | null) => void;
   onDelete: (node: Node, trigger: HTMLElement | null) => void;
+  /** Single-item actions surfaced in the kebab and context menu. */
+  onDownloadNode?: (node: Node) => void;
+  onMoveNode?: (node: Node) => void;
+  /** Warms a folder's contents cache on row hover. */
+  onPrefetch?: (id: string) => void;
   /** Bulk actions for the selection bar. */
   onBulkTrash: (nodes: Node[]) => void;
   onBulkDownload: (files: Node[]) => void;
@@ -90,10 +100,15 @@ interface ItemsTableProps {
  */
 export function ItemsTable({
   items,
+  sort,
+  onSortChange,
   hrefFor,
   onOpenFile,
   onRename,
   onDelete,
+  onDownloadNode,
+  onMoveNode,
+  onPrefetch,
   onBulkTrash,
   onBulkDownload,
   onBulkMove,
@@ -102,13 +117,11 @@ export function ItemsTable({
   const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(
     new Set(),
   );
-  // null = the adapter's default order (folders first, name asc).
-  const [sort, setSort] = useState<{ key: SortKey; dir: SortDir } | null>(null);
   const cycleSort = (key: SortKey) =>
-    setSort((prev) =>
-      prev?.key !== key
+    onSortChange(
+      sort?.key !== key
         ? { key, dir: "asc" }
-        : prev.dir === "asc"
+        : sort.dir === "asc"
           ? { key, dir: "desc" }
           : null,
     );
@@ -170,9 +183,123 @@ export function ItemsTable({
 
   const clear = () => setSelectedIds(new Set());
 
+  // Page-level keyboard: Ctrl/Cmd+A selects the whole folder, Escape drops
+  // the selection. Skipped while typing or while any overlay is open. No
+  // deps: re-subscribed each render so the handlers always see fresh state.
+  useEffect(() => {
+    const handle = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return;
+      const target = e.target as HTMLElement | null;
+      const typing =
+        target instanceof HTMLElement &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable);
+      // Only OPEN layers block the shortcuts — a menu mid-exit-animation
+      // still sits in the DOM with data-state="closed".
+      const layerOpen = document.querySelector(
+        '[data-slot="dialog-content"][data-state="open"], [data-slot="alert-dialog-content"][data-state="open"], [role="menu"][data-state="open"]',
+      );
+      if (typing || layerOpen) return;
+      if ((e.key === "a" || e.key === "A") && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        setSelectedIds(new Set(items.map((i) => i.id)));
+      } else if (e.key === "Escape" && selectionActive) {
+        e.preventDefault();
+        clear();
+      }
+    };
+    window.addEventListener("keydown", handle);
+    return () => window.removeEventListener("keydown", handle);
+  });
+
+  // Clicking empty canvas (outside the table and any control) clears the
+  // selection — the Drive gesture for "never mind".
+  useEffect(() => {
+    const handle = (e: MouseEvent) => {
+      if (!selectionActive) return;
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      if (
+        target.closest(
+          "table, a, button, input, [role='checkbox'], [role='menu'], [data-slot='dialog-content'], [data-slot='alert-dialog-content'], [data-sonner-toast], .pointer-events-auto",
+        )
+      )
+        return;
+      clear();
+    };
+    window.addEventListener("click", handle);
+    return () => window.removeEventListener("click", handle);
+  });
+
+  // List keyboard model, Drive-style: arrows walk rows, F2 renames, Delete
+  // trashes (the selection if one exists, else the focused row), Space
+  // toggles selection. Handlers bubble up from each row's primary control.
+  const handleListKeyDown = (e: React.KeyboardEvent) => {
+    const target = e.target as HTMLElement;
+    const row = target.closest<HTMLElement>("tr[data-node-id]");
+    if (!row) return;
+    const node = sorted.find((n) => n.id === row.getAttribute("data-node-id"));
+    if (!node) return;
+    const rows = Array.from(
+      row.parentElement?.querySelectorAll<HTMLElement>("tr[data-node-id]") ??
+        [],
+    );
+    const index = rows.indexOf(row);
+    const primaryOf = (el?: HTMLElement) =>
+      el?.querySelector<HTMLElement>("[data-row-primary]");
+    switch (e.key) {
+      case "ArrowDown":
+        e.preventDefault();
+        primaryOf(rows[Math.min(index + 1, rows.length - 1)])?.focus();
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        primaryOf(rows[Math.max(index - 1, 0)])?.focus();
+        break;
+      case "Home":
+        e.preventDefault();
+        primaryOf(rows[0])?.focus();
+        break;
+      case "End":
+        e.preventDefault();
+        primaryOf(rows[rows.length - 1])?.focus();
+        break;
+      case "F2":
+        e.preventDefault();
+        onRename(node, target);
+        break;
+      case " ":
+        if (target.hasAttribute("data-row-primary")) {
+          e.preventDefault(); // Space selects; Enter still opens
+          toggle(node, false);
+        }
+        break;
+      case "Delete": {
+        e.preventDefault();
+        // Keep the keyboard in the list: focus the neighbor before rows move.
+        const neighbor =
+          primaryOf(rows[index + 1]) ?? primaryOf(rows[index - 1]);
+        if (selectionActive) {
+          onBulkTrash(liveSelected);
+          clear();
+        } else {
+          onDelete(node, null);
+        }
+        setTimeout(() => {
+          if (neighbor?.isConnected) neighbor.focus();
+        }, 0);
+        break;
+      }
+    }
+  };
+
   return (
     <>
-      <div className="overflow-hidden rounded-card border bg-card">
+      <div
+        className="overflow-hidden rounded-card border bg-card"
+        onKeyDown={handleListKeyDown}
+      >
         <Table className="table-fixed">
           <TableHeader>
             <TableRow className="hover:bg-transparent">
@@ -222,6 +349,9 @@ export function ItemsTable({
                 onOpenFile={onOpenFile}
                 onRename={onRename}
                 onDelete={onDelete}
+                onDownload={onDownloadNode}
+                onMove={onMoveNode}
+                onPrefetch={onPrefetch}
                 selected={selectedIds.has(node.id)}
                 selectionActive={selectionActive}
                 onToggleSelect={toggle}

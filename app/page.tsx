@@ -16,6 +16,7 @@ import {
 } from "@/lib/storage";
 import { flySourcesFor, flyToTrash } from "@/lib/fly-to-trash";
 import { useAsync } from "@/lib/hooks/use-async";
+import { useDocumentTitle } from "@/lib/hooks/use-document-title";
 import { useMutation } from "@/lib/hooks/use-mutation";
 import { Button } from "@/components/ui/button";
 import { AppHeader } from "@/components/app-header";
@@ -74,6 +75,7 @@ export default function HomePage() {
 }
 
 function HomeView() {
+  useDocumentTitle("Datarooms — Acme Corp. Data Room");
   const { state, reload, setData } = useAsync(loadRooms, "datarooms");
   const [dialog, setDialog] = useState<DialogState>({ kind: "none" });
   // Frozen copy of the last real dialog: content renders from it while the

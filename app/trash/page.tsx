@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -28,7 +28,9 @@ import {
 } from "@/lib/storage";
 import { cn, formatBytes, formatDate } from "@/lib/utils";
 import { useAsync } from "@/lib/hooks/use-async";
+import { useDocumentTitle } from "@/lib/hooks/use-document-title";
 import { useMutation } from "@/lib/hooks/use-mutation";
+import { useSearchHotkey } from "@/lib/hooks/use-search-hotkey";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -58,7 +60,8 @@ type ConfirmState =
   | { kind: "purge"; node: Node; counts: DeleteCounts | null }
   | { kind: "purgeMany"; nodes: Node[] }
   | { kind: "restoreTo"; nodes: Node[] }
-  | { kind: "empty" };
+  // counts = everything INSIDE deleted folders, fetched after opening.
+  | { kind: "empty"; counts: DeleteCounts | null };
 
 export default function TrashPage() {
   return (
@@ -70,6 +73,9 @@ export default function TrashPage() {
 
 function TrashView() {
   const router = useRouter();
+  useDocumentTitle("Trash — Acme Corp. Data Room");
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  useSearchHotkey(searchInputRef);
   const { state, reload, setData } = useAsync(listTrash, "trash");
   const [confirm, setConfirm] = useState<ConfirmState>({ kind: "none" });
   // Frozen copy of the last real confirm: dialog copy renders from it while
@@ -245,6 +251,31 @@ function TrashView() {
     );
   };
 
+  /**
+   * "Empty trash?" must not undercount: roots are just the tip — sum
+   * everything inside deleted folders too before naming a number.
+   */
+  const openEmptyConfirm = () => {
+    openConfirm({ kind: "empty", counts: null });
+    void Promise.all(
+      items.map((i) =>
+        getDeleteCounts(i.node.id).catch(() => ({ folders: 0, files: 0 })),
+      ),
+    ).then((all) =>
+      setConfirm((c) =>
+        c.kind === "empty"
+          ? {
+              ...c,
+              counts: {
+                folders: all.reduce((s, x) => s + x.folders, 0),
+                files: all.reduce((s, x) => s + x.files, 0),
+              },
+            }
+          : c,
+      ),
+    );
+  };
+
   return (
     <>
       <AppHeader />
@@ -272,8 +303,18 @@ function TrashView() {
               <div className="relative">
                 <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
+                  ref={searchInputRef}
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key !== "Escape") return;
+                    if (query) {
+                      setQuery("");
+                      e.stopPropagation();
+                    } else {
+                      e.currentTarget.blur();
+                    }
+                  }}
                   placeholder="Search the trash"
                   aria-label="Search the trash"
                   className="w-56 pl-8 pr-8"
@@ -292,7 +333,7 @@ function TrashView() {
               <Button
                 variant="outline"
                 className="text-destructive hover:text-destructive"
-                onClick={() => openConfirm({ kind: "empty" })}
+                onClick={openEmptyConfirm}
               >
                 <Trash2 /> Empty trash
               </Button>
@@ -379,7 +420,7 @@ function TrashView() {
                             "transition-opacity",
                             selected || selectionActive
                               ? "opacity-100"
-                              : "opacity-0 group-hover/trash:opacity-100 focus-visible:opacity-100",
+                              : "opacity-0 group-hover/trash:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100",
                           )}
                         />
                         {isFolder ? (
@@ -609,9 +650,18 @@ function TrashView() {
           <AlertDialogHeader>
             <AlertDialogTitle>Empty trash?</AlertDialogTitle>
             <AlertDialogDescription>
-              {items.length === 1
-                ? "1 item will be deleted forever."
-                : `${items.length} items will be deleted forever.`}{" "}
+              {(() => {
+                const extra =
+                  shownConfirm.kind === "empty" && shownConfirm.counts
+                    ? shownConfirm.counts.folders + shownConfirm.counts.files
+                    : null;
+                const total = extra === null ? null : items.length + extra;
+                if (total === null)
+                  return `${items.length === 1 ? "1 item" : `${items.length} items`} will be deleted forever.`;
+                return total === 1
+                  ? "1 item will be deleted forever."
+                  : `${total} items — including everything inside deleted folders — will be deleted forever.`;
+              })()}{" "}
               This can&apos;t be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>

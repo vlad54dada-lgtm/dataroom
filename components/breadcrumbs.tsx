@@ -20,6 +20,8 @@ interface BreadcrumbsProps {
   hrefFor: (id: string) => string;
   /** Rows dragged onto an ancestor crumb move there. */
   onDropNodes?: (ids: string[], target: Node) => void;
+  /** Warms a crumb's contents cache on hover so going back is instant. */
+  onPrefetch?: (id: string) => void;
 }
 
 function Separator() {
@@ -37,19 +39,24 @@ function CrumbLink({
   href,
   onDropNodes,
   onHighlight,
+  onPrefetch,
 }: {
   node: Node;
   href: string;
   onDropNodes?: (ids: string[], target: Node) => void;
   /** Reports the hovered/focused element so the shared pill can slide to it. */
   onHighlight: (el: HTMLElement) => void;
+  onPrefetch?: (id: string) => void;
 }) {
   const [dropReady, setDropReady] = useState(false);
   return (
     <Link
       href={href}
       title={node.name}
-      onPointerEnter={(e) => onHighlight(e.currentTarget)}
+      onPointerEnter={(e) => {
+        onHighlight(e.currentTarget);
+        onPrefetch?.(node.id);
+      }}
       onFocus={(e) => onHighlight(e.currentTarget)}
       onDragOver={(e) => {
         if (!onDropNodes || !e.dataTransfer.types.includes(MOVE_MIME)) return;
@@ -86,7 +93,12 @@ function CrumbLink({
  * pattern): it appears in place on first hover, then tweens transform/size
  * between targets, and fades out when the pointer leaves the trail.
  */
-export function Breadcrumbs({ crumbs, hrefFor, onDropNodes }: BreadcrumbsProps) {
+export function Breadcrumbs({
+  crumbs,
+  hrefFor,
+  onDropNodes,
+  onPrefetch,
+}: BreadcrumbsProps) {
   const listRef = useRef<HTMLOListElement>(null);
   const pillRef = useRef<HTMLSpanElement>(null);
   const pillOn = useRef(false);
@@ -179,6 +191,7 @@ export function Breadcrumbs({ crumbs, hrefFor, onDropNodes }: BreadcrumbsProps) 
               href={hrefFor(node.id)}
               onDropNodes={onDropNodes}
               onHighlight={showPill}
+              onPrefetch={onPrefetch}
             />
           </li>
         ))}

@@ -25,6 +25,44 @@ export function clearAsyncCache(): void {
 }
 
 /**
+ * Fill the SWR cache ahead of navigation (e.g. on folder-row hover) so the
+ * next useAsync mount renders instantly. In-flight keys are deduped.
+ */
+const prefetchPending = new Set<string>();
+export function prefetchAsync<T>(key: string, load: () => Promise<T>): void {
+  if (swrCache.has(key) || prefetchPending.has(key)) return;
+  prefetchPending.add(key);
+  load()
+    .then((data) => {
+      if (!swrCache.has(key)) swrCache.set(key, data);
+    })
+    .catch(() => undefined)
+    .finally(() => prefetchPending.delete(key));
+}
+
+/**
+ * Revalidate-on-focus: every mounted hook re-runs its loader when the tab
+ * becomes visible again or the connection returns, so a list left open in
+ * a second window never goes stale. Throttled so window-juggling doesn't
+ * hammer the backend; stale-while-revalidate keeps the UI from flashing.
+ */
+const reloaders = new Set<() => void>();
+let lastRevalidate = 0;
+function revalidateAll(): void {
+  const now = Date.now();
+  if (now - lastRevalidate < 3000) return;
+  lastRevalidate = now;
+  reloaders.forEach((reload) => reload());
+}
+if (typeof document !== "undefined") {
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") revalidateAll();
+  });
+  window.addEventListener("focus", revalidateAll);
+  window.addEventListener("online", revalidateAll);
+}
+
+/**
  * Minimal data-loading primitive over the async storage adapter, with
  * stale-while-revalidate built in.
  *
@@ -82,6 +120,13 @@ export function useAsync<T>(load: () => Promise<T>, key: string) {
   const isStale = !fresh && state.status === "success";
 
   const reload = useCallback(() => setTick((t) => t + 1), []);
+
+  useEffect(() => {
+    reloaders.add(reload);
+    return () => {
+      reloaders.delete(reload);
+    };
+  }, [reload]);
 
   const setData = useCallback((updater: (prev: T) => T) => {
     setSnapshot((prev) => {

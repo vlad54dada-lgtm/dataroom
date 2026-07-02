@@ -30,7 +30,14 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <ThemeProvider>
           <TooltipProvider delayDuration={200}>{children}</TooltipProvider>
-          <Toaster position="bottom-right" closeButton />
+          {/* Offset above the trash FAB (right-6 bottom-6, 48px) so toasts
+              never cover its badge, the fly-to-trash landing, or the peek. */}
+          <Toaster
+            position="bottom-right"
+            closeButton
+            offset={{ bottom: 88 }}
+            mobileOffset={{ bottom: 88 }}
+          />
         </ThemeProvider>
       </body>
     </html>

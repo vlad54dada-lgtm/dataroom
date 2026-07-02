@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FileText } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { useDocumentTitle } from "@/lib/hooks/use-document-title";
 import { useSession } from "@/lib/hooks/use-session";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +28,7 @@ function authErrorMessage(message: string): string {
 export default function LoginPage() {
   const router = useRouter();
   const session = useSession();
+  useDocumentTitle("Sign in — Acme Corp. Data Room");
   const [mode, setMode] = useState<Mode>("sign-in");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -34,9 +36,14 @@ export default function LoginPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // Already signed in (or just signed in) → go to the app.
+  // Already signed in (or just signed in) → back to where the user was
+  // headed (?next= set by the auth guard), or the app root.
   useEffect(() => {
-    if (session.status === "signed-in") router.replace("/");
+    if (session.status !== "signed-in") return;
+    const next = new URLSearchParams(window.location.search).get("next");
+    router.replace(
+      next && next.startsWith("/") && !next.startsWith("//") ? next : "/",
+    );
   }, [session.status, router]);
 
   const canSubmit =

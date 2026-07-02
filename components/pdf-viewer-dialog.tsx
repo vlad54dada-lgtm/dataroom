@@ -1,12 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Download } from "lucide-react";
+import { Download, Loader2 } from "lucide-react";
 import type { Node } from "@/types";
 import { getBlob } from "@/lib/storage";
-import { useAsync } from "@/lib/hooks/use-async";
 import { Button } from "@/components/ui/button";
 import { PdfCanvasViewer } from "@/components/pdf-canvas-viewer";
+
+type BlobState =
+  | { key: string; status: "loading" | "error" | "missing"; url: null }
+  | { key: string; status: "ready"; url: string };
 import {
   Dialog,
   DialogContent,
@@ -53,17 +56,43 @@ export function PdfViewerDialog({
     }
   };
 
-  const { state } = useAsync(async () => {
-    if (!blobKey) return null;
-    const blob = await getBlob(blobKey);
-    return blob ? URL.createObjectURL(blob) : null;
-  }, blobKey ?? "closed");
+  // Blob loading is hand-rolled (not useAsync): the SWR fallback there
+  // would replay a stale "closed" snapshot on reopen and flash the error
+  // copy where a loading state belongs. Only SETTLED results are stored;
+  // "loading" is simply "no settled result for the current key yet".
+  const [blob, setBlob] = useState<BlobState | null>(null);
+  const [retryTick, setRetryTick] = useState(0);
+  useEffect(() => {
+    if (!blobKey) return; // closing: keep the last document for the exit
+    let cancelled = false;
+    getBlob(blobKey).then(
+      (data) => {
+        if (cancelled) return;
+        setBlob(
+          data
+            ? { key: blobKey, status: "ready", url: URL.createObjectURL(data) }
+            : { key: blobKey, status: "missing", url: null },
+        );
+      },
+      () => {
+        if (!cancelled) setBlob({ key: blobKey, status: "error", url: null });
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [blobKey, retryTick]);
 
-  const url = state.status === "success" ? state.data : null;
-  const unavailable =
-    blobKey !== null &&
-    (state.status === "error" ||
-      (state.status === "success" && state.data === null));
+  const settled = blob !== null && blob.key === blobKey ? blob : null;
+  const url =
+    settled?.status === "ready"
+      ? settled.url
+      : !blobKey && blob?.status === "ready"
+        ? blob.url // dialog closing: hold the document through the exit
+        : null;
+  const loading = blobKey !== null && settled === null;
+  const unavailable = settled?.status === "missing";
+  const loadFailed = settled?.status === "error";
 
   // Revoke exactly once per created URL — on change, close, or unmount.
   useEffect(() => {
@@ -93,14 +122,32 @@ export function PdfViewerDialog({
           )}
         </DialogHeader>
         <div className="flex min-h-0 flex-1 flex-col">
-          {blobKey !== null && state.status === "loading" && (
-            <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-              Loading&hellip;
+          {loading && (
+            <div className="flex flex-1 items-center justify-center text-muted-foreground">
+              <Loader2
+                className="size-5 animate-spin"
+                aria-label="Loading document"
+              />
             </div>
           )}
           {unavailable && (
             <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
               This file is unavailable.
+            </div>
+          )}
+          {loadFailed && (
+            <div className="flex flex-1 flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
+              <p>Couldn&apos;t load the document.</p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setBlob(null); // back to the loading state immediately
+                  setRetryTick((t) => t + 1);
+                }}
+              >
+                Try again
+              </Button>
             </div>
           )}
           {url && shown && !canvasFailed && (

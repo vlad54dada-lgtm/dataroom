@@ -8,8 +8,8 @@ export type UploadFileStatus = "queued" | "uploading" | "done" | "error";
 
 export interface UploadState {
   files: { name: string; status: UploadFileStatus }[];
-  /** null while running. "stopped" = destination folder disappeared. */
-  outcome: "done" | "cancelled" | "stopped" | null;
+  /** null while the queue is still draining. */
+  outcome: "done" | "cancelled" | null;
 }
 
 interface UploadPanelProps {
@@ -32,13 +32,11 @@ export function UploadPanel({ state, onCancel, onDismiss }: UploadPanelProps) {
 
   const title = running
     ? `Uploading ${Math.min(settled + 1, total)} of ${total}…`
-    : state.outcome === "done"
-      ? failed > 0
+    : state.outcome === "cancelled"
+      ? `Upload cancelled — ${done} uploaded`
+      : failed > 0
         ? `${done} uploaded · ${failed} failed`
-        : `${done} ${done === 1 ? "file" : "files"} uploaded`
-      : state.outcome === "cancelled"
-        ? `Upload cancelled — ${done} uploaded`
-        : `Upload stopped — the destination folder was deleted`;
+        : `${done} ${done === 1 ? "file" : "files"} uploaded`;
 
   return (
     <div className="fixed bottom-6 left-6 z-40 w-80 max-w-[calc(100vw-3rem)] rounded-card border bg-card p-3 shadow-lg motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-4 motion-safe:duration-300 motion-safe:ease-out-strong">
@@ -101,6 +99,14 @@ export function UploadPanel({ state, onCancel, onDismiss }: UploadPanelProps) {
             >
               {f.name}
             </span>
+            {f.status === "error" && (
+              <span
+                className="shrink-0 text-destructive"
+                title="Upload failed — check the connection and try again"
+              >
+                Failed
+              </span>
+            )}
           </li>
         ))}
       </ul>

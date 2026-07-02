@@ -23,7 +23,15 @@ export function RequireAuth({
   const router = useRouter();
 
   useEffect(() => {
-    if (session.status === "signed-out") router.replace("/login");
+    if (session.status !== "signed-out") return;
+    // Remember where the user was headed so sign-in can return there —
+    // bookmarked deep folders and expired sessions land back in place.
+    const here = window.location.pathname + window.location.search;
+    router.replace(
+      here && here !== "/"
+        ? `/login?next=${encodeURIComponent(here)}`
+        : "/login",
+    );
   }, [session.status, router]);
 
   if (session.status !== "signed-in") {
