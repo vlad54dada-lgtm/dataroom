@@ -1,5 +1,11 @@
 import { supabase } from "@/lib/supabase";
-import type { CreateNodeInput, DeleteCounts, Node, NodeType } from "@/types";
+import type {
+  CreateNodeInput,
+  DataroomPatch,
+  DeleteCounts,
+  Node,
+  NodeType,
+} from "@/types";
 import {
   MAX_NAME_LENGTH,
   normalizeName,
@@ -65,10 +71,13 @@ interface NodeRow {
   blob_path: string | null;
   created_at: string;
   updated_at: string;
+  description: string | null;
+  icon: string | null;
+  color: string | null;
 }
 
 const NODE_COLUMNS =
-  "id, parent_id, type, name, size, blob_path, created_at, updated_at";
+  "id, parent_id, type, name, size, blob_path, created_at, updated_at, description, icon, color";
 
 function toNode(row: NodeRow): Node {
   return {
@@ -81,7 +90,17 @@ function toNode(row: NodeRow): Node {
     ...(row.type === "file"
       ? { size: row.size ?? 0, blobKey: row.blob_path ?? undefined }
       : {}),
+    ...(row.description !== null ? { description: row.description } : {}),
+    ...(row.icon !== null ? { icon: row.icon } : {}),
+    ...(row.color !== null ? { color: row.color } : {}),
   };
+}
+
+/** Lets open pages (e.g. the trash badge) refresh after trash mutations. */
+function emitTrashChanged(): void {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("trash-changed"));
+  }
 }
 
 async function currentUserId(): Promise<string> {
@@ -232,13 +251,53 @@ export async function createNode(input: CreateNodeInput): Promise<Node> {
   if (invalid) throw new InvalidNameError(invalid);
   const userId = await currentUserId();
   const parentId = input.type === "dataroom" ? null : input.parentId;
+  const identity =
+    input.type === "dataroom"
+      ? {
+          description: input.description?.trim() || null,
+          icon: input.icon ?? null,
+          color: input.color ?? null,
+        }
+      : {};
   const { data, error } = await supabase
     .from("nodes")
-    .insert({ user_id: userId, parent_id: parentId, type: input.type, name })
+    .insert({
+      user_id: userId,
+      parent_id: parentId,
+      type: input.type,
+      name,
+      ...identity,
+    })
     .select(NODE_COLUMNS)
     .single<NodeRow>();
   if (error) {
     if (isUniqueViolation(error)) throw new DuplicateNameError(input.type);
+    throw error;
+  }
+  return toNode(data);
+}
+
+/** Updates a dataroom's name + identity in one call (the room dialog). */
+export async function updateDataroom(
+  id: string,
+  patch: DataroomPatch,
+): Promise<Node> {
+  const name = normalizeName(patch.name);
+  const invalid = validateName(name);
+  if (invalid) throw new InvalidNameError(invalid);
+  const { data, error } = await supabase
+    .from("nodes")
+    .update({
+      name,
+      description: patch.description?.trim() || null,
+      icon: patch.icon,
+      color: patch.color,
+    })
+    .eq("id", id)
+    .select(NODE_COLUMNS)
+    .single<NodeRow>();
+  if (error) {
+    if (isUniqueViolation(error)) throw new DuplicateNameError("dataroom");
     throw error;
   }
   return toNode(data);
@@ -346,6 +405,17 @@ export async function trashNode(id: string): Promise<void> {
     .update({ deleted_at: new Date().toISOString() })
     .eq("id", id);
   if (error) throw error;
+  emitTrashChanged();
+}
+
+/** Number of items currently in the trash — powers the floating badge. */
+export async function countTrash(): Promise<number> {
+  const { count, error } = await supabase
+    .from("nodes")
+    .select("id", { count: "exact", head: true })
+    .not("deleted_at", "is", null);
+  if (error) throw error;
+  return count ?? 0;
 }
 
 /** Everything in the trash, newest first, with dataroom context. */
@@ -440,6 +510,7 @@ export async function restoreNode(id: string): Promise<Node> {
     .select(NODE_COLUMNS)
     .single<NodeRow>();
   if (restoreError) throw restoreError;
+  emitTrashChanged();
   return toNode(restored);
 }
 
@@ -497,6 +568,7 @@ export async function purgeNode(id: string): Promise<void> {
   for (let i = 0; i < blobPaths.length; i += 100) {
     await supabase.storage.from("pdfs").remove(blobPaths.slice(i, i + 100));
   }
+  emitTrashChanged();
 }
 
 /** Permanently deletes everything currently in the trash. */
