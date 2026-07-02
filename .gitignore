@@ -23,6 +23,9 @@ next-env.d.ts
 # claude code — personal local overrides stay out of the repo
 .claude/settings.local.json
 
+# local planning doc — kept out of the submission repo
+PLAN.md
+
 # misc
 .DS_Store
 *.pem
