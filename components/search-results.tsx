@@ -1,13 +1,16 @@
 "use client";
 
-import { FileText, Folder } from "lucide-react";
+import { FileText, Folder, FolderOpen } from "lucide-react";
 import type { Node } from "@/types";
 import type { SearchResult } from "@/lib/storage";
+import { Button } from "@/components/ui/button";
 
 interface SearchResultsProps {
   results: SearchResult[];
   onOpenFolder: (node: Node) => void;
   onOpenFile: (node: Node, trigger: HTMLElement | null) => void;
+  /** Jump to the folder that CONTAINS the hit (null parent = room root). */
+  onOpenLocation?: (parentId: string | null) => void;
 }
 
 /**
@@ -44,54 +47,76 @@ export function SearchResults({
   results,
   onOpenFolder,
   onOpenFile,
+  onOpenLocation,
 }: SearchResultsProps) {
   return (
     <div className="divide-y overflow-hidden rounded-card border bg-card motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-200">
       {results.map(({ node, parentName, contentMatch, snippet }) => {
         const isFolder = node.type !== "file";
         return (
-          <button
+          <div
             key={node.id}
-            type="button"
-            onClick={(e) =>
-              isFolder ? onOpenFolder(node) : onOpenFile(node, e.currentTarget)
-            }
-            className="flex h-14 w-full min-w-0 items-center gap-3 px-4 text-left transition-colors duration-150 outline-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring/50"
+            className="group/hit flex h-14 min-w-0 items-center gap-3 pr-3 pl-4 transition-colors duration-150 hover:bg-muted/50"
           >
-            <span
-              className={`flex size-8 shrink-0 items-center justify-center rounded-tile ${
-                isFolder ? "bg-folder-bg" : "bg-file-bg"
-              }`}
+            <button
+              type="button"
+              onClick={(e) =>
+                isFolder
+                  ? onOpenFolder(node)
+                  : onOpenFile(node, e.currentTarget)
+              }
+              className="flex h-full min-w-0 flex-1 items-center gap-3 rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
             >
-              {isFolder ? (
-                <Folder className="size-5 text-folder" strokeWidth={1.75} />
-              ) : (
-                <FileText className="size-5 text-file" strokeWidth={1.75} />
-              )}
-            </span>
-            <span className="min-w-0 flex-1">
               <span
-                className="block truncate text-sm font-medium"
-                title={node.name}
+                className={`flex size-8 shrink-0 items-center justify-center rounded-tile ${
+                  isFolder ? "bg-folder-bg" : "bg-file-bg"
+                }`}
               >
-                {node.name}
+                {isFolder ? (
+                  <Folder className="size-5 text-folder" strokeWidth={1.75} />
+                ) : (
+                  <FileText className="size-5 text-file" strokeWidth={1.75} />
+                )}
               </span>
-              <span className="block truncate text-xs text-muted-foreground">
-                in {parentName}
-                {snippet ? (
-                  <>
-                    {" · "}
-                    <Snippet text={snippet} />
-                  </>
-                ) : null}
+              <span className="min-w-0 flex-1">
+                <span
+                  className="block truncate text-sm font-medium"
+                  title={node.name}
+                >
+                  {node.name}
+                  <span className="sr-only">
+                    {isFolder ? ", folder" : ", PDF"}
+                  </span>
+                </span>
+                <span className="block truncate text-xs text-muted-foreground">
+                  in {parentName}
+                  {snippet ? (
+                    <>
+                      {" · "}
+                      <Snippet text={snippet} />
+                    </>
+                  ) : null}
+                </span>
               </span>
-            </span>
+            </button>
             {contentMatch && (
               <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-foreground/70">
                 Text match
               </span>
             )}
-          </button>
+            {onOpenLocation && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={`Open location: ${parentName}`}
+                title={`Open ${parentName}`}
+                className="shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover/hit:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100"
+                onClick={() => onOpenLocation(node.parentId)}
+              >
+                <FolderOpen />
+              </Button>
+            )}
+          </div>
         );
       })}
     </div>

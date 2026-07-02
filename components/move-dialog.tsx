@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronRight, CornerDownRight, Folder } from "lucide-react";
+import { ChevronRight, CornerDownRight, Folder, Loader2 } from "lucide-react";
 import type { Node } from "@/types";
 import { listChildren } from "@/lib/storage";
 import { cn } from "@/lib/utils";
@@ -60,7 +60,14 @@ export function MoveDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+    // Closing is blocked while the move is in flight (Esc/overlay/X).
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next && submitting) return;
+        if (!next) onClose();
+      }}
+    >
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="truncate">Move {movingLabel} to…</DialogTitle>
@@ -105,7 +112,12 @@ export function MoveDialog({
             ))}
         </div>
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={onClose}>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={submitting}
+            onClick={onClose}
+          >
             Cancel
           </Button>
           <Button
@@ -120,7 +132,12 @@ export function MoveDialog({
             }
             onClick={() => void handleConfirm()}
           >
-            <CornerDownRight /> Move here
+            {submitting ? (
+              <Loader2 className="animate-spin" />
+            ) : (
+              <CornerDownRight />
+            )}{" "}
+            Move here
           </Button>
         </DialogFooter>
       </DialogContent>

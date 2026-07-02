@@ -77,6 +77,8 @@ export function SelectionBar(props: SelectionBarProps) {
           {count} selected
         </span>
         <span className="mx-1.5 h-4 w-px bg-border" aria-hidden />
+        {/* Labels collapse to icons below sm so the bar fits a 375px
+            viewport; the text stays for screen readers. */}
         <Button
           variant="ghost"
           size="sm"
@@ -84,12 +86,14 @@ export function SelectionBar(props: SelectionBarProps) {
           onClick={onDownload}
         >
           <Download />
-          {fileCount > 0 && count !== fileCount
-            ? `Download ${fileCount} ${fileCount === 1 ? "file" : "files"}`
-            : "Download"}
+          <span className="max-sm:sr-only">
+            {fileCount > 0 && count !== fileCount
+              ? `Download ${fileCount} ${fileCount === 1 ? "file" : "files"}`
+              : "Download"}
+          </span>
         </Button>
         <Button variant="ghost" size="sm" onClick={onMove}>
-          <FolderInput /> Move to…
+          <FolderInput /> <span className="max-sm:sr-only">Move to…</span>
         </Button>
         <Button
           variant="ghost"
@@ -97,7 +101,7 @@ export function SelectionBar(props: SelectionBarProps) {
           className="text-destructive hover:text-destructive"
           onClick={onTrash}
         >
-          <Trash2 /> Move to trash
+          <Trash2 /> <span className="max-sm:sr-only">Move to trash</span>
         </Button>
         <Button
           variant="ghost"

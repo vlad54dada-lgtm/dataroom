@@ -9,6 +9,7 @@ import {
   FileText,
   Folder,
   FolderInput,
+  Loader2,
   RotateCcw,
   Search,
   Trash2,
@@ -95,6 +96,18 @@ function TrashView() {
     new Set(),
   );
   const closeConfirm = () => setConfirm({ kind: "none" });
+  // Bulk restore/purge loops run for seconds on big selections — one busy
+  // flag disables their buttons so a double-click can't run them twice.
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const runBulk = async (fn: () => Promise<void>) => {
+    if (bulkBusy) return;
+    setBulkBusy(true);
+    try {
+      await fn();
+    } finally {
+      setBulkBusy(false);
+    }
+  };
 
   const items = state.status === "success" ? state.data : [];
   const liveSelected = items.filter((i) => selectedIds.has(i.node.id));
@@ -353,6 +366,16 @@ function TrashView() {
                 (search.state.data.length === 0 ? (
                   <EmptyState variant="no-results" query={debouncedQuery} />
                 ) : (
+                  <>
+                  <p
+                    role="status"
+                    className="mb-2 text-xs text-muted-foreground"
+                  >
+                    {search.state.data.length === 1
+                      ? "1 result"
+                      : `${search.state.data.length} results`}{" "}
+                    for &ldquo;{debouncedQuery}&rdquo;
+                  </p>
                   <div className="divide-y overflow-hidden rounded-card border bg-card motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-200">
                     {search.state.data.map((hit) => (
                       <TrashSearchHit
@@ -367,6 +390,7 @@ function TrashView() {
                       />
                     ))}
                   </div>
+                  </>
                 ))}
             </>
           ) : (
@@ -528,15 +552,18 @@ function TrashView() {
             <Button
               variant="ghost"
               size="sm"
+              disabled={bulkBusy}
               onClick={() =>
-                void restoreMany(liveSelected.map((i) => i.node))
+                void runBulk(() => restoreMany(liveSelected.map((i) => i.node)))
               }
             >
-              <RotateCcw /> Restore
+              {bulkBusy ? <Loader2 className="animate-spin" /> : <RotateCcw />}{" "}
+              <span className="max-sm:sr-only">Restore</span>
             </Button>
             <Button
               variant="ghost"
               size="sm"
+              disabled={bulkBusy}
               onClick={() =>
                 openConfirm({
                   kind: "restoreTo",
@@ -544,11 +571,12 @@ function TrashView() {
                 })
               }
             >
-              <FolderInput /> Restore to…
+              <FolderInput /> <span className="max-sm:sr-only">Restore to…</span>
             </Button>
             <Button
               variant="ghost"
               size="sm"
+              disabled={bulkBusy}
               className="text-destructive hover:text-destructive"
               onClick={() =>
                 openConfirm({
@@ -557,7 +585,7 @@ function TrashView() {
                 })
               }
             >
-              <Trash2 /> Delete forever
+              <Trash2 /> <span className="max-sm:sr-only">Delete forever</span>
             </Button>
             <Button
               variant="ghost"
@@ -626,16 +654,19 @@ function TrashView() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={bulkBusy}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
+              disabled={bulkBusy}
               onClick={(e) => {
                 e.preventDefault();
                 if (confirm.kind === "purgeMany") {
-                  void purgeMany(confirm.nodes).finally(closeConfirm);
+                  const nodes = confirm.nodes;
+                  void runBulk(() => purgeMany(nodes)).finally(closeConfirm);
                 }
               }}
             >
+              {bulkBusy && <Loader2 className="animate-spin" />}
               Delete forever
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -666,9 +697,12 @@ function TrashView() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={empty.pending}>
+              Cancel
+            </AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
+              disabled={empty.pending}
               onClick={(e) => {
                 e.preventDefault();
                 void empty
@@ -677,6 +711,7 @@ function TrashView() {
                   .finally(closeConfirm);
               }}
             >
+              {empty.pending && <Loader2 className="animate-spin" />}
               Empty trash
             </AlertDialogAction>
           </AlertDialogFooter>

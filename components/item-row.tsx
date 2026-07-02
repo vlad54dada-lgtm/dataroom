@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import type { Node } from "@/types";
 import { MOVE_MIME, readIds, startDragGhost } from "@/lib/dnd";
-import { cn, formatBytes, formatDate } from "@/lib/utils";
+import { cn, formatBytes, formatDateTime, formatModified } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   ContextMenu,
@@ -77,7 +77,7 @@ export function ItemRow({
   const router = useRouter();
   const isFolder = node.type !== "file";
   const size = node.type === "file" ? formatBytes(node.size ?? 0) : null;
-  const modified = formatDate(node.updatedAt);
+  const modified = formatModified(node.updatedAt);
   // Folder rows light up while a compatible drag hovers over them.
   const [dropReady, setDropReady] = useState(false);
   // The source row dims while its drag is in flight.
@@ -227,7 +227,10 @@ export function ItemRow({
           <TableCell className="hidden w-28 px-4 py-0 text-right text-sm tabular-nums text-muted-foreground md:table-cell">
             {size ?? "—"}
           </TableCell>
-          <TableCell className="hidden w-44 px-4 py-0 text-sm tabular-nums text-muted-foreground md:table-cell">
+          <TableCell
+            className="hidden w-44 px-4 py-0 text-sm tabular-nums text-muted-foreground md:table-cell"
+            title={formatDateTime(node.updatedAt)}
+          >
             {modified}
           </TableCell>
           <TableCell className="w-12 px-2 py-0 text-right">

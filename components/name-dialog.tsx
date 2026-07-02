@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -126,7 +127,16 @@ export function NameDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+    // While a submit is in flight the dialog refuses to close — Esc,
+    // overlay clicks, and the X would leave the mutation racing a closed
+    // dialog and the result landing with no context.
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next && submitting) return;
+        if (!next) onClose();
+      }}
+    >
       <DialogContent
         onOpenAutoFocus={focusInput}
         onCloseAutoFocus={restoreFocus}
@@ -161,10 +171,16 @@ export function NameDialog({
             ) : null}
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={submitting}
+              onClick={onClose}
+            >
               Cancel
             </Button>
             <Button type="submit" disabled={!canSubmit}>
+              {submitting && <Loader2 className="animate-spin" />}
               {mode === "create" ? TITLE.create[entity] : "Rename"}
             </Button>
           </DialogFooter>

@@ -628,18 +628,34 @@ function RoomView() {
                     (search.state.data.length === 0 ? (
                       <EmptyState variant="no-results" query={debouncedQuery} />
                     ) : (
-                      <SearchResults
-                        results={search.state.data}
-                        onOpenFolder={(node) => {
-                          setQuery("");
-                          setDebouncedQuery("");
-                          navigateToFolder(node.id);
-                        }}
-                        onOpenFile={(file, trigger) => {
-                          setReturnTo(trigger);
-                          setViewerFile(file);
-                        }}
-                      />
+                      <>
+                        <p
+                          role="status"
+                          className="mb-2 text-xs text-muted-foreground"
+                        >
+                          {search.state.data.length === 1
+                            ? "1 result"
+                            : `${search.state.data.length} results`}{" "}
+                          for &ldquo;{debouncedQuery}&rdquo;
+                        </p>
+                        <SearchResults
+                          results={search.state.data}
+                          onOpenFolder={(node) => {
+                            setQuery("");
+                            setDebouncedQuery("");
+                            navigateToFolder(node.id);
+                          }}
+                          onOpenFile={(file, trigger) => {
+                            setReturnTo(trigger);
+                            setViewerFile(file);
+                          }}
+                          onOpenLocation={(parentId) => {
+                            setQuery("");
+                            setDebouncedQuery("");
+                            navigateToFolder(parentId ?? roomId);
+                          }}
+                        />
+                      </>
                     ))}
                 </>
               ) : (

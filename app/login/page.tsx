@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { FileText } from "lucide-react";
+import { Eye, EyeOff, FileText, Loader2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useDocumentTitle } from "@/lib/hooks/use-document-title";
 import { useSession } from "@/lib/hooks/use-session";
@@ -35,6 +35,7 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   // Already signed in (or just signed in) → back to where the user was
   // headed (?next= set by the auth guard), or the app root.
@@ -143,19 +144,33 @@ export default function LoginPage() {
             </div>
             <div className="flex flex-col gap-2">
               <Label htmlFor="login-password">Password</Label>
-              <Input
-                id="login-password"
-                type="password"
-                autoComplete={
-                  mode === "sign-in" ? "current-password" : "new-password"
-                }
-                className="h-10"
-                value={password}
-                onChange={(e) => {
-                  setPassword(e.target.value);
-                  setError(null);
-                }}
-              />
+              <div className="relative">
+                <Input
+                  id="login-password"
+                  type={showPassword ? "text" : "password"}
+                  autoComplete={
+                    mode === "sign-in" ? "current-password" : "new-password"
+                  }
+                  className="h-10 pr-10"
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setError(null);
+                  }}
+                />
+                <button
+                  type="button"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  onClick={() => setShowPassword((s) => !s)}
+                  className="absolute top-1/2 right-2 flex size-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors duration-150 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+                >
+                  {showPassword ? (
+                    <EyeOff className="size-4" />
+                  ) : (
+                    <Eye className="size-4" />
+                  )}
+                </button>
+              </div>
               {mode === "sign-up" && (
                 <p className="text-xs text-muted-foreground">
                   At least 6 characters
@@ -173,6 +188,7 @@ export default function LoginPage() {
               </p>
             )}
             <Button type="submit" disabled={!canSubmit} className="h-10 w-full">
+              {submitting && <Loader2 className="animate-spin" />}
               {mode === "sign-in" ? "Sign in" : "Create account"}
             </Button>
           </form>

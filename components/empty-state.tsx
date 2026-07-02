@@ -29,7 +29,7 @@ const COPY: Record<
   "no-results": {
     icon: SearchX,
     title: "No matches",
-    description: "Try a different name.",
+    description: "Check the spelling or try different keywords.",
   },
   "trash-empty": {
     icon: Trash2,

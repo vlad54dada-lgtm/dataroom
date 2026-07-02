@@ -104,7 +104,7 @@ export function PdfViewerDialog({
     <Dialog open={file !== null} onOpenChange={(next) => !next && onClose()}>
       <DialogContent
         onCloseAutoFocus={restoreFocus}
-        className="flex h-[90vh] w-[92vw] max-w-5xl flex-col gap-3 p-4 sm:max-w-5xl"
+        className="flex h-[90dvh] w-[92vw] max-w-5xl flex-col gap-3 p-4 sm:max-w-5xl"
       >
         <DialogHeader className="flex-row items-center gap-3 pr-10">
           <DialogTitle

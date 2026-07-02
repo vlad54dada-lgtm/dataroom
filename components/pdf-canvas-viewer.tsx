@@ -90,6 +90,39 @@ export function PdfCanvasViewer({ url, onRenderError }: PdfCanvasViewerProps) {
     setPage(current);
   };
 
+  // Fit-width follows the container: rotating a phone or resizing the
+  // window re-derives the base scale instead of leaving stale page sizes.
+  useEffect(() => {
+    if (!containerEl || !baseSize) return;
+    const observer = new ResizeObserver(() => {
+      const width = containerEl.clientWidth;
+      if (width > 0) {
+        setFitScale(Math.min(Math.max((width - 32) / baseSize.w, 0.3), 2));
+      }
+    });
+    observer.observe(containerEl);
+    return () => observer.disconnect();
+  }, [containerEl, baseSize]);
+
+  // Paging keys work as soon as the document is ready — the scroll region
+  // takes focus so PgUp/PgDn/arrows scroll it, and +/-/0 drive the zoom.
+  useEffect(() => {
+    if (doc && containerEl) containerEl.focus({ preventScroll: true });
+  }, [doc, containerEl]);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "+" || e.key === "=") {
+      e.preventDefault();
+      setZoom((z) => Math.min(z + ZOOM_STEP, MAX_ZOOM));
+    } else if (e.key === "-") {
+      e.preventDefault();
+      setZoom((z) => Math.max(z - ZOOM_STEP, MIN_ZOOM));
+    } else if (e.key === "0") {
+      e.preventDefault();
+      setZoom(1);
+    }
+  };
+
   const scale = fitScale * zoom;
 
   if (!doc || !baseSize) {
@@ -109,7 +142,7 @@ export function PdfCanvasViewer({ url, onRenderError }: PdfCanvasViewerProps) {
         <div className="flex items-center gap-1">
           <Button
             variant="ghost"
-            size="icon-xs"
+            size="icon-sm"
             aria-label="Zoom out"
             disabled={zoom <= MIN_ZOOM}
             onClick={() => setZoom((z) => Math.max(z - ZOOM_STEP, MIN_ZOOM))}
@@ -121,7 +154,7 @@ export function PdfCanvasViewer({ url, onRenderError }: PdfCanvasViewerProps) {
           </span>
           <Button
             variant="ghost"
-            size="icon-xs"
+            size="icon-sm"
             aria-label="Zoom in"
             disabled={zoom >= MAX_ZOOM}
             onClick={() => setZoom((z) => Math.min(z + ZOOM_STEP, MAX_ZOOM))}
@@ -136,7 +169,11 @@ export function PdfCanvasViewer({ url, onRenderError }: PdfCanvasViewerProps) {
           setContainerEl(el);
         }}
         onScroll={handleScroll}
-        className="min-h-0 flex-1 overflow-auto rounded-lg border bg-muted/40"
+        onKeyDown={handleKeyDown}
+        tabIndex={0}
+        role="document"
+        aria-label="Document pages"
+        className="min-h-0 flex-1 overflow-auto rounded-lg border bg-muted/40 outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset"
       >
         {/* Keyed by url: a new document never inherits stale canvases. */}
         <div key={url} className="flex flex-col items-center gap-3 p-4">
@@ -185,21 +222,35 @@ const PageCanvas = memo(function PageCanvas({
   const renderTaskRef = useRef<RenderTask | null>(null);
   const renderedScaleRef = useRef(0);
 
+  // Observed BOTH ways: pages release their canvas memory when they leave
+  // the (generous) margin, so a 200-page contract never accumulates
+  // gigabytes of rendered bitmaps. The wrapper keeps its estimated size,
+  // so releasing a page never shifts the scroll position.
   useEffect(() => {
     const el = wrapRef.current;
-    if (!el || !container || visible) return;
+    if (!el || !container) return;
     const io = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((e) => e.isIntersecting)) setVisible(true);
-      },
-      { root: container, rootMargin: "600px 0px" },
+      (entries) => setVisible(entries.some((e) => e.isIntersecting)),
+      { root: container, rootMargin: "1200px 0px" },
     );
     io.observe(el);
     return () => io.disconnect();
-  }, [container, visible]);
+  }, [container]);
 
   useEffect(() => {
-    if (!visible || renderedScaleRef.current === scale) return;
+    if (!visible) {
+      const canvas = canvasRef.current;
+      if (canvas && renderedScaleRef.current !== 0) {
+        renderTaskRef.current?.cancel();
+        canvas.width = 0;
+        canvas.height = 0;
+        canvas.style.width = "";
+        canvas.style.height = "";
+        renderedScaleRef.current = 0;
+      }
+      return;
+    }
+    if (renderedScaleRef.current === scale) return;
     let cancelled = false;
     void (async () => {
       try {

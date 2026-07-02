@@ -31,6 +31,35 @@ export function formatDate(timestamp: number): string {
   return dateFormat.format(new Date(timestamp));
 }
 
+const dateTimeFormat = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+});
+
+/** "Jul 2, 2026, 2:35 PM" — full precision for tooltips. */
+export function formatDateTime(timestamp: number): string {
+  return dateTimeFormat.format(new Date(timestamp));
+}
+
+const timeFormat = new Intl.DateTimeFormat("en-US", {
+  hour: "numeric",
+  minute: "2-digit",
+});
+
+/**
+ * Today's activity shows the time ("2:35 PM"), older items the date —
+ * otherwise everything touched during a session reads identically.
+ */
+export function formatModified(timestamp: number): string {
+  const date = new Date(timestamp);
+  return date.toDateString() === new Date().toDateString()
+    ? timeFormat.format(date)
+    : dateFormat.format(date);
+}
+
 /** Names are trimmed on save; inner whitespace is preserved. */
 export function normalizeName(name: string): string {
   return name.trim();
