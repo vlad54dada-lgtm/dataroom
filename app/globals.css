@@ -93,8 +93,49 @@
   --font-heading: var(--font-geist-sans);
 }
 
+/* ---------------------------------------------------------------------------
+   Dark theme — a navy-tinted slate, not flat gray: elevated surfaces stay
+   readable, the brand blue brightens one step for contrast, and the
+   folder/file tints become translucent washes of their own hue.
+--------------------------------------------------------------------------- */
+.dark {
+  --background: #12151c; /* surface */
+  --foreground: #edf0f5;
+  --card: #12151c;
+  --card-foreground: #edf0f5;
+  --popover: #171b24;
+  --popover-foreground: #edf0f5;
+  --primary: #3b82f6;
+  --primary-foreground: #ffffff;
+  --secondary: #1b202b;
+  --secondary-foreground: #edf0f5;
+  --muted: #1b202b;
+  --muted-foreground: #99a3b5;
+  --accent: #1b202b;
+  --accent-foreground: #edf0f5;
+  --destructive: #f87171;
+  --border: #262c38;
+  --input: #2c3341;
+  --ring: #3b82f6;
+
+  --canvas: #0b0d12; /* page background behind surfaces */
+  --line-strong: #333b4a;
+  --brand: #3b82f6;
+  --brand-hover: #60a5fa;
+  --danger: #f87171;
+  --danger-hover: #ef4444;
+  --folder: #7ab3ff;
+  --folder-bg: rgba(59, 130, 246, 0.16);
+  --file: #f89b9b;
+  --file-bg: rgba(239, 68, 68, 0.14);
+}
+
 html {
   color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
 }
 
 body {
