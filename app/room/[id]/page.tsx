@@ -71,7 +71,11 @@ function RoomShell({ children }: { children: React.ReactNode }) {
   return (
     <>
       <AppHeader />
-      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-6 py-8 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200">
+      <main
+        id="main"
+        tabIndex={-1}
+        className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-6 py-8 outline-none motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200"
+      >
         {children}
       </main>
     </>
@@ -588,7 +592,7 @@ function RoomView() {
                       type="button"
                       aria-label="Clear search"
                       onClick={() => setQuery("")}
-                      className="absolute top-1/2 right-1.5 flex size-5 -translate-y-1/2 items-center justify-center rounded-sm text-muted-foreground transition-[color,background-color,scale] duration-150 outline-none hover:bg-muted hover:text-foreground active:scale-90 focus-visible:ring-2 focus-visible:ring-ring/50 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-50 motion-safe:duration-150 motion-safe:ease-out-back"
+                      className="absolute top-1/2 right-1.5 flex size-5 -translate-y-1/2 items-center justify-center rounded-sm text-muted-foreground transition-[color,background-color,scale] duration-150 outline-none hover:bg-muted hover:text-foreground active:scale-90 focus-visible:ring-3 focus-visible:ring-ring/50 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-50 motion-safe:duration-150 motion-safe:ease-out-back"
                     >
                       <X className="size-4" />
                     </button>
@@ -672,7 +676,7 @@ function RoomView() {
                         type="button"
                         aria-label="Upload PDF files"
                         onClick={open}
-                        className="group w-full cursor-pointer rounded-card border border-dashed border-line-strong transition-colors duration-200 outline-none hover:border-brand hover:bg-folder-bg/40 focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-ring/50"
+                        className="group w-full cursor-pointer rounded-card border border-dashed border-line-strong transition-colors duration-200 outline-none hover:border-brand hover:bg-folder-bg/40 focus-visible:border-brand focus-visible:ring-3 focus-visible:ring-ring/50"
                       >
                         <EmptyState variant="empty-folder" />
                       </button>

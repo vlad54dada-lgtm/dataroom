@@ -184,6 +184,27 @@ export async function countChildren(parentId: string | null): Promise<number> {
   return count ?? 0;
 }
 
+/**
+ * Direct live child counts for MANY parents in one query — the home grid
+ * needs a count per room, and N HEAD requests gate its first paint.
+ */
+export async function listChildCounts(
+  parentIds: string[],
+): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
+  if (parentIds.length === 0) return counts;
+  const { data, error } = await supabase
+    .from("nodes")
+    .select("parent_id")
+    .in("parent_id", parentIds)
+    .is("deleted_at", null);
+  if (error) throw error;
+  for (const row of (data ?? []) as { parent_id: string }[]) {
+    counts.set(row.parent_id, (counts.get(row.parent_id) ?? 0) + 1);
+  }
+  return counts;
+}
+
 // ---------------------------------------------------------------------------
 // Name policy (files auto-suffix here; containers rely on the DB's
 // case-insensitive unique index and surface DuplicateNameError)

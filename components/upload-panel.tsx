@@ -41,7 +41,11 @@ export function UploadPanel({ state, onCancel, onDismiss }: UploadPanelProps) {
   return (
     <div className="fixed bottom-6 left-6 z-40 w-80 max-w-[calc(100vw-3rem)] rounded-card border bg-card p-3 shadow-lg motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-4 motion-safe:duration-300 motion-safe:ease-out-strong">
       <div className="flex items-center justify-between gap-2">
-        <p className="min-w-0 flex-1 truncate text-sm font-medium">{title}</p>
+        {/* Live region announces batch progress; the file list stays out
+            of it so screen readers aren't spammed per row. */}
+        <div role="status" aria-live="polite" className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium">{title}</p>
+        </div>
         {running ? (
           <Button variant="ghost" size="sm" onClick={onCancel}>
             Cancel
@@ -60,6 +64,7 @@ export function UploadPanel({ state, onCancel, onDismiss }: UploadPanelProps) {
       </div>
       <div
         role="progressbar"
+        aria-label="Upload progress"
         aria-valuenow={percent}
         aria-valuemin={0}
         aria-valuemax={100}

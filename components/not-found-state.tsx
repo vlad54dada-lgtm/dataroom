@@ -8,8 +8,8 @@ interface NotFoundStateProps {
 
 export function NotFoundState({ kind }: NotFoundStateProps) {
   return (
-    <div className="flex flex-1 flex-col items-center justify-center px-6 py-16 text-center">
-      <span className="flex size-12 items-center justify-center rounded-full bg-muted">
+    <div className="flex flex-1 flex-col items-center justify-center px-6 py-16 text-center motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:duration-300 motion-safe:ease-out-strong">
+      <span className="flex size-12 items-center justify-center rounded-full bg-muted motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-75 motion-safe:duration-300 motion-safe:ease-out-back">
         <SearchX className="size-6 text-muted-foreground" strokeWidth={1.75} />
       </span>
       <p className="mt-4 text-sm font-medium">

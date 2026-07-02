@@ -173,7 +173,7 @@ export function PdfCanvasViewer({ url, onRenderError }: PdfCanvasViewerProps) {
         tabIndex={0}
         role="document"
         aria-label="Document pages"
-        className="min-h-0 flex-1 overflow-auto rounded-lg border bg-muted/40 outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset"
+        className="min-h-0 flex-1 overflow-auto rounded-lg border bg-muted/40 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
       >
         {/* Keyed by url: a new document never inherits stale canvases. */}
         <div key={url} className="flex flex-col items-center gap-3 p-4">

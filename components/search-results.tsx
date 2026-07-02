@@ -65,7 +65,7 @@ export function SearchResults({
                   ? onOpenFolder(node)
                   : onOpenFile(node, e.currentTarget)
               }
-              className="flex h-full min-w-0 flex-1 items-center gap-3 rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+              className="flex h-full min-w-0 flex-1 items-center gap-3 rounded-sm text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
             >
               <span
                 className={`flex size-8 shrink-0 items-center justify-center rounded-tile ${

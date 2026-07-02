@@ -74,7 +74,7 @@ function CrumbLink({
         onDropNodes(ids, node);
       }}
       className={cn(
-        "relative max-w-40 truncate rounded-md px-1.5 py-1 text-muted-foreground transition-colors duration-150 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50",
+        "relative max-w-40 truncate rounded-md px-1.5 py-1 text-muted-foreground transition-colors duration-150 outline-none hover:text-foreground focus-visible:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
         dropReady && "bg-folder-bg text-brand ring-2 ring-brand",
       )}
     >
@@ -178,7 +178,7 @@ export function Breadcrumbs({
             href="/"
             onPointerEnter={(e) => showPill(e.currentTarget)}
             onFocus={(e) => showPill(e.currentTarget)}
-            className="relative rounded-md px-1.5 py-1 text-muted-foreground transition-colors duration-150 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+            className="relative rounded-md px-1.5 py-1 text-muted-foreground transition-colors duration-150 outline-none hover:text-foreground focus-visible:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             Home
           </Link>

@@ -18,7 +18,7 @@ export function AppHeader({ children }: { children?: React.ReactNode }) {
           <Link
             href="/"
             aria-label="Acme Corp. home"
-            className="flex shrink-0 items-center gap-2.5 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            className="flex shrink-0 items-center gap-2.5 rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             <span className="flex size-7 items-center justify-center rounded-lg bg-brand">
               <FileText className="size-4 text-white" strokeWidth={2} />

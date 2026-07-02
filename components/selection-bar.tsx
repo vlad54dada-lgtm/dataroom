@@ -68,10 +68,14 @@ export function SelectionBar(props: SelectionBarProps) {
             : "pointer-events-none motion-safe:animate-out motion-safe:fade-out-0 motion-safe:zoom-out-95 motion-safe:slide-out-to-bottom-2 motion-safe:duration-150 motion-safe:fill-mode-forwards",
         )}
       >
-        {/* Keyed: each count change replays a tiny rise, so the number
-            visibly ticks as rows join the selection. */}
+        {/* The keyed span remounts per count (the tick animation), so a
+            persistent sr-only twin does the live announcing. */}
+        <span role="status" aria-live="polite" className="sr-only">
+          {count} selected
+        </span>
         <span
           key={count}
+          aria-hidden
           className="text-sm font-medium tabular-nums motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-200"
         >
           {count} selected

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { toast } from "sonner";
@@ -77,7 +78,8 @@ function HoldToDeleteX({
       <X
         className={cn(
           "relative size-4 transition-colors duration-150",
-          holding && "text-white",
+          // dark --destructive is a light red — white fails contrast on it
+          holding && "text-white dark:text-background",
         )}
       />
     </button>
@@ -92,7 +94,18 @@ function HoldToDeleteX({
  */
 export function TrashFab() {
   const pathname = usePathname();
+  // Portaled to <body>: the header renders this component, but the button
+  // must be LAST in the tab order — it is visually last on the page.
+  // (useSyncExternalStore = hydration-safe "is client" without an effect.)
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
   const [peeking, setPeeking] = useState(false);
+  // Purged-from-the-peek ids vanish immediately; the server refresh
+  // catches up via trash-changed.
+  const [removedIds, setRemovedIds] = useState<ReadonlySet<string>>(new Set());
   // A stack item is being dragged out: the stack must stay MOUNTED even if
   // the pointer leaves — unmounting the drag source mid-flight kills the
   // browser's dragend and strands the drag ghost.
@@ -129,13 +142,17 @@ export function TrashFab() {
     return () => window.removeEventListener("trash-changed", refresh);
   }, [reloadCount, reloadPeek]);
 
-  if (pathname === "/trash") return null;
+  if (pathname === "/trash" || !mounted) return null;
   const count = countState.status === "success" ? countState.data : 0;
   const items =
-    peek.state.status === "success" ? peek.state.data.slice(0, PEEK_SIZE) : [];
+    peek.state.status === "success"
+      ? peek.state.data
+          .filter((i) => !removedIds.has(i.node.id))
+          .slice(0, PEEK_SIZE)
+      : [];
   const overflow = count - items.length;
 
-  return (
+  return createPortal(
     <div
       className="fixed right-6 bottom-6 z-40"
       onPointerEnter={openPeek}
@@ -209,9 +226,20 @@ export function TrashFab() {
                 <HoldToDeleteX
                   name={item.node.name}
                   onConfirm={() => {
-                    void purgeNode(item.node.id)
+                    // Optimistic: the row leaves the stack the moment the
+                    // hold completes — no 1-2s "did it work?" limbo.
+                    const id = item.node.id;
+                    setRemovedIds((prev) => new Set(prev).add(id));
+                    void purgeNode(id)
                       .then(() => toast.success("Deleted forever"))
-                      .catch(() => toast.error("Couldn't delete it"));
+                      .catch(() => {
+                        setRemovedIds((prev) => {
+                          const next = new Set(prev);
+                          next.delete(id);
+                          return next;
+                        });
+                        toast.error("Couldn't delete it");
+                      });
                   }}
                 />
               </div>
@@ -219,8 +247,8 @@ export function TrashFab() {
           </div>
           <p className="mt-1.5 pr-1 text-right text-xs text-muted-foreground">
             {overflow > 0
-              ? `and ${overflow} more in the trash`
-              : "drag out to restore · hold ✕ to delete"}
+              ? `And ${overflow} more in the trash`
+              : "Drag out to restore · hold ✕ to delete"}
           </p>
         </div>
       )}
@@ -260,7 +288,7 @@ export function TrashFab() {
           );
         }}
         className={cn(
-          "relative flex size-12 items-center justify-center rounded-full border bg-card text-muted-foreground shadow-lg transition-[box-shadow,translate,scale,color] duration-200 ease-out-strong outline-none hover:-translate-y-0.5 hover:text-foreground hover:shadow-xl active:scale-95 focus-visible:ring-2 focus-visible:ring-ring/50 motion-reduce:transition-none motion-reduce:hover:translate-y-0",
+          "relative flex size-12 items-center justify-center rounded-full border bg-card text-muted-foreground shadow-lg transition-[box-shadow,translate,scale,color] duration-200 ease-out-strong outline-none hover:-translate-y-0.5 hover:text-foreground hover:shadow-xl active:scale-95 focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none motion-reduce:hover:translate-y-0",
           dropReady &&
             "scale-110 text-brand outline-2 outline-offset-2 outline-brand outline-dashed",
         )}
@@ -277,6 +305,7 @@ export function TrashFab() {
           </span>
         )}
       </Link>
-    </div>
+    </div>,
+    document.body,
   );
 }

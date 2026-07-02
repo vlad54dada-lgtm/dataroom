@@ -6,9 +6,9 @@ import { Plus } from "lucide-react";
 import type { DataroomPatch, Node } from "@/types";
 import {
   compareNodes,
-  countChildren,
   createNode,
   isDuplicateNameError,
+  listChildCounts,
   listChildren,
   restoreNode,
   trashNode,
@@ -43,13 +43,13 @@ const activeTrigger = () =>
     : null;
 
 async function loadRooms(): Promise<DataroomListItem[]> {
+  // Exactly two requests regardless of how many rooms exist.
   const rooms = await listChildren(null);
-  return Promise.all(
-    rooms.map(async (node) => ({
-      node,
-      itemCount: await countChildren(node.id),
-    })),
-  );
+  const counts = await listChildCounts(rooms.map((r) => r.id));
+  return rooms.map((node) => ({
+    node,
+    itemCount: counts.get(node.id) ?? 0,
+  }));
 }
 
 const sortItems = (items: DataroomListItem[]) =>
@@ -174,7 +174,11 @@ function HomeView() {
   return (
     <>
       <AppHeader />
-      <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-8 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200">
+      <main
+        id="main"
+        tabIndex={-1}
+        className="mx-auto w-full max-w-6xl flex-1 px-6 py-8 outline-none motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200"
+      >
         <div className="flex items-center justify-between gap-4">
           <h1 className="text-xl font-semibold">Datarooms</h1>
           {/* The empty state carries its own CTA — never two primary

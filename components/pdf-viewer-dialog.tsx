@@ -13,6 +13,7 @@ type BlobState =
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -113,6 +114,9 @@ export function PdfViewerDialog({
           >
             {shown?.name}
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            Document preview with zoom and paging controls.
+          </DialogDescription>
           {url && shown && (
             <Button variant="outline" size="sm" asChild>
               <a href={url} download={shown.name}>

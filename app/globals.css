@@ -151,9 +151,12 @@
   --danger: #f87171;
   --danger-hover: #ef4444;
   --folder: #7ab3ff;
-  --folder-bg: rgba(59, 130, 246, 0.16);
+  /* Opaque equivalents of the old translucent washes (over #12151c):
+     slash-opacity modifiers (bg-folder-bg/70 etc.) collapse translucent
+     tokens to near-nothing in dark, so the raw values must be solid. */
+  --folder-bg: #19263f;
   --file: #f89b9b;
-  --file-bg: rgba(239, 68, 68, 0.14);
+  --file-bg: #311c22;
 }
 
 html {

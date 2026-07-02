@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -126,6 +127,10 @@ export function DataroomDialog({
             <DialogTitle>
               {mode === "create" ? "Create dataroom" : "Edit dataroom"}
             </DialogTitle>
+            <DialogDescription className="sr-only">
+              Name the dataroom, add an optional description, and pick its
+              icon and color.
+            </DialogDescription>
           </DialogHeader>
 
           <div className="flex items-start gap-3">
@@ -189,7 +194,7 @@ export function DataroomDialog({
                     aria-pressed={selected}
                     onClick={() => setIcon(key)}
                     className={cn(
-                      "flex h-9 items-center justify-center rounded-lg border transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+                      "flex h-9 items-center justify-center rounded-lg border transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
                       selected
                         ? "border-ring bg-folder-bg text-brand"
                         : "border-transparent text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -215,7 +220,7 @@ export function DataroomDialog({
                     aria-pressed={selected}
                     onClick={() => setColor(key)}
                     className={cn(
-                      "size-6 rounded-full transition-transform outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+                      "size-6 rounded-full transition-transform outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
                       ROOM_COLORS[key].swatch,
                       selected
                         ? "ring-2 ring-ring ring-offset-2 ring-offset-popover"

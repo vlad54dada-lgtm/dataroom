@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -144,6 +145,9 @@ export function NameDialog({
         <form onSubmit={handleSubmit} className="contents">
           <DialogHeader>
             <DialogTitle>{TITLE[mode][entity]}</DialogTitle>
+            <DialogDescription className="sr-only">
+              Enter a name, then press Enter or use the confirm button.
+            </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-2">
             <Label htmlFor="name-dialog-input">Name</Label>

@@ -50,7 +50,7 @@ function SortableHead({
         type="button"
         onClick={() => onSort(sortKey)}
         className={cn(
-          "inline-flex items-center gap-1 rounded-sm text-xs text-muted-foreground transition-colors duration-150 outline-none select-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50",
+          "inline-flex items-center gap-1 rounded-sm text-xs text-muted-foreground transition-colors duration-150 outline-none select-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
           active && "text-foreground",
         )}
       >

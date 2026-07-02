@@ -209,7 +209,7 @@ export function ItemRow({
                 data-row-primary
                 onPointerEnter={() => onPrefetch?.(node.id)}
                 onFocus={() => onPrefetch?.(node.id)}
-                className="flex h-12 w-full min-w-0 items-center gap-3 rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                className="flex h-12 w-full min-w-0 items-center gap-3 rounded-sm text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
               >
                 {nameContent}
               </Link>
@@ -218,7 +218,7 @@ export function ItemRow({
                 type="button"
                 data-row-primary
                 onClick={(e) => onOpenFile(node, e.currentTarget)}
-                className="flex h-12 w-full min-w-0 items-center gap-3 rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                className="flex h-12 w-full min-w-0 items-center gap-3 rounded-sm text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
               >
                 {nameContent}
               </button>

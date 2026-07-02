@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -71,6 +72,9 @@ export function MoveDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="truncate">Move {movingLabel} to…</DialogTitle>
+          <DialogDescription className="sr-only">
+            Choose a destination dataroom or folder, then confirm.
+          </DialogDescription>
         </DialogHeader>
         <div className="-mx-1 max-h-72 overflow-y-auto px-1">
           {rooms.state.status === "loading" && (
@@ -190,7 +194,7 @@ function BranchNode({
           type="button"
           aria-label={expanded ? `Collapse ${node.name}` : `Expand ${node.name}`}
           onClick={() => setExpanded((e) => !e)}
-          className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+          className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
         >
           <ChevronRight
             className={cn(
@@ -204,7 +208,7 @@ function BranchNode({
           disabled={disabled}
           aria-pressed={selected}
           onClick={() => onSelect(node)}
-          className="flex h-full min-w-0 flex-1 items-center gap-2 rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed"
+          className="flex h-full min-w-0 flex-1 items-center gap-2 rounded-md text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed"
         >
           {node.type === "dataroom" ? (
             <RoomAvatar
