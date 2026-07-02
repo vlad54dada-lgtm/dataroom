@@ -1,26 +1,63 @@
 @import "tailwindcss";
 
+/* ---------------------------------------------------------------------------
+   Primitive tokens — raw values. Never reference these directly in JSX;
+   always go through the semantic utilities generated below.
+--------------------------------------------------------------------------- */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --canvas: #fafafa;
+  --surface: #ffffff;
+  --surface-hover: #f3f4f6;
+  --line: #e5e7eb;
+  --line-strong: #d1d5db;
+  --fg: #111827;
+  --muted: #6b7280;
+  --icon: #374151;
+  --accent: #1d4ed8;
+  --accent-hover: #1e40af;
+  --folder: #1d4ed8;
+  --folder-bg: #eff6ff;
+  --file: #dc2626;
+  --file-bg: #fef2f2;
+  --danger: #dc2626;
+  --danger-hover: #b91c1c;
 }
 
+/* ---------------------------------------------------------------------------
+   Semantic tokens — the single vocabulary components use. Exposing them here
+   generates `bg-*`, `text-*`, `border-*`, `rounded-*` utilities in Tailwind v4.
+--------------------------------------------------------------------------- */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-hover: var(--surface-hover);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-icon: var(--icon);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-folder: var(--folder);
+  --color-folder-bg: var(--folder-bg);
+  --color-file: var(--file);
+  --color-file-bg: var(--file-bg);
+  --color-danger: var(--danger);
+  --color-danger-hover: var(--danger-hover);
+
+  --radius-tile: 8px;
+  --radius-control: 8px;
+  --radius-card: 12px;
+
   --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  color-scheme: light;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--canvas);
+  color: var(--fg);
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
