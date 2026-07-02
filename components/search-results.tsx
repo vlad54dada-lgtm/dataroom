@@ -21,7 +21,7 @@ export function SearchResults({
   onOpenFile,
 }: SearchResultsProps) {
   return (
-    <div className="divide-y rounded-card border bg-card">
+    <div className="divide-y overflow-hidden rounded-card border bg-card">
       {results.map(({ node, parentName, contentMatch }) => {
         const isFolder = node.type !== "file";
         return (
@@ -56,7 +56,7 @@ export function SearchResults({
               </span>
             </span>
             {contentMatch && (
-              <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+              <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-foreground/70">
                 Text match
               </span>
             )}

@@ -8,10 +8,17 @@ import { ListSkeleton } from "@/components/list-skeleton";
 
 /**
  * Client-side route guard: renders children only with a live session,
- * redirects to /login otherwise. While the session resolves it shows an
- * app-shaped skeleton so guarded pages never flash blank.
+ * redirects to /login otherwise. While the session resolves it shows a
+ * page-shaped skeleton (pass `fallback` to match the page's real geometry)
+ * so guarded pages never flash blank or jump layouts.
  */
-export function RequireAuth({ children }: { children: React.ReactNode }) {
+export function RequireAuth({
+  children,
+  fallback,
+}: {
+  children: React.ReactNode;
+  fallback?: React.ReactNode;
+}) {
   const session = useSession();
   const router = useRouter();
 
@@ -21,12 +28,14 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
 
   if (session.status !== "signed-in") {
     return (
-      <>
-        <AppHeader />
-        <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-8">
-          <ListSkeleton variant="rows" count={3} />
-        </main>
-      </>
+      fallback ?? (
+        <>
+          <AppHeader />
+          <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-8">
+            <ListSkeleton variant="rows" count={3} />
+          </main>
+        </>
+      )
     );
   }
   return <>{children}</>;

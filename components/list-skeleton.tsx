@@ -21,7 +21,7 @@ export function ListSkeleton({ variant, count = 3 }: ListSkeletonProps) {
     );
   }
   return (
-    <div className="divide-y rounded-card border bg-card">
+    <div className="divide-y overflow-hidden rounded-card border bg-card">
       {Array.from({ length: count }, (_, i) => (
         <div key={i} className="flex h-12 items-center gap-3 px-4">
           <Skeleton className="size-8 rounded-tile" />

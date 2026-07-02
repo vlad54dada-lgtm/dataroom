@@ -53,7 +53,18 @@ const sortItems = (items: DataroomListItem[]) =>
 
 export default function HomePage() {
   return (
-    <RequireAuth>
+    <RequireAuth
+      fallback={
+        <>
+          <AppHeader />
+          <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-8">
+            <div className="mt-14">
+              <ListSkeleton variant="cards" />
+            </div>
+          </main>
+        </>
+      }
+    >
       <HomeView />
     </RequireAuth>
   );
@@ -122,14 +133,18 @@ function HomeView() {
       <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-8">
         <div className="flex items-center justify-between gap-4">
           <h1 className="text-xl font-semibold">Datarooms</h1>
-          <Button
-            onClick={() => {
-              setReturnTo(activeTrigger());
-              setDialog({ kind: "create" });
-            }}
-          >
-            <Plus /> Create dataroom
-          </Button>
+          {/* The empty state carries its own CTA — never two primary
+              "Create dataroom" buttons on one screen. */}
+          {!(state.status === "success" && state.data.length === 0) && (
+            <Button
+              onClick={() => {
+                setReturnTo(activeTrigger());
+                setDialog({ kind: "create" });
+              }}
+            >
+              <Plus /> Create dataroom
+            </Button>
+          )}
         </div>
         <section className="mt-6">
           {state.status === "loading" && <ListSkeleton variant="cards" />}

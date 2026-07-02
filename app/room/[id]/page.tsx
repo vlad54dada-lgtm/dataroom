@@ -85,7 +85,7 @@ function RoomFallback() {
  */
 export default function RoomPage() {
   return (
-    <RequireAuth>
+    <RequireAuth fallback={<RoomFallback />}>
       <Suspense fallback={<RoomFallback />}>
         <RoomView />
       </Suspense>

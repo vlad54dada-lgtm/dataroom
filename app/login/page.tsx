@@ -115,6 +115,7 @@ export default function LoginPage() {
                 id="login-email"
                 type="email"
                 autoComplete="email"
+                className="h-9"
                 value={email}
                 onChange={(e) => {
                   setEmail(e.target.value);
@@ -131,6 +132,7 @@ export default function LoginPage() {
                 autoComplete={
                   mode === "sign-in" ? "current-password" : "new-password"
                 }
+                className="h-9"
                 value={password}
                 onChange={(e) => {
                   setPassword(e.target.value);
@@ -153,7 +155,7 @@ export default function LoginPage() {
                 {notice}
               </p>
             )}
-            <Button type="submit" disabled={!canSubmit} className="w-full">
+            <Button type="submit" disabled={!canSubmit} className="h-9 w-full">
               {mode === "sign-in" ? "Sign in" : "Create account"}
             </Button>
           </form>

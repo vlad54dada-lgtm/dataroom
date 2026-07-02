@@ -27,7 +27,7 @@ export function ItemsTable({
   onDelete,
 }: ItemsTableProps) {
   return (
-    <div className="rounded-card border bg-card">
+    <div className="overflow-hidden rounded-card border bg-card">
       <Table className="table-fixed">
         <TableHeader>
           <TableRow className="hover:bg-transparent">
