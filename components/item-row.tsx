@@ -11,16 +11,18 @@ interface ItemRowProps {
   node: Node;
   /** Folder rows navigate via a real link (cmd+click works). */
   hrefFor: (id: string) => string;
-  /** File rows open the viewer. */
-  onOpenFile: (node: Node) => void;
-  onRename: (node: Node) => void;
-  onDelete: (node: Node) => void;
+  /** File rows open the viewer; the trigger element restores focus on close. */
+  onOpenFile: (node: Node, trigger: HTMLElement | null) => void;
+  onRename: (node: Node, trigger: HTMLElement | null) => void;
+  onDelete: (node: Node, trigger: HTMLElement | null) => void;
 }
 
 /**
  * One primary interactive element per row (a link for folders, a button for
  * files) plus a sibling kebab — no clickable <tr>, no nested interactives.
- * The kebab column is always reserved; the button fades in on hover/focus.
+ * Below md the Size/Modified columns are REFLOWED into a secondary line
+ * under the name (never dropped — the size must stay visible), so the table
+ * holds together down to 375px.
  */
 export function ItemRow({
   node,
@@ -30,6 +32,8 @@ export function ItemRow({
   onDelete,
 }: ItemRowProps) {
   const isFolder = node.type !== "file";
+  const size = node.type === "file" ? formatBytes(node.size ?? 0) : null;
+  const modified = formatDate(node.updatedAt);
 
   const nameContent = (
     <>
@@ -44,15 +48,20 @@ export function ItemRow({
           <FileText className="size-5 text-file" strokeWidth={1.75} />
         )}
       </span>
-      <span className="truncate text-sm font-medium" title={node.name}>
-        {node.name}
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-medium" title={node.name}>
+          {node.name}
+        </span>
+        <span className="block truncate text-xs tabular-nums text-muted-foreground md:hidden">
+          {size ? `${size} · ${modified}` : modified}
+        </span>
       </span>
     </>
   );
 
   return (
     <TableRow className="group/row h-12">
-      <TableCell className="min-w-0 max-w-0 w-full px-4 py-0">
+      <TableCell className="w-full min-w-0 max-w-0 px-4 py-0">
         {isFolder ? (
           <Link
             href={hrefFor(node.id)}
@@ -63,24 +72,24 @@ export function ItemRow({
         ) : (
           <button
             type="button"
-            onClick={() => onOpenFile(node)}
+            onClick={(e) => onOpenFile(node, e.currentTarget)}
             className="flex h-12 w-full min-w-0 items-center gap-3 rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           >
             {nameContent}
           </button>
         )}
       </TableCell>
-      <TableCell className="w-28 px-4 py-0 text-right text-sm tabular-nums text-muted-foreground">
-        {node.type === "file" ? formatBytes(node.size ?? 0) : "—"}
+      <TableCell className="hidden w-28 px-4 py-0 text-right text-sm tabular-nums text-muted-foreground md:table-cell">
+        {size ?? "—"}
       </TableCell>
-      <TableCell className="w-44 px-4 py-0 text-sm text-muted-foreground">
-        {formatDate(node.updatedAt)}
+      <TableCell className="hidden w-44 px-4 py-0 text-sm tabular-nums text-muted-foreground md:table-cell">
+        {modified}
       </TableCell>
       <TableCell className="w-12 px-2 py-0 text-right">
         <RowMenu
           className="text-muted-foreground opacity-0 transition-opacity group-hover/row:opacity-100 focus-visible:opacity-100 aria-expanded:opacity-100"
-          onRename={() => onRename(node)}
-          onDelete={() => onDelete(node)}
+          onRename={(trigger) => onRename(node, trigger)}
+          onDelete={(trigger) => onDelete(node, trigger)}
         />
       </TableCell>
     </TableRow>

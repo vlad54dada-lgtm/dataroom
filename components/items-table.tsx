@@ -14,9 +14,9 @@ interface ItemsTableProps {
   /** Already sorted by the adapter: folders first, then files, name-asc. */
   items: Node[];
   hrefFor: (id: string) => string;
-  onOpenFile: (node: Node) => void;
-  onRename: (node: Node) => void;
-  onDelete: (node: Node) => void;
+  onOpenFile: (node: Node, trigger: HTMLElement | null) => void;
+  onRename: (node: Node, trigger: HTMLElement | null) => void;
+  onDelete: (node: Node, trigger: HTMLElement | null) => void;
 }
 
 export function ItemsTable({
@@ -34,10 +34,10 @@ export function ItemsTable({
             <TableHead className="w-full px-4 text-xs text-muted-foreground">
               Name
             </TableHead>
-            <TableHead className="w-28 px-4 text-right text-xs text-muted-foreground">
+            <TableHead className="hidden w-28 px-4 text-right text-xs text-muted-foreground md:table-cell">
               Size
             </TableHead>
-            <TableHead className="w-44 px-4 text-xs text-muted-foreground">
+            <TableHead className="hidden w-44 px-4 text-xs text-muted-foreground md:table-cell">
               Last modified
             </TableHead>
             <TableHead className="w-12 px-2">

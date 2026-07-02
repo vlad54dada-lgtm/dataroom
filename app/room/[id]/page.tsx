@@ -42,6 +42,12 @@ type DialogState =
   | { kind: "rename"; node: Node }
   | { kind: "delete"; node: Node; counts: DeleteCounts | null };
 
+/** The toolbar button is focused by its own click — capture it. */
+const activeTrigger = () =>
+  document.activeElement instanceof HTMLElement
+    ? document.activeElement
+    : null;
+
 function RoomShell({ children }: { children: React.ReactNode }) {
   return (
     <>
@@ -100,6 +106,8 @@ function RoomView() {
   );
   const [dialog, setDialog] = useState<DialogState>({ kind: "none" });
   const [viewerFile, setViewerFile] = useState<Node | null>(null);
+  // Survives close: dialogs read it in onCloseAutoFocus AFTER state resets.
+  const [returnTo, setReturnTo] = useState<HTMLElement | null>(null);
   const closeDialog = () => setDialog({ kind: "none" });
 
   const createFolder = useMutation(
@@ -138,7 +146,8 @@ function RoomView() {
     },
   );
 
-  const openDelete = (node: Node) => {
+  const openDelete = (node: Node, trigger: HTMLElement | null) => {
+    setReturnTo(trigger);
     setDialog({ kind: "delete", node, counts: null });
     void getDeleteCounts(node.id).then((counts) =>
       setDialog((d) =>
@@ -211,9 +220,14 @@ function RoomView() {
       <UploadDropzone onFiles={handleFiles}>
         {({ open }) => (
           <>
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
               <Breadcrumbs crumbs={crumbs.crumbs ?? []} hrefFor={hrefFor} />
-              <RoomToolbar onNewFolder={() => setDialog({ kind: "create" })}>
+              <RoomToolbar
+                onNewFolder={() => {
+                  setReturnTo(activeTrigger());
+                  setDialog({ kind: "create" });
+                }}
+              >
                 <Button onClick={open}>
                   <Upload /> Upload
                 </Button>
@@ -231,8 +245,14 @@ function RoomView() {
                   <ItemsTable
                     items={state.data}
                     hrefFor={hrefFor}
-                    onOpenFile={setViewerFile}
-                    onRename={(node) => setDialog({ kind: "rename", node })}
+                    onOpenFile={(file, trigger) => {
+                      setReturnTo(trigger);
+                      setViewerFile(file);
+                    }}
+                    onRename={(node, trigger) => {
+                      setReturnTo(trigger);
+                      setDialog({ kind: "rename", node });
+                    }}
                     onDelete={openDelete}
                   />
                 ))}
@@ -260,6 +280,7 @@ function RoomView() {
           else await createFolder.run(name);
         }}
         onClose={closeDialog}
+        returnFocusTo={returnTo}
       />
       <DeleteDialog
         open={dialog.kind === "delete"}
@@ -269,8 +290,13 @@ function RoomView() {
           if (dialog.kind === "delete") await deleteItem.run(dialog.node);
         }}
         onClose={closeDialog}
+        returnFocusTo={returnTo}
       />
-      <PdfViewerDialog file={viewerFile} onClose={() => setViewerFile(null)} />
+      <PdfViewerDialog
+        file={viewerFile}
+        onClose={() => setViewerFile(null)}
+        returnFocusTo={returnTo}
+      />
     </RoomShell>
   );
 }

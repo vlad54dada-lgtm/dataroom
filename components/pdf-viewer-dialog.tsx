@@ -17,6 +17,8 @@ interface PdfViewerDialogProps {
   /** The file being viewed; null when closed. */
   file: Node | null;
   onClose: () => void;
+  /** Element to focus when the viewer closes (the file row's button). */
+  returnFocusTo?: HTMLElement | null;
 }
 
 /**
@@ -26,8 +28,19 @@ interface PdfViewerDialogProps {
  * the iframe) — on some hosts a blocked iframe shows a blank area with no
  * error, so the escape hatch never depends on detecting failure.
  */
-export function PdfViewerDialog({ file, onClose }: PdfViewerDialogProps) {
+export function PdfViewerDialog({
+  file,
+  onClose,
+  returnFocusTo,
+}: PdfViewerDialogProps) {
   const blobKey = file?.blobKey ?? null;
+
+  const restoreFocus = (event: Event) => {
+    if (returnFocusTo?.isConnected) {
+      event.preventDefault();
+      returnFocusTo.focus();
+    }
+  };
 
   const { state } = useAsync(async () => {
     if (!blobKey) return null;
@@ -49,7 +62,10 @@ export function PdfViewerDialog({ file, onClose }: PdfViewerDialogProps) {
 
   return (
     <Dialog open={file !== null} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent className="flex h-[90vh] w-[92vw] max-w-5xl flex-col gap-3 p-4 sm:max-w-5xl">
+      <DialogContent
+        onCloseAutoFocus={restoreFocus}
+        className="flex h-[90vh] w-[92vw] max-w-5xl flex-col gap-3 p-4 sm:max-w-5xl"
+      >
         <DialogHeader className="flex-row items-center gap-3 pr-10">
           <DialogTitle
             className="min-w-0 flex-1 truncate text-sm"

@@ -21,6 +21,8 @@ interface DeleteDialogProps {
   /** Errors are surfaced via the mutation's toast; the dialog always closes. */
   onConfirm: () => Promise<void>;
   onClose: () => void;
+  /** Element to focus when the dialog closes (if it still exists). */
+  returnFocusTo?: HTMLElement | null;
 }
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
@@ -51,8 +53,18 @@ export function DeleteDialog({
   counts,
   onConfirm,
   onClose,
+  returnFocusTo,
 }: DeleteDialogProps) {
   const [pending, setPending] = useState(false);
+
+  // After a confirmed delete the trigger row is gone — isConnected guards
+  // against focusing a detached element (Radix's default then applies).
+  const restoreFocus = (event: Event) => {
+    if (returnFocusTo?.isConnected) {
+      event.preventDefault();
+      returnFocusTo.focus();
+    }
+  };
 
   const handleConfirm = async (event: React.MouseEvent) => {
     event.preventDefault(); // keep the dialog mounted until the action settles
@@ -69,7 +81,7 @@ export function DeleteDialog({
 
   return (
     <AlertDialog open={open} onOpenChange={(next) => !next && onClose()}>
-      <AlertDialogContent>
+      <AlertDialogContent onCloseAutoFocus={restoreFocus}>
         {target ? (
           <>
             <AlertDialogHeader>

@@ -8,8 +8,8 @@ import {
 
 interface DataroomGridProps {
   items: DataroomListItem[];
-  onRename: (room: Node) => void;
-  onDelete: (room: Node) => void;
+  onRename: (room: Node, trigger: HTMLElement | null) => void;
+  onDelete: (room: Node, trigger: HTMLElement | null) => void;
 }
 
 export function DataroomGrid({ items, onRename, onDelete }: DataroomGridProps) {

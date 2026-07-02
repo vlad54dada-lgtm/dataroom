@@ -26,6 +26,8 @@ interface NameDialogProps {
   /** Throws DuplicateNameError to render inline; anything else keeps the dialog open. */
   onSubmit: (name: string) => Promise<void>;
   onClose: () => void;
+  /** Element to focus when the dialog closes (e.g. the row's kebab). */
+  returnFocusTo?: HTMLElement | null;
 }
 
 const TITLE: Record<NameDialogMode, Record<NameDialogEntity, string>> = {
@@ -58,6 +60,7 @@ export function NameDialog({
   initialName = "",
   onSubmit,
   onClose,
+  returnFocusTo,
 }: NameDialogProps) {
   const [value, setValue] = useState(initialName);
   const [submitting, setSubmitting] = useState(false);
@@ -113,9 +116,21 @@ export function NameDialog({
     });
   };
 
+  // Dialogs open programmatically (no Radix Trigger), so Radix can't know
+  // where focus came from — restore it to the captured trigger ourselves.
+  const restoreFocus = (event: Event) => {
+    if (returnFocusTo?.isConnected) {
+      event.preventDefault();
+      returnFocusTo.focus();
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent onOpenAutoFocus={focusInput}>
+      <DialogContent
+        onOpenAutoFocus={focusInput}
+        onCloseAutoFocus={restoreFocus}
+      >
         <form onSubmit={handleSubmit} className="contents">
           <DialogHeader>
             <DialogTitle>{TITLE[mode][entity]}</DialogTitle>

@@ -13,8 +13,8 @@ export interface DataroomListItem {
 
 interface DataroomCardProps {
   item: DataroomListItem;
-  onRename: (room: Node) => void;
-  onDelete: (room: Node) => void;
+  onRename: (room: Node, trigger: HTMLElement | null) => void;
+  onDelete: (room: Node, trigger: HTMLElement | null) => void;
 }
 
 /**
@@ -32,8 +32,8 @@ export function DataroomCard({ item, onRename, onDelete }: DataroomCardProps) {
         </span>
         <RowMenu
           className="relative z-10 -mt-1 -mr-1 text-muted-foreground"
-          onRename={() => onRename(node)}
-          onDelete={() => onDelete(node)}
+          onRename={(trigger) => onRename(node, trigger)}
+          onDelete={(trigger) => onDelete(node, trigger)}
         />
       </div>
       <Link

@@ -31,6 +31,12 @@ type DialogState =
   | { kind: "rename"; room: Node }
   | { kind: "delete"; room: Node; counts: DeleteCounts | null };
 
+/** The toolbar/CTA button is focused by its own click — capture it. */
+const activeTrigger = () =>
+  document.activeElement instanceof HTMLElement
+    ? document.activeElement
+    : null;
+
 async function loadRooms(): Promise<DataroomListItem[]> {
   const rooms = await listChildren(null);
   return Promise.all(
@@ -47,6 +53,8 @@ const sortItems = (items: DataroomListItem[]) =>
 export default function HomePage() {
   const { state, reload, setData } = useAsync(loadRooms, "datarooms");
   const [dialog, setDialog] = useState<DialogState>({ kind: "none" });
+  // Survives close: dialogs read it in onCloseAutoFocus AFTER state resets.
+  const [returnTo, setReturnTo] = useState<HTMLElement | null>(null);
   const closeDialog = () => setDialog({ kind: "none" });
 
   const createRoom = useMutation(
@@ -89,7 +97,8 @@ export default function HomePage() {
     },
   );
 
-  const openDelete = (room: Node) => {
+  const openDelete = (room: Node, trigger: HTMLElement | null) => {
+    setReturnTo(trigger);
     setDialog({ kind: "delete", room, counts: null });
     void getDeleteCounts(room.id).then((counts) =>
       setDialog((d) =>
@@ -104,7 +113,12 @@ export default function HomePage() {
       <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-8">
         <div className="flex items-center justify-between gap-4">
           <h1 className="text-xl font-semibold">Datarooms</h1>
-          <Button onClick={() => setDialog({ kind: "create" })}>
+          <Button
+            onClick={() => {
+              setReturnTo(activeTrigger());
+              setDialog({ kind: "create" });
+            }}
+          >
             <Plus /> Create dataroom
           </Button>
         </div>
@@ -116,7 +130,12 @@ export default function HomePage() {
               <EmptyState
                 variant="no-datarooms"
                 action={
-                  <Button onClick={() => setDialog({ kind: "create" })}>
+                  <Button
+                    onClick={() => {
+                      setReturnTo(activeTrigger());
+                      setDialog({ kind: "create" });
+                    }}
+                  >
                     <Plus /> Create dataroom
                   </Button>
                 }
@@ -124,7 +143,10 @@ export default function HomePage() {
             ) : (
               <DataroomGrid
                 items={state.data}
-                onRename={(room) => setDialog({ kind: "rename", room })}
+                onRename={(room, trigger) => {
+                  setReturnTo(trigger);
+                  setDialog({ kind: "rename", room });
+                }}
                 onDelete={openDelete}
               />
             ))}
@@ -142,6 +164,7 @@ export default function HomePage() {
           else await createRoom.run(name);
         }}
         onClose={closeDialog}
+        returnFocusTo={returnTo}
       />
       <DeleteDialog
         open={dialog.kind === "delete"}
@@ -151,6 +174,7 @@ export default function HomePage() {
           if (dialog.kind === "delete") await deleteRoom.run(dialog.room);
         }}
         onClose={closeDialog}
+        returnFocusTo={returnTo}
       />
     </>
   );
