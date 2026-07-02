@@ -6,8 +6,9 @@ import { usePathname } from "next/navigation";
 import { toast } from "sonner";
 import { FileText, Folder, Trash2, X } from "lucide-react";
 import { countTrash, listTrash, purgeNode } from "@/lib/storage";
-import { RESTORE_MIME, startDragGhost } from "@/lib/dnd";
+import { MOVE_MIME, RESTORE_MIME, readIds, startDragGhost } from "@/lib/dnd";
 import { useAsync } from "@/lib/hooks/use-async";
+import { cn } from "@/lib/utils";
 import { RoomAvatar } from "@/components/room-avatar";
 
 /** Where the Back button on the trash page returns to. */
@@ -24,6 +25,12 @@ const PEEK_SIZE = 4;
 export function TrashFab() {
   const pathname = usePathname();
   const [peeking, setPeeking] = useState(false);
+  // A stack item is being dragged out: the stack must stay MOUNTED even if
+  // the pointer leaves — unmounting the drag source mid-flight kills the
+  // browser's dragend and strands the drag ghost.
+  const [dragOut, setDragOut] = useState(false);
+  // Rows from the list are hovering over the button ("drag here to trash").
+  const [dropReady, setDropReady] = useState(false);
   // Grace period so diagonal cursor paths to the stack never collapse it.
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const openPeek = () => {
@@ -70,7 +77,7 @@ export function TrashFab() {
           it there; the ✕ deletes it forever on the spot. */}
       {/* bottom-full keeps the hover area continuous with the button — no
           dead zone where the stack collapses mid-way to the cursor. */}
-      {peeking && count > 0 && items.length > 0 && (
+      {(peeking || dragOut) && count > 0 && items.length > 0 && (
         <div className="absolute right-0 bottom-full w-64 pb-2">
           <div className="flex flex-col-reverse gap-1">
             {items.map((item, i) => (
@@ -88,6 +95,21 @@ export function TrashFab() {
                     item.node.name,
                     1,
                     item.node.type === "file" ? "file" : "folder",
+                  );
+                  setDragOut(true);
+                  window.dispatchEvent(
+                    new CustomEvent("dnd-drag", {
+                      detail: { kind: "restore", active: true, count: 1 },
+                    }),
+                  );
+                }}
+                onDragEnd={() => {
+                  setDragOut(false);
+                  scheduleClose();
+                  window.dispatchEvent(
+                    new CustomEvent("dnd-drag", {
+                      detail: { kind: "restore", active: false, count: 0 },
+                    }),
                   );
                 }}
                 style={{ animationDelay: `${i * 45}ms` }}
@@ -156,7 +178,29 @@ export function TrashFab() {
         }}
         onFocus={openPeek}
         onBlur={scheduleClose}
-        className="relative flex size-12 items-center justify-center rounded-full border bg-card text-muted-foreground shadow-lg transition-[box-shadow,translate,scale,color] duration-200 ease-out-strong outline-none hover:-translate-y-0.5 hover:text-foreground hover:shadow-xl active:scale-95 focus-visible:ring-2 focus-visible:ring-ring/50 motion-reduce:transition-none motion-reduce:hover:translate-y-0"
+        data-trash-fab
+        onDragOver={(e) => {
+          if (!e.dataTransfer.types.includes(MOVE_MIME)) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "move";
+          setDropReady(true);
+        }}
+        onDragLeave={() => setDropReady(false)}
+        onDrop={(e) => {
+          setDropReady(false);
+          const ids = readIds(e.dataTransfer, MOVE_MIME);
+          if (ids.length === 0) return;
+          e.preventDefault();
+          // The page owning the rows performs the actual move to trash.
+          window.dispatchEvent(
+            new CustomEvent("trash-drop-nodes", { detail: { ids } }),
+          );
+        }}
+        className={cn(
+          "relative flex size-12 items-center justify-center rounded-full border bg-card text-muted-foreground shadow-lg transition-[box-shadow,translate,scale,color] duration-200 ease-out-strong outline-none hover:-translate-y-0.5 hover:text-foreground hover:shadow-xl active:scale-95 focus-visible:ring-2 focus-visible:ring-ring/50 motion-reduce:transition-none motion-reduce:hover:translate-y-0",
+          dropReady &&
+            "scale-110 text-brand outline-2 outline-offset-2 outline-brand outline-dashed",
+        )}
       >
         <Trash2 className="size-5" strokeWidth={1.75} />
         {count > 0 && (

@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { toast } from "sonner";
-import { Search, Upload, X } from "lucide-react";
+import { RotateCcw, Search, Upload, X } from "lucide-react";
 import type { Node } from "@/types";
 import {
   compareNodes,
@@ -21,6 +21,8 @@ import {
   trashNodes,
 } from "@/lib/storage";
 import { RESTORE_MIME, readIds } from "@/lib/dnd";
+import { flySourcesFor, flyToTrash } from "@/lib/fly-to-trash";
+import { cn } from "@/lib/utils";
 import { partitionPdfs } from "@/lib/validate";
 import { extractPdfText } from "@/lib/extract-pdf-text";
 import { useAsync } from "@/lib/hooks/use-async";
@@ -178,6 +180,7 @@ function RoomView() {
    */
   const trashItem = useMutation((node: Node) => trashNode(node.id), {
     optimistic: (node) => {
+      flyToTrash(flySourcesFor([node.id])); // before the row leaves the DOM
       setData((items) => items.filter((i) => i.id !== node.id));
       return () => reload(); // rollback: refetch the authoritative list
     },
@@ -244,6 +247,7 @@ function RoomView() {
 
   /** Bulk move-to-trash: one UPDATE, one undo toast for the whole batch. */
   const handleBulkTrash = async (nodes: Node[]) => {
+    flyToTrash(flySourcesFor(nodes.map((n) => n.id)));
     const ids = new Set(nodes.map((n) => n.id));
     setData((items) => items.filter((i) => !ids.has(i.id)));
     try {
@@ -274,6 +278,20 @@ function RoomView() {
       );
     }, 50);
   };
+
+  // The floating trash button accepts row drops app-wide; this page owns
+  // the rows, so it performs the actual move. No deps: re-subscribed each
+  // render so the handler always sees the current list.
+  useEffect(() => {
+    const handle = (e: Event) => {
+      const { ids } = (e as CustomEvent<{ ids: string[] }>).detail;
+      const list = state.status === "success" ? state.data : [];
+      const nodes = list.filter((n) => ids.includes(n.id));
+      if (nodes.length > 0) void handleBulkTrash(nodes);
+    };
+    window.addEventListener("trash-drop-nodes", handle);
+    return () => window.removeEventListener("trash-drop-nodes", handle);
+  });
 
   /** Sequential export of the selected files via temporary object URLs. */
   const handleBulkDownload = async (files: Node[]) => {
@@ -372,7 +390,28 @@ function RoomView() {
     <RoomShell>
       <UploadDropzone onFiles={handleFiles}>
         {({ open }) => (
-          <>
+          <div
+            data-restore-zone
+            className="relative flex flex-1 flex-col"
+            onDragOver={(e) => {
+              if (!e.dataTransfer.types.includes(RESTORE_MIME)) return;
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "move";
+              setRestoreOver(true);
+            }}
+            onDragLeave={(e) => {
+              const next = e.relatedTarget;
+              if (!(next instanceof Element) || !e.currentTarget.contains(next))
+                setRestoreOver(false);
+            }}
+            onDrop={(e) => {
+              setRestoreOver(false);
+              const ids = readIds(e.dataTransfer, RESTORE_MIME);
+              if (ids.length === 0) return;
+              e.preventDefault();
+              void handleRestoreDrop(ids);
+            }}
+          >
             <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
               <Breadcrumbs
                 crumbs={crumbs.crumbs ?? []}
@@ -416,26 +455,7 @@ function RoomView() {
                 in with a slight rise — instant feedback on the click. */}
             <section
               key={currentFolderId}
-              onDragOver={(e) => {
-                if (e.dataTransfer.types.includes(RESTORE_MIME)) {
-                  e.preventDefault();
-                  e.dataTransfer.dropEffect = "move";
-                  setRestoreOver(true);
-                }
-              }}
-              onDragLeave={() => setRestoreOver(false)}
-              onDrop={(e) => {
-                setRestoreOver(false);
-                const ids = readIds(e.dataTransfer, RESTORE_MIME);
-                if (ids.length === 0) return;
-                e.preventDefault();
-                void handleRestoreDrop(ids);
-              }}
-              className={`mt-4 rounded-card transition-[opacity,outline-color] duration-200 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-200 ${
-                restoreOver
-                  ? "outline-2 outline-offset-4 outline-brand outline-dashed"
-                  : "outline-2 outline-offset-4 outline-transparent outline-dashed"
-              } ${
+              className={`mt-4 rounded-card transition-opacity duration-200 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-200 ${
                 isStale || (searching && search.isStale)
                   ? "opacity-60"
                   : "opacity-100"
@@ -516,7 +536,26 @@ function RoomView() {
                 </>
               )}
             </section>
-          </>
+            {/* Full-area restore target: dragging out of the trash stack
+                lights up the whole content region, not just the table. */}
+            <div
+              aria-hidden
+              className={cn(
+                "pointer-events-none absolute -inset-2 z-20 flex items-center justify-center rounded-card border-2 border-dashed border-brand bg-folder-bg/70 opacity-0 transition-opacity duration-150 motion-reduce:transition-none",
+                restoreOver && "opacity-100",
+              )}
+            >
+              <div
+                className={cn(
+                  "flex flex-col items-center gap-2 text-brand transition-transform duration-200 ease-out-strong motion-reduce:transition-none dark:text-brand-hover",
+                  restoreOver ? "scale-100" : "scale-95",
+                )}
+              >
+                <RotateCcw className="size-8" strokeWidth={1.75} />
+                <p className="text-sm font-medium">Drop to restore here</p>
+              </div>
+            </div>
+          </div>
         )}
       </UploadDropzone>
 

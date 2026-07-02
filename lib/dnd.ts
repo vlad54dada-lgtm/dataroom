@@ -20,6 +20,7 @@ export const RESTORE_MIME = "application/x-dataroom-restore";
 let ghostEl: HTMLDivElement | null = null;
 let moveHandler: ((e: DragEvent) => void) | null = null;
 let endHandler: (() => void) | null = null;
+let safetyHandler: ((e: PointerEvent) => void) | null = null;
 
 const BLANK_IMG = typeof Image !== "undefined" ? new Image() : null;
 if (BLANK_IMG) {
@@ -33,8 +34,10 @@ function cleanupGhost(): void {
     document.removeEventListener("dragend", endHandler);
     document.removeEventListener("drop", endHandler);
   }
+  if (safetyHandler) document.removeEventListener("pointermove", safetyHandler);
   moveHandler = null;
   endHandler = null;
+  safetyHandler = null;
   ghostEl?.remove();
   ghostEl = null;
 }
@@ -109,9 +112,17 @@ export function startDragGhost(
     }
   };
   endHandler = () => cleanupGhost();
+  // Safety net: if the drag SOURCE unmounts mid-drag (e.g. the trash stack
+  // collapses), the browser never fires dragend and the ghost would freeze
+  // on screen. Pointer events are suppressed during a drag, so the first
+  // buttons-up pointermove afterwards means the drag is definitely over.
+  safetyHandler = (e: PointerEvent) => {
+    if (e.buttons === 0) cleanupGhost();
+  };
   document.addEventListener("dragover", moveHandler);
   document.addEventListener("dragend", endHandler);
   document.addEventListener("drop", endHandler);
+  document.addEventListener("pointermove", safetyHandler);
 }
 
 export function readIds(dt: DataTransfer, mime: string): string[] {

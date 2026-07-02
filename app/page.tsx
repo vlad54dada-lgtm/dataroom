@@ -14,6 +14,7 @@ import {
   trashNode,
   updateDataroom,
 } from "@/lib/storage";
+import { flySourcesFor, flyToTrash } from "@/lib/fly-to-trash";
 import { useAsync } from "@/lib/hooks/use-async";
 import { useMutation } from "@/lib/hooks/use-mutation";
 import { Button } from "@/components/ui/button";
@@ -122,6 +123,7 @@ function HomeView() {
    */
   const trashRoom = useMutation((room: Node) => trashNode(room.id), {
     optimistic: (room) => {
+      flyToTrash(flySourcesFor([room.id])); // before the card leaves the DOM
       setData((items) => items.filter((i) => i.node.id !== room.id));
       return () => reload(); // rollback: refetch the authoritative list
     },
@@ -144,6 +146,28 @@ function HomeView() {
       }, 50);
     },
   });
+
+  /** Dragging an item out of the trash stack onto a card restores it there. */
+  const handleRestoreDrop = async (ids: string[], room: Node) => {
+    let done = 0;
+    for (const id of ids) {
+      try {
+        await restoreNode(id, room.id);
+        done++;
+      } catch {
+        toast.error("Couldn't restore it");
+        break;
+      }
+    }
+    if (done > 0) {
+      reload();
+      toast.success(
+        done === 1
+          ? `Restored to ${room.name}`
+          : `${done} items restored to ${room.name}`,
+      );
+    }
+  };
 
   return (
     <>
@@ -190,6 +214,7 @@ function HomeView() {
                   openDialog({ kind: "edit", room });
                 }}
                 onDelete={(room) => void trashRoom.run(room).catch(() => {})}
+                onDropRestore={(ids, room) => void handleRestoreDrop(ids, room)}
               />
             ))}
         </section>

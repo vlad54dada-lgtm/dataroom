@@ -101,6 +101,8 @@ export function ItemRow({
   return (
     <TableRow
       draggable
+      data-node-id={node.id}
+      data-node-kind={isFolder ? "folder" : "file"}
       onDragStart={(e: React.DragEvent) => {
         const ids = getDragIds(node);
         e.dataTransfer.setData(MOVE_MIME, JSON.stringify(ids));
@@ -112,8 +114,20 @@ export function ItemRow({
           isFolder ? "folder" : "file",
         );
         setDragging(true);
+        window.dispatchEvent(
+          new CustomEvent("dnd-drag", {
+            detail: { kind: "move", active: true, count: ids.length },
+          }),
+        );
       }}
-      onDragEnd={() => setDragging(false)}
+      onDragEnd={() => {
+        setDragging(false);
+        window.dispatchEvent(
+          new CustomEvent("dnd-drag", {
+            detail: { kind: "move", active: false, count: 0 },
+          }),
+        );
+      }}
       className={cn(
         "group/row h-12 transition-opacity",
         selected && "bg-muted/50",

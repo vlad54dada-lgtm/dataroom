@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { FileText } from "lucide-react";
+import { DragHint } from "@/components/drag-hint";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { TrashFab } from "@/components/trash-fab";
 import { UserMenu } from "@/components/user-menu";
@@ -39,6 +40,7 @@ export function AppHeader({ children }: { children?: React.ReactNode }) {
         </div>
       </header>
       <TrashFab />
+      <DragHint />
     </>
   );
 }
