@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { FileText, Folder } from "lucide-react";
 import type { Node } from "@/types";
-import { formatBytes, formatDate } from "@/lib/utils";
+import { cn, formatBytes, formatDate } from "@/lib/utils";
+import { Checkbox } from "@/components/ui/checkbox";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { RowMenu } from "@/components/row-menu";
 
@@ -15,14 +16,18 @@ interface ItemRowProps {
   onOpenFile: (node: Node, trigger: HTMLElement | null) => void;
   onRename: (node: Node, trigger: HTMLElement | null) => void;
   onDelete: (node: Node, trigger: HTMLElement | null) => void;
+  selected: boolean;
+  /** While a selection exists, every row's checkbox stays visible. */
+  selectionActive: boolean;
+  onToggleSelect: (node: Node) => void;
 }
 
 /**
  * One primary interactive element per row (a link for folders, a button for
- * files) plus a sibling kebab — no clickable <tr>, no nested interactives.
- * Below md the Size/Modified columns are REFLOWED into a secondary line
- * under the name (never dropped — the size must stay visible), so the table
- * holds together down to 375px.
+ * files) plus sibling checkbox/kebab controls — no clickable <tr>, no nested
+ * interactives. Below md the Size/Modified columns are REFLOWED into a
+ * secondary line under the name (never dropped — the size must stay
+ * visible), so the table holds together down to 375px.
  */
 export function ItemRow({
   node,
@@ -30,6 +35,9 @@ export function ItemRow({
   onOpenFile,
   onRename,
   onDelete,
+  selected,
+  selectionActive,
+  onToggleSelect,
 }: ItemRowProps) {
   const isFolder = node.type !== "file";
   const size = node.type === "file" ? formatBytes(node.size ?? 0) : null;
@@ -60,8 +68,24 @@ export function ItemRow({
   );
 
   return (
-    <TableRow className="group/row h-12">
-      <TableCell className="w-full min-w-0 max-w-0 px-4 py-0">
+    <TableRow
+      className={cn("group/row h-12", selected && "bg-muted/50")}
+      data-state={selected ? "selected" : undefined}
+    >
+      <TableCell className="w-10 px-3 py-0">
+        <Checkbox
+          checked={selected}
+          onCheckedChange={() => onToggleSelect(node)}
+          aria-label={`Select ${node.name}`}
+          className={cn(
+            "transition-opacity",
+            selected || selectionActive
+              ? "opacity-100"
+              : "opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100",
+          )}
+        />
+      </TableCell>
+      <TableCell className="w-full min-w-0 max-w-0 px-1 py-0">
         {isFolder ? (
           <Link
             href={hrefFor(node.id)}

@@ -8,6 +8,7 @@ import type { Node } from "@/types";
 import {
   compareNodes,
   createNode,
+  getBlob,
   getNode,
   isDuplicateNameError,
   listChildren,
@@ -16,6 +17,7 @@ import {
   saveFile,
   searchNodes,
   trashNode,
+  trashNodes,
 } from "@/lib/storage";
 import { partitionPdfs } from "@/lib/validate";
 import { extractPdfText } from "@/lib/extract-pdf-text";
@@ -183,6 +185,71 @@ function RoomView() {
     },
   });
 
+  /** Bulk move-to-trash: one UPDATE, one undo toast for the whole batch. */
+  const handleBulkTrash = async (nodes: Node[]) => {
+    const ids = new Set(nodes.map((n) => n.id));
+    setData((items) => items.filter((i) => !ids.has(i.id)));
+    try {
+      await trashNodes([...ids]);
+    } catch {
+      reload();
+      toast.error("Couldn't move them to trash");
+      return;
+    }
+    setTimeout(() => {
+      toast.success(
+        nodes.length === 1
+          ? "Moved to trash"
+          : `${nodes.length} items moved to trash`,
+        {
+          action: {
+            label: "Undo",
+            onClick: () => {
+              void (async () => {
+                for (const n of nodes) {
+                  await restoreNode(n.id).catch(() => undefined);
+                }
+                reload();
+              })();
+            },
+          },
+        },
+      );
+    }, 50);
+  };
+
+  /** Sequential export of the selected files via temporary object URLs. */
+  const handleBulkDownload = async (files: Node[]) => {
+    if (files.length === 0) return;
+    const toastId = toast.loading(
+      files.length === 1 ? "Downloading…" : `Downloading 1 of ${files.length}…`,
+    );
+    let done = 0;
+    for (const file of files) {
+      if (!file.blobKey) continue;
+      toast.loading(`Downloading ${done + 1} of ${files.length}…`, {
+        id: toastId,
+      });
+      const blob = await getBlob(file.blobKey);
+      if (!blob) continue;
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = file.name;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      done++;
+      // Small gap keeps browsers from swallowing rapid download triggers.
+      await new Promise((r) => setTimeout(r, 350));
+    }
+    toast.success(
+      done === 1 ? "1 file downloaded" : `${done} files downloaded`,
+      { id: toastId },
+    );
+  };
+
   /**
    * Sequential upload: validation in code (ext + MIME + magic number), one
    * file at a time so suffixing stays deterministic and the UI never
@@ -331,6 +398,7 @@ function RoomView() {
                       </div>
                     ) : (
                       <ItemsTable
+                        key={currentFolderId} // navigation clears selection
                         items={state.data}
                         hrefFor={hrefFor}
                         onOpenFile={(file, trigger) => {
@@ -343,6 +411,10 @@ function RoomView() {
                         }}
                         onDelete={(node) =>
                           void trashItem.run(node).catch(() => {})
+                        }
+                        onBulkTrash={(nodes) => void handleBulkTrash(nodes)}
+                        onBulkDownload={(files) =>
+                          void handleBulkDownload(files)
                         }
                       />
                     ))}
