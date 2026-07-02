@@ -3,6 +3,7 @@
 import { LogOut } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useSession } from "@/lib/hooks/use-session";
+import { clearAsyncCache } from "@/lib/hooks/use-async";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -39,7 +40,12 @@ export function UserMenu() {
           {email}
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={() => void supabase.auth.signOut()}>
+        <DropdownMenuItem
+          onSelect={() => {
+            clearAsyncCache(); // never leak one account's data into the next
+            void supabase.auth.signOut();
+          }}
+        >
           <LogOut /> Sign out
         </DropdownMenuItem>
       </DropdownMenuContent>
