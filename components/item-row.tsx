@@ -1,0 +1,88 @@
+"use client";
+
+import Link from "next/link";
+import { FileText, Folder } from "lucide-react";
+import type { Node } from "@/types";
+import { formatBytes, formatDate } from "@/lib/utils";
+import { TableCell, TableRow } from "@/components/ui/table";
+import { RowMenu } from "@/components/row-menu";
+
+interface ItemRowProps {
+  node: Node;
+  /** Folder rows navigate via a real link (cmd+click works). */
+  hrefFor: (id: string) => string;
+  /** File rows open the viewer. */
+  onOpenFile: (node: Node) => void;
+  onRename: (node: Node) => void;
+  onDelete: (node: Node) => void;
+}
+
+/**
+ * One primary interactive element per row (a link for folders, a button for
+ * files) plus a sibling kebab — no clickable <tr>, no nested interactives.
+ * The kebab column is always reserved; the button fades in on hover/focus.
+ */
+export function ItemRow({
+  node,
+  hrefFor,
+  onOpenFile,
+  onRename,
+  onDelete,
+}: ItemRowProps) {
+  const isFolder = node.type !== "file";
+
+  const nameContent = (
+    <>
+      <span
+        className={`flex size-8 shrink-0 items-center justify-center rounded-tile ${
+          isFolder ? "bg-folder-bg" : "bg-file-bg"
+        }`}
+      >
+        {isFolder ? (
+          <Folder className="size-5 text-folder" strokeWidth={1.75} />
+        ) : (
+          <FileText className="size-5 text-file" strokeWidth={1.75} />
+        )}
+      </span>
+      <span className="truncate text-sm font-medium" title={node.name}>
+        {node.name}
+      </span>
+    </>
+  );
+
+  return (
+    <TableRow className="group/row h-12">
+      <TableCell className="min-w-0 max-w-0 w-full px-4 py-0">
+        {isFolder ? (
+          <Link
+            href={hrefFor(node.id)}
+            className="flex h-12 w-full min-w-0 items-center gap-3 rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          >
+            {nameContent}
+          </Link>
+        ) : (
+          <button
+            type="button"
+            onClick={() => onOpenFile(node)}
+            className="flex h-12 w-full min-w-0 items-center gap-3 rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          >
+            {nameContent}
+          </button>
+        )}
+      </TableCell>
+      <TableCell className="w-28 px-4 py-0 text-right text-sm tabular-nums text-muted-foreground">
+        {node.type === "file" ? formatBytes(node.size ?? 0) : "—"}
+      </TableCell>
+      <TableCell className="w-44 px-4 py-0 text-sm text-muted-foreground">
+        {formatDate(node.updatedAt)}
+      </TableCell>
+      <TableCell className="w-12 px-2 py-0 text-right">
+        <RowMenu
+          className="text-muted-foreground opacity-0 transition-opacity group-hover/row:opacity-100 focus-visible:opacity-100 aria-expanded:opacity-100"
+          onRename={() => onRename(node)}
+          onDelete={() => onDelete(node)}
+        />
+      </TableCell>
+    </TableRow>
+  );
+}
