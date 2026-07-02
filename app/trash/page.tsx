@@ -1,14 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   ArrowLeft,
+  ChevronRight,
   FileText,
   Folder,
   FolderInput,
   RotateCcw,
+  Search,
   Trash2,
   X,
 } from "lucide-react";
@@ -16,16 +18,21 @@ import type { DeleteCounts, Node } from "@/types";
 import {
   emptyTrash,
   getDeleteCounts,
+  listChildren,
   listTrash,
   purgeNode,
   restoreNode,
+  searchTrash,
   type TrashItem,
+  type TrashSearchResult,
 } from "@/lib/storage";
-import { cn, formatDate } from "@/lib/utils";
+import { cn, formatBytes, formatDate } from "@/lib/utils";
 import { useAsync } from "@/lib/hooks/use-async";
 import { useMutation } from "@/lib/hooks/use-mutation";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -100,6 +107,32 @@ function TrashView() {
       allSelected ? new Set() : new Set(items.map((i) => i.node.id)),
     );
   const clearSelection = () => setSelectedIds(new Set());
+
+  // Expanded trashed containers — their contents load lazily so single
+  // files can be pulled out of a deleted folder.
+  const [expandedRoots, setExpandedRoots] = useState<ReadonlySet<string>>(
+    new Set(),
+  );
+  const toggleExpanded = (id: string) =>
+    setExpandedRoots((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  // Search covers trash roots AND items inside deleted folders (RPC).
+  const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(query.trim()), 250);
+    return () => clearTimeout(t);
+  }, [query]);
+  const searching = debouncedQuery.length > 0;
+  const search = useAsync(
+    () => (searching ? searchTrash(debouncedQuery) : Promise.resolve([])),
+    `trash-search:${debouncedQuery}`,
+  );
 
   /** Returns exactly where the trash was opened from (home as fallback). */
   const goBack = () => {
@@ -235,22 +268,74 @@ function TrashView() {
             </div>
           </div>
           {items.length > 0 && (
-            <Button
-              variant="outline"
-              className="text-destructive hover:text-destructive"
-              onClick={() => openConfirm({ kind: "empty" })}
-            >
-              <Trash2 /> Empty trash
-            </Button>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <div className="relative">
+                <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search the trash"
+                  aria-label="Search the trash"
+                  className="w-56 pl-8 pr-8"
+                />
+                {query.length > 0 && (
+                  <button
+                    type="button"
+                    aria-label="Clear search"
+                    onClick={() => setQuery("")}
+                    className="absolute top-1/2 right-1.5 flex size-5 -translate-y-1/2 items-center justify-center rounded-sm text-muted-foreground transition-[color,background-color,scale] duration-150 outline-none hover:bg-muted hover:text-foreground active:scale-90 focus-visible:ring-2 focus-visible:ring-ring/50 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-50 motion-safe:duration-150 motion-safe:ease-out-back"
+                  >
+                    <X className="size-4" />
+                  </button>
+                )}
+              </div>
+              <Button
+                variant="outline"
+                className="text-destructive hover:text-destructive"
+                onClick={() => openConfirm({ kind: "empty" })}
+              >
+                <Trash2 /> Empty trash
+              </Button>
+            </div>
           )}
         </div>
         <section className="mt-6">
-          {state.status === "loading" && <ListSkeleton variant="rows" />}
-          {state.status === "error" && <ErrorState onRetry={reload} />}
-          {state.status === "success" &&
-            (items.length === 0 ? (
-              <EmptyState variant="trash-empty" />
-            ) : (
+          {searching ? (
+            <>
+              {search.state.status === "loading" && (
+                <ListSkeleton variant="rows" count={3} />
+              )}
+              {search.state.status === "error" && (
+                <ErrorState onRetry={search.reload} />
+              )}
+              {search.state.status === "success" &&
+                (search.state.data.length === 0 ? (
+                  <EmptyState variant="no-results" query={debouncedQuery} />
+                ) : (
+                  <div className="divide-y overflow-hidden rounded-card border bg-card motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-200">
+                    {search.state.data.map((hit) => (
+                      <TrashSearchHit
+                        key={hit.node.id}
+                        hit={hit}
+                        rootItem={items.find((i) => i.node.id === hit.rootId)}
+                        onPurge={openPurge}
+                        onRestored={() => {
+                          reload();
+                          search.reload();
+                        }}
+                      />
+                    ))}
+                  </div>
+                ))}
+            </>
+          ) : (
+            <>
+              {state.status === "loading" && <ListSkeleton variant="rows" />}
+              {state.status === "error" && <ErrorState onRetry={reload} />}
+              {state.status === "success" &&
+                (items.length === 0 ? (
+                  <EmptyState variant="trash-empty" />
+                ) : (
               <div className="overflow-hidden rounded-card border bg-card">
                 <div className="flex h-10 items-center gap-3 border-b px-4">
                   <Checkbox
@@ -277,9 +362,10 @@ function TrashView() {
                     const { node } = item;
                     const isFolder = node.type !== "file";
                     const selected = selectedIds.has(node.id);
+                    const expanded = expandedRoots.has(node.id);
                     return (
+                      <div key={node.id}>
                       <div
-                        key={node.id}
                         className={cn(
                           "group/trash flex h-14 min-w-0 items-center gap-3 px-4",
                           selected && "bg-muted/50",
@@ -296,6 +382,29 @@ function TrashView() {
                               : "opacity-0 group-hover/trash:opacity-100 focus-visible:opacity-100",
                           )}
                         />
+                        {isFolder ? (
+                          <Button
+                            variant="ghost"
+                            size="icon-xs"
+                            aria-expanded={expanded}
+                            aria-label={
+                              expanded
+                                ? `Collapse ${node.name}`
+                                : `Show contents of ${node.name}`
+                            }
+                            className="text-muted-foreground"
+                            onClick={() => toggleExpanded(node.id)}
+                          >
+                            <ChevronRight
+                              className={cn(
+                                "transition-transform duration-200 ease-out-strong",
+                                expanded && "rotate-90",
+                              )}
+                            />
+                          </Button>
+                        ) : (
+                          <span className="w-6 shrink-0" aria-hidden />
+                        )}
                         {node.type === "dataroom" ? (
                           <RoomAvatar
                             icon={node.icon}
@@ -353,11 +462,17 @@ function TrashView() {
                           </Button>
                         </div>
                       </div>
+                      {isFolder && expanded && (
+                        <TrashBranch parentId={node.id} depth={1} />
+                      )}
+                      </div>
                     );
                   })}
                 </div>
               </div>
             ))}
+            </>
+          )}
         </section>
       </main>
 
@@ -421,8 +536,10 @@ function TrashView() {
         target={shownConfirm.kind === "purge" ? shownConfirm.node : null}
         counts={shownConfirm.kind === "purge" ? shownConfirm.counts : null}
         onConfirm={async () => {
-          if (confirm.kind === "purge")
+          if (confirm.kind === "purge") {
             await purge.run(confirm.node).catch(() => {});
+            search.reload();
+          }
         }}
         onClose={closeConfirm}
         returnFocusTo={returnTo}
@@ -516,5 +633,237 @@ function TrashView() {
         </AlertDialogContent>
       </AlertDialog>
     </>
+  );
+}
+
+/**
+ * Lazy contents of a trashed container. Children aren't trash roots
+ * themselves, so restoring one detaches it out of the deleted subtree
+ * (back to where the deleted folder used to live) — the rest stays put.
+ */
+function TrashBranch({ parentId, depth }: { parentId: string; depth: number }) {
+  const { state, setData } = useAsync(
+    () => listChildren(parentId),
+    `trash-branch:${parentId}`,
+  );
+  const indent = { paddingLeft: `${depth * 1.75 + 2.75}rem` };
+  if (state.status === "loading") {
+    return (
+      <div className="flex h-11 items-center" style={indent}>
+        <Skeleton className="h-3.5 w-44" />
+      </div>
+    );
+  }
+  if (state.status === "error") {
+    return (
+      <p
+        className="flex h-11 items-center text-xs text-muted-foreground"
+        style={indent}
+      >
+        Couldn&apos;t load this folder
+      </p>
+    );
+  }
+  if (state.data.length === 0) {
+    return (
+      <p
+        className="flex h-11 items-center text-xs text-muted-foreground"
+        style={indent}
+      >
+        Empty folder
+      </p>
+    );
+  }
+  return (
+    <div className="pb-1 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-top-1 motion-safe:duration-200">
+      {state.data.map((child) => (
+        <TrashChildRow
+          key={child.id}
+          node={child}
+          depth={depth}
+          onRestored={(id) =>
+            setData((list) => list.filter((c) => c.id !== id))
+          }
+        />
+      ))}
+    </div>
+  );
+}
+
+function TrashChildRow({
+  node,
+  depth,
+  onRestored,
+}: {
+  node: Node;
+  depth: number;
+  onRestored: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const isFolder = node.type !== "file";
+
+  const restoreOut = async () => {
+    setBusy(true);
+    try {
+      const restored = await restoreNode(node.id);
+      toast.success("Restored", { description: restored.name });
+      onRestored(node.id);
+    } catch (err) {
+      toast.error(
+        err instanceof Error && err.message.includes("dataroom")
+          ? err.message
+          : "Couldn't restore it",
+      );
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <div
+        className="group/branch flex h-11 min-w-0 items-center gap-2.5 pr-4"
+        style={{ paddingLeft: `${depth * 1.75 + 1}rem` }}
+      >
+        {isFolder ? (
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            aria-expanded={open}
+            aria-label={
+              open ? `Collapse ${node.name}` : `Show contents of ${node.name}`
+            }
+            className="text-muted-foreground"
+            onClick={() => setOpen((o) => !o)}
+          >
+            <ChevronRight
+              className={cn(
+                "transition-transform duration-200 ease-out-strong",
+                open && "rotate-90",
+              )}
+            />
+          </Button>
+        ) : (
+          <span className="w-6 shrink-0" aria-hidden />
+        )}
+        <span
+          className={`flex size-7 shrink-0 items-center justify-center rounded-md ${
+            isFolder ? "bg-folder-bg" : "bg-file-bg"
+          }`}
+        >
+          {isFolder ? (
+            <Folder className="size-4 text-folder" strokeWidth={1.75} />
+          ) : (
+            <FileText className="size-4 text-file" strokeWidth={1.75} />
+          )}
+        </span>
+        <span className="min-w-0 flex-1 truncate text-sm" title={node.name}>
+          {node.name}
+        </span>
+        {node.type === "file" && (
+          <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+            {formatBytes(node.size ?? 0)}
+          </span>
+        )}
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={busy}
+          className="text-muted-foreground hover:text-foreground"
+          onClick={() => void restoreOut()}
+        >
+          <RotateCcw /> Restore
+        </Button>
+      </div>
+      {isFolder && open && <TrashBranch parentId={node.id} depth={depth + 1} />}
+    </>
+  );
+}
+
+/** One search hit — a trash root or an item inside a deleted folder. */
+function TrashSearchHit({
+  hit,
+  rootItem,
+  onPurge,
+  onRestored,
+}: {
+  hit: TrashSearchResult;
+  /** The loaded root entry (room name, deletion date) when the hit IS a root. */
+  rootItem?: TrashItem;
+  onPurge: (node: Node, trigger: HTMLElement | null) => void;
+  onRestored: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const { node, isRoot, rootName } = hit;
+  const isFolder = node.type !== "file";
+  const context = isRoot
+    ? `${rootItem?.roomName ? `in ${rootItem.roomName}` : "Dataroom"}${
+        rootItem ? ` · Deleted ${formatDate(rootItem.deletedAt)}` : ""
+      }`
+    : `in ${rootName} · a deleted folder`;
+
+  const restoreHit = async () => {
+    setBusy(true);
+    try {
+      const restored = await restoreNode(node.id);
+      toast.success("Restored", { description: restored.name });
+      onRestored();
+    } catch (err) {
+      toast.error(
+        err instanceof Error && err.message.includes("dataroom")
+          ? err.message
+          : "Couldn't restore it",
+      );
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="flex h-14 min-w-0 items-center gap-3 px-4">
+      {node.type === "dataroom" ? (
+        <RoomAvatar icon={node.icon} color={node.color} size="sm" />
+      ) : (
+        <span
+          className={`flex size-8 shrink-0 items-center justify-center rounded-tile ${
+            isFolder ? "bg-folder-bg" : "bg-file-bg"
+          }`}
+        >
+          {isFolder ? (
+            <Folder className="size-5 text-folder" strokeWidth={1.75} />
+          ) : (
+            <FileText className="size-5 text-file" strokeWidth={1.75} />
+          )}
+        </span>
+      )}
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-medium" title={node.name}>
+          {node.name}
+        </span>
+        <span className="block truncate text-xs text-muted-foreground">
+          {context}
+        </span>
+      </span>
+      <div className="flex shrink-0 items-center gap-1">
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={busy}
+          onClick={() => void restoreHit()}
+        >
+          <RotateCcw /> Restore
+        </Button>
+        {isRoot && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`Delete ${node.name} forever`}
+            className="text-muted-foreground hover:text-destructive"
+            onClick={(e) => onPurge(node, e.currentTarget)}
+          >
+            <Trash2 />
+          </Button>
+        )}
+      </div>
+    </div>
   );
 }

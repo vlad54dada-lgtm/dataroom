@@ -489,3 +489,48 @@ as $$
   order by (n.type = 'file'), lower(n.name)
   limit 100;
 $$;
+
+-- ---------------------------------------------------------------------------
+-- 7) search_trash
+-- ---------------------------------------------------------------------------
+
+-- Search across everything in the trash: root items AND their descendants,
+-- so a file inside a deleted folder is findable by name. SECURITY INVOKER —
+-- RLS keeps the walk inside the caller's own rows.
+create or replace function public.search_trash(query text)
+returns table (
+  id uuid,
+  parent_id uuid,
+  type text,
+  name text,
+  size bigint,
+  blob_path text,
+  created_at timestamptz,
+  updated_at timestamptz,
+  description text,
+  icon text,
+  color text,
+  root_id uuid,
+  root_name text,
+  is_root boolean
+)
+language sql
+stable
+set search_path = ''
+as $$
+  with recursive sub as (
+    select n.*, n.id as root_id, n.name as root_name
+    from public.nodes n where n.deleted_at is not null
+    union all
+    select n.*, s.root_id, s.root_name
+    from public.nodes n join sub s on n.parent_id = s.id
+  )
+  select s.id, s.parent_id, s.type, s.name, s.size, s.blob_path,
+         s.created_at, s.updated_at, s.description, s.icon, s.color,
+         s.root_id, s.root_name, (s.id = s.root_id) as is_root
+  from sub s
+  where length(trim(query)) > 0
+    and s.name ilike '%' || query || '%'
+  order by (s.type = 'file'), lower(s.name)
+  limit 100;
+$$;

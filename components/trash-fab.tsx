@@ -16,6 +16,74 @@ export const TRASH_RETURN_KEY = "trash-return-to";
 
 const PEEK_SIZE = 4;
 
+/** How long the ✕ must be held before it deletes forever. */
+const HOLD_MS = 650;
+
+/**
+ * Hold-to-confirm delete. A quick click can't destroy anything — pressing
+ * starts a red fill sweeping the button (slow, deliberate), releasing early
+ * snaps it back (fast), and only a full hold confirms. A misclick literally
+ * demonstrates the gesture instead of deleting a file.
+ */
+function HoldToDeleteX({
+  name,
+  onConfirm,
+}: {
+  name: string;
+  onConfirm: () => void;
+}) {
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [holding, setHolding] = useState(false);
+  const cancel = () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+    setHolding(false);
+  };
+  return (
+    <button
+      type="button"
+      tabIndex={-1}
+      draggable={false}
+      aria-label={`Hold to delete ${name} forever`}
+      title="Hold to delete forever"
+      onPointerDown={(e) => {
+        e.preventDefault();
+        setHolding(true);
+        timer.current = setTimeout(() => {
+          timer.current = null;
+          setHolding(false);
+          onConfirm();
+        }, HOLD_MS);
+      }}
+      onPointerUp={cancel}
+      onPointerLeave={cancel}
+      onPointerCancel={cancel}
+      onDragStart={(e) => {
+        // The row is draggable — a hold must never start a drag.
+        e.preventDefault();
+        e.stopPropagation();
+      }}
+      className="relative flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-md text-muted-foreground opacity-0 transition-[color,opacity] duration-150 group-hover/peek:opacity-100 hover:bg-destructive/10 hover:text-destructive"
+    >
+      <span
+        aria-hidden
+        className={cn(
+          "absolute inset-0 bg-destructive",
+          holding
+            ? "[clip-path:inset(0_0_0_0)] transition-[clip-path] duration-[650ms] ease-linear"
+            : "[clip-path:inset(0_100%_0_0)] transition-[clip-path] duration-150 ease-out",
+        )}
+      />
+      <X
+        className={cn(
+          "relative size-4 transition-colors duration-150",
+          holding && "text-white",
+        )}
+      />
+    </button>
+  );
+}
+
 /**
  * Floating trash entry, bottom-right, with a live count badge. Hovering
  * (or focusing) fans out a small stack of the most recently deleted items,
@@ -138,26 +206,21 @@ export function TrashFab() {
                 <span className="min-w-0 flex-1 truncate text-sm">
                   {item.node.name}
                 </span>
-                <button
-                  type="button"
-                  tabIndex={-1}
-                  aria-label={`Delete ${item.node.name} forever`}
-                  onClick={() => {
+                <HoldToDeleteX
+                  name={item.node.name}
+                  onConfirm={() => {
                     void purgeNode(item.node.id)
                       .then(() => toast.success("Deleted forever"))
                       .catch(() => toast.error("Couldn't delete it"));
                   }}
-                  className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity group-hover/peek:opacity-100 hover:bg-destructive/10 hover:text-destructive"
-                >
-                  <X className="size-4" />
-                </button>
+                />
               </div>
             ))}
           </div>
           <p className="mt-1.5 pr-1 text-right text-xs text-muted-foreground">
             {overflow > 0
               ? `and ${overflow} more in the trash`
-              : "drag out to restore"}
+              : "drag out to restore · hold ✕ to delete"}
           </p>
         </div>
       )}

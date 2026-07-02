@@ -537,7 +537,10 @@ export async function restoreNode(
     .eq("id", id)
     .maybeSingle<NodeRow & { deleted_at: string | null }>();
   if (error) throw error;
-  if (!row || !row.deleted_at) throw new Error("This item isn't in the trash");
+  if (!row) throw new Error("This item isn't in the trash");
+  // Not a trash ROOT — but it may live INSIDE a trashed subtree (partial
+  // restore of a deleted folder's contents). Detach it out instead.
+  if (!row.deleted_at) return restoreFromTrashedSubtree(row, intoParentId);
 
   if (intoParentId) {
     const target = await getNode(intoParentId);
@@ -638,6 +641,119 @@ export async function restoreNode(
   if (restoreError) throw restoreError;
   emitTrashChanged();
   return toNode(restored);
+}
+
+/**
+ * Partial restore: the node is NOT marked deleted itself but sits somewhere
+ * under a trashed root. Detach it to the given target — or, by default, to
+ * the parent the trashed root used to live in (where the user last saw that
+ * subtree). The rest of the deleted folder stays in the trash untouched.
+ */
+async function restoreFromTrashedSubtree(
+  row: NodeRow,
+  intoParentId?: string,
+): Promise<Node> {
+  interface AncestorRow {
+    id: string;
+    parent_id: string | null;
+    deleted_at: string | null;
+  }
+  // Walk up and remember the TOPMOST trashed ancestor: its parent is live
+  // by construction (things are always trashed from the live tree).
+  let topTrashed: AncestorRow | null = null;
+  let cursor: string | null = row.parent_id;
+  for (let depth = 0; depth < 60 && cursor !== null; depth++) {
+    const currentId: string = cursor;
+    const result: { data: AncestorRow | null } = await supabase
+      .from("nodes")
+      .select("id, parent_id, deleted_at")
+      .eq("id", currentId)
+      .maybeSingle<AncestorRow>();
+    const ancestor: AncestorRow | null = result.data;
+    if (!ancestor) break;
+    if (ancestor.deleted_at) topTrashed = ancestor;
+    cursor = ancestor.parent_id;
+  }
+  if (!topTrashed) throw new Error("This item isn't in the trash");
+
+  const targetParentId = intoParentId ?? topTrashed.parent_id;
+  if (!targetParentId) {
+    throw new Error(
+      "Its dataroom is in the trash — restore the dataroom first",
+    );
+  }
+  const target = await getNode(targetParentId);
+  if (!target || target.type === "file") {
+    throw new Error("That destination no longer exists");
+  }
+
+  let name = row.name;
+  if (row.type === "file") {
+    name = await resolveFileName(targetParentId, row.name, row.id);
+  } else {
+    const taken = await takenContainerNames(targetParentId, row.id);
+    if (taken.has(name.toLowerCase())) {
+      for (let n = 2; n <= 999; n++) {
+        const candidate = `${row.name} (${n})`.slice(0, MAX_NAME_LENGTH);
+        if (!taken.has(candidate.toLowerCase())) {
+          name = candidate;
+          break;
+        }
+      }
+    }
+  }
+
+  const { data: restored, error } = await supabase
+    .from("nodes")
+    .update({ parent_id: targetParentId, name })
+    .eq("id", row.id)
+    .select(NODE_COLUMNS)
+    .single<NodeRow>();
+  if (error) throw error;
+  emitTrashChanged();
+  return toNode(restored);
+}
+
+export interface TrashSearchResult {
+  node: Node;
+  /** The trash root this hit lives under (equals node.id for roots). */
+  rootId: string;
+  rootName: string;
+  isRoot: boolean;
+}
+
+interface SearchTrashRow extends NodeRow {
+  root_id: string;
+  root_name: string;
+  is_root: boolean;
+}
+
+/** Name search across the trash — roots AND items inside deleted folders. */
+export async function searchTrash(
+  query: string,
+): Promise<TrashSearchResult[]> {
+  const q = query.trim();
+  if (q.length === 0) return [];
+  const { data, error } = await supabase.rpc("search_trash", { query: q });
+  if (error) throw error;
+  const rows = (data ?? []) as SearchTrashRow[];
+  // A trashed root nested under another trashed root appears twice; keep
+  // the root-flavored row.
+  const seen = new Set<string>();
+  const results: TrashSearchResult[] = [];
+  for (const r of [...rows].sort(
+    (a, b) => Number(b.is_root) - Number(a.is_root),
+  )) {
+    if (seen.has(r.id)) continue;
+    seen.add(r.id);
+    results.push({
+      node: toNode(r),
+      rootId: r.root_id,
+      rootName: r.root_name,
+      isRoot: r.is_root,
+    });
+  }
+  return results.sort((a, b) => compareNodes(a.node, b.node));
 }
 
 /** Lowercased live container names under a parent (for restore collisions). */
