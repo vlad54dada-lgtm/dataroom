@@ -12,6 +12,7 @@ import {
   getNode,
   isDuplicateNameError,
   listChildren,
+  moveNodes,
   renameNode,
   restoreNode,
   saveFile,
@@ -19,6 +20,7 @@ import {
   trashNode,
   trashNodes,
 } from "@/lib/storage";
+import { RESTORE_MIME, readIds } from "@/lib/dnd";
 import { partitionPdfs } from "@/lib/validate";
 import { extractPdfText } from "@/lib/extract-pdf-text";
 import { useAsync } from "@/lib/hooks/use-async";
@@ -39,13 +41,15 @@ import { ErrorState } from "@/components/error-state";
 import { ListSkeleton } from "@/components/list-skeleton";
 import { NotFoundState } from "@/components/not-found-state";
 import { NameDialog } from "@/components/name-dialog";
+import { MoveDialog } from "@/components/move-dialog";
 import { UploadDropzone } from "@/components/upload-dropzone";
 import { PdfViewerDialog } from "@/components/pdf-viewer-dialog";
 
 type DialogState =
   | { kind: "none" }
   | { kind: "create" }
-  | { kind: "rename"; node: Node };
+  | { kind: "rename"; node: Node }
+  | { kind: "move"; nodes: Node[] };
 
 /** The toolbar button is focused by its own click — capture it. */
 const activeTrigger = () =>
@@ -185,6 +189,47 @@ function RoomView() {
     },
   });
 
+  /**
+   * Moving nodes (drag-and-drop or the Move to… dialog). Rows leave the
+   * current view when they move elsewhere; errors (cycles, gone targets)
+   * surface as specific toasts.
+   */
+  const handleMove = async (ids: string[], target: Node) => {
+    if (target.id === currentFolderId) return;
+    try {
+      const moved = await moveNodes(ids, target.id);
+      if (moved > 0) {
+        const idSet = new Set(ids);
+        setData((items) => items.filter((i) => !idSet.has(i.id)));
+        toast.success(
+          moved === 1
+            ? `Moved to ${target.name}`
+            : `${moved} items moved to ${target.name}`,
+        );
+      }
+    } catch (err) {
+      toast.error(
+        err instanceof Error && err.message.startsWith("Can't")
+          ? err.message
+          : "Couldn't move that",
+      );
+    }
+  };
+
+  /** Dragging an item out of the trash stack restores it right here. */
+  const handleRestoreDrop = async (ids: string[]) => {
+    for (const id of ids) {
+      try {
+        await restoreNode(id, currentFolderId);
+      } catch {
+        toast.error("Couldn't restore it");
+        return;
+      }
+    }
+    reload();
+    toast.success(ids.length === 1 ? "Restored" : `${ids.length} restored`);
+  };
+
   /** Bulk move-to-trash: one UPDATE, one undo toast for the whole batch. */
   const handleBulkTrash = async (nodes: Node[]) => {
     const ids = new Set(nodes.map((n) => n.id));
@@ -317,7 +362,11 @@ function RoomView() {
         {({ open }) => (
           <>
             <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
-              <Breadcrumbs crumbs={crumbs.crumbs ?? []} hrefFor={hrefFor} />
+              <Breadcrumbs
+                crumbs={crumbs.crumbs ?? []}
+                hrefFor={hrefFor}
+                onDropNodes={(ids, target) => void handleMove(ids, target)}
+              />
               <div className="flex flex-wrap items-center gap-2">
                 <div className="relative">
                   <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -352,6 +401,18 @@ function RoomView() {
               </div>
             </div>
             <section
+              onDragOver={(e) => {
+                if (e.dataTransfer.types.includes(RESTORE_MIME)) {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = "move";
+                }
+              }}
+              onDrop={(e) => {
+                const ids = readIds(e.dataTransfer, RESTORE_MIME);
+                if (ids.length === 0) return;
+                e.preventDefault();
+                void handleRestoreDrop(ids);
+              }}
               className={`mt-4 transition-opacity duration-200 ${
                 isStale || (searching && search.isStale)
                   ? "opacity-60"
@@ -392,10 +453,16 @@ function RoomView() {
                   {state.status === "error" && <ErrorState onRetry={reload} />}
                   {state.status === "success" &&
                     (state.data.length === 0 ? (
-                      // Dashed frame doubles as a visual drop-target hint.
-                      <div className="rounded-card border border-dashed border-line-strong">
+                      // The dashed frame IS the drop target: it lights up on
+                      // hover and a click opens the file picker.
+                      <button
+                        type="button"
+                        aria-label="Upload PDF files"
+                        onClick={open}
+                        className="group w-full cursor-pointer rounded-card border border-dashed border-line-strong transition-colors duration-200 outline-none hover:border-brand hover:bg-folder-bg/40 focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-ring/50"
+                      >
                         <EmptyState variant="empty-folder" />
-                      </div>
+                      </button>
                     ) : (
                       <ItemsTable
                         key={currentFolderId} // navigation clears selection
@@ -415,6 +482,12 @@ function RoomView() {
                         onBulkTrash={(nodes) => void handleBulkTrash(nodes)}
                         onBulkDownload={(files) =>
                           void handleBulkDownload(files)
+                        }
+                        onBulkMove={(nodes) =>
+                          setDialog({ kind: "move", nodes })
+                        }
+                        onDropNodes={(ids, target) =>
+                          void handleMove(ids, target)
                         }
                       />
                     ))}
@@ -450,6 +523,28 @@ function RoomView() {
         file={viewerFile}
         onClose={() => setViewerFile(null)}
         returnFocusTo={returnTo}
+      />
+      <MoveDialog
+        key={dialog.kind === "move" ? "move-open" : "move-closed"}
+        open={dialog.kind === "move"}
+        movingIds={
+          new Set(dialog.kind === "move" ? dialog.nodes.map((n) => n.id) : [])
+        }
+        movingLabel={
+          dialog.kind === "move"
+            ? dialog.nodes.length === 1
+              ? dialog.nodes[0].name
+              : `${dialog.nodes.length} items`
+            : ""
+        }
+        onConfirm={async (target) => {
+          if (dialog.kind !== "move") return;
+          await handleMove(
+            dialog.nodes.map((n) => n.id),
+            target,
+          );
+        }}
+        onClose={closeDialog}
       />
     </RoomShell>
   );
