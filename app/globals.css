@@ -1,55 +1,96 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/* Light-only app: neutralize OS dark mode. `dark:` variants only apply under an
+   explicit `.dark` ancestor, which this app never adds. */
+@custom-variant dark (&:is(.dark *));
 
 /* ---------------------------------------------------------------------------
-   Primitive tokens — raw values. Never reference these directly in JSX;
-   always go through the semantic utilities generated below.
+   Palette — one light theme. Raw values live here; components consume the
+   semantic utilities generated in @theme below, never these directly.
 --------------------------------------------------------------------------- */
 :root {
-  --canvas: #fafafa;
-  --surface: #ffffff;
-  --surface-hover: #f3f4f6;
-  --line: #e5e7eb;
+  --radius: 0.5rem;
+
+  /* shadcn contract tokens, mapped to our palette */
+  --background: #ffffff; /* surface */
+  --foreground: #111827; /* primary text */
+  --card: #ffffff;
+  --card-foreground: #111827;
+  --popover: #ffffff;
+  --popover-foreground: #111827;
+  --primary: #1d4ed8; /* brand actions */
+  --primary-foreground: #ffffff;
+  --secondary: #f3f4f6; /* subtle surface */
+  --secondary-foreground: #111827;
+  --muted: #f3f4f6; /* muted surface */
+  --muted-foreground: #6b7280; /* secondary text */
+  --accent: #f3f4f6; /* shadcn "accent" = subtle hover surface, NOT the brand */
+  --accent-foreground: #111827;
+  --destructive: #dc2626;
+  --border: #e5e7eb;
+  --input: #e5e7eb;
+  --ring: #1d4ed8; /* focus ring = brand */
+
+  /* Our additions (non-colliding names) */
+  --canvas: #fafafa; /* page background behind surfaces */
   --line-strong: #d1d5db;
-  --fg: #111827;
-  --muted: #6b7280;
-  --icon: #374151;
-  --accent: #1d4ed8;
-  --accent-hover: #1e40af;
+  --brand: #1d4ed8;
+  --brand-hover: #1e40af;
+  --danger: #dc2626;
+  --danger-hover: #b91c1c;
   --folder: #1d4ed8;
   --folder-bg: #eff6ff;
   --file: #dc2626;
   --file-bg: #fef2f2;
-  --danger: #dc2626;
-  --danger-hover: #b91c1c;
 }
 
 /* ---------------------------------------------------------------------------
-   Semantic tokens — the single vocabulary components use. Exposing them here
-   generates `bg-*`, `text-*`, `border-*`, `rounded-*` utilities in Tailwind v4.
+   Semantic utilities. shadcn contract tokens pass straight through; our extra
+   brand/neutral tokens get their own names so nothing collides.
 --------------------------------------------------------------------------- */
 @theme inline {
-  --color-canvas: var(--canvas);
-  --color-surface: var(--surface);
-  --color-surface-hover: var(--surface-hover);
-  --color-line: var(--line);
-  --color-line-strong: var(--line-strong);
-  --color-fg: var(--fg);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
-  --color-icon: var(--icon);
+  --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
-  --color-accent-hover: var(--accent-hover);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-canvas: var(--canvas);
+  --color-line: var(--border);
+  --color-line-strong: var(--line-strong);
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-danger: var(--danger);
+  --color-danger-hover: var(--danger-hover);
   --color-folder: var(--folder);
   --color-folder-bg: var(--folder-bg);
   --color-file: var(--file);
   --color-file-bg: var(--file-bg);
-  --color-danger: var(--danger);
-  --color-danger-hover: var(--danger-hover);
 
-  --radius-tile: 8px;
-  --radius-control: 8px;
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+  --radius-xl: calc(var(--radius) + 4px);
   --radius-card: 12px;
+  --radius-tile: 8px;
 
   --font-sans: var(--font-geist-sans);
+  --font-heading: var(--font-geist-sans);
 }
 
 html {
@@ -58,6 +99,19 @@ html {
 
 body {
   background-color: var(--canvas);
-  color: var(--fg);
+  color: var(--foreground);
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
 }
