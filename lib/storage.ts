@@ -117,12 +117,16 @@ export function compareNodes(a: Node, b: Node): number {
 // Reads
 // ---------------------------------------------------------------------------
 
-/** Returns undefined for a missing id — never throws (feeds not-found UI). */
+/**
+ * Returns undefined for a missing OR trashed id — never throws (feeds the
+ * not-found UI; a trashed folder's URL reads as gone until restored).
+ */
 export async function getNode(id: string): Promise<Node | undefined> {
   const { data, error } = await supabase
     .from("nodes")
     .select(NODE_COLUMNS)
     .eq("id", id)
+    .is("deleted_at", null)
     .maybeSingle<NodeRow>();
   if (error) {
     // Malformed ids (?folder=garbage isn't a uuid) read as "not found".
@@ -133,7 +137,10 @@ export async function getNode(id: string): Promise<Node | undefined> {
 }
 
 export async function listChildren(parentId: string | null): Promise<Node[]> {
-  let query = supabase.from("nodes").select(NODE_COLUMNS);
+  let query = supabase
+    .from("nodes")
+    .select(NODE_COLUMNS)
+    .is("deleted_at", null);
   query =
     parentId === null
       ? query.is("parent_id", null)
@@ -143,11 +150,12 @@ export async function listChildren(parentId: string | null): Promise<Node[]> {
   return (data ?? []).map(toNode).sort(compareNodes);
 }
 
-/** Direct children only — the "N items" count on dataroom cards. */
+/** Direct live children only — the "N items" count on dataroom cards. */
 export async function countChildren(parentId: string | null): Promise<number> {
   let query = supabase
     .from("nodes")
-    .select("id", { count: "exact", head: true });
+    .select("id", { count: "exact", head: true })
+    .is("deleted_at", null);
   query =
     parentId === null
       ? query.is("parent_id", null)
@@ -170,7 +178,8 @@ async function takenFileNames(
     .from("nodes")
     .select("id, name")
     .eq("parent_id", parentId)
-    .eq("type", "file");
+    .eq("type", "file")
+    .is("deleted_at", null);
   if (error) throw error;
   const taken = new Set<string>();
   for (const row of data ?? []) {
@@ -311,10 +320,154 @@ export async function getBlob(blobKey: string): Promise<Blob | undefined> {
 }
 
 // ---------------------------------------------------------------------------
-// Recursive delete
+// Trash (soft delete) and permanent delete
 // ---------------------------------------------------------------------------
 
-/** Descendant counts for the delete confirm (target itself excluded). */
+export interface TrashItem {
+  node: Node;
+  deletedAt: number;
+  /** Containing dataroom's name; null when the item IS a dataroom. */
+  roomName: string | null;
+}
+
+interface TrashRow extends NodeRow {
+  deleted_at: string;
+  room_name: string | null;
+}
+
+/**
+ * Moves a node (and implicitly its whole subtree) to the trash. Only the
+ * root gets deleted_at; every live-tree walk stops at it, so descendants
+ * vanish with it and return with it on restore.
+ */
+export async function trashNode(id: string): Promise<void> {
+  const { error } = await supabase
+    .from("nodes")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+/** Everything in the trash, newest first, with dataroom context. */
+export async function listTrash(): Promise<TrashItem[]> {
+  const { data, error } = await supabase.rpc("list_trash");
+  if (error) throw error;
+  return ((data ?? []) as TrashRow[]).map((row) => ({
+    node: toNode(row),
+    deletedAt: Date.parse(row.deleted_at),
+    roomName: row.room_name,
+  }));
+}
+
+/**
+ * Restores a trashed node to its original spot. If an ancestor was trashed
+ * or purged in the meantime, the node is re-homed to its dataroom's root;
+ * if the dataroom itself is gone, the restore is refused with a clear
+ * message. Container name collisions get a numeric suffix.
+ */
+export async function restoreNode(id: string): Promise<Node> {
+  const { data: row, error } = await supabase
+    .from("nodes")
+    .select(`${NODE_COLUMNS}, deleted_at`)
+    .eq("id", id)
+    .maybeSingle<NodeRow & { deleted_at: string | null }>();
+  if (error) throw error;
+  if (!row || !row.deleted_at) throw new Error("This item isn't in the trash");
+
+  // Walk the ancestor chain: it must be fully live to restore in place.
+  interface AncestorRow {
+    id: string;
+    parent_id: string | null;
+    deleted_at: string | null;
+  }
+  let targetParentId = row.parent_id;
+  if (row.parent_id !== null) {
+    let cursor: string | null = row.parent_id;
+    let chainLive = true;
+    let roomId: string | null = null;
+    for (let depth = 0; depth < 60 && cursor !== null; depth++) {
+      const currentId: string = cursor;
+      const result: { data: AncestorRow | null } = await supabase
+        .from("nodes")
+        .select("id, parent_id, deleted_at")
+        .eq("id", currentId)
+        .maybeSingle<AncestorRow>();
+      const ancestor: AncestorRow | null = result.data;
+      if (!ancestor) {
+        chainLive = false;
+        roomId = null;
+        break;
+      }
+      if (ancestor.deleted_at) chainLive = false;
+      if (ancestor.parent_id === null) roomId = ancestor.id;
+      cursor = ancestor.parent_id;
+    }
+    if (!chainLive) {
+      if (!roomId) {
+        throw new Error(
+          "Its dataroom is in the trash — restore the dataroom first",
+        );
+      }
+      targetParentId = roomId; // re-home to the dataroom root
+    }
+  }
+
+  // Resolve a free name at the destination (containers can't overwrite the
+  // live unique index; files follow the usual suffix policy).
+  let name = row.name;
+  if (row.type === "file") {
+    if (targetParentId) {
+      name = await resolveFileName(targetParentId, row.name, id);
+    }
+  } else {
+    const taken = await takenContainerNames(targetParentId, id);
+    if (taken.has(name.toLowerCase())) {
+      const base = name;
+      for (let n = 2; n <= 999; n++) {
+        const candidate = `${base} (${n})`.slice(0, MAX_NAME_LENGTH);
+        if (!taken.has(candidate.toLowerCase())) {
+          name = candidate;
+          break;
+        }
+      }
+    }
+  }
+
+  const { data: restored, error: restoreError } = await supabase
+    .from("nodes")
+    .update({ deleted_at: null, parent_id: targetParentId, name })
+    .eq("id", id)
+    .select(NODE_COLUMNS)
+    .single<NodeRow>();
+  if (restoreError) throw restoreError;
+  return toNode(restored);
+}
+
+/** Lowercased live container names under a parent (for restore collisions). */
+async function takenContainerNames(
+  parentId: string | null,
+  excludeId?: string,
+): Promise<Set<string>> {
+  let query = supabase
+    .from("nodes")
+    .select("id, name")
+    .neq("type", "file")
+    .is("deleted_at", null);
+  query =
+    parentId === null
+      ? query.is("parent_id", null)
+      : query.eq("parent_id", parentId);
+  const { data, error } = await query;
+  if (error) throw error;
+  const taken = new Set<string>();
+  for (const row of data ?? []) {
+    if (row.id === excludeId) continue;
+    taken.add(row.name.toLowerCase());
+  }
+  return taken;
+}
+
+/** Descendant counts for the permanent-delete confirm (target excluded). */
 export async function getDeleteCounts(id: string): Promise<DeleteCounts> {
   const { data, error } = await supabase
     .rpc("get_subtree_stats", { node_id: id })
@@ -324,12 +477,13 @@ export async function getDeleteCounts(id: string): Promise<DeleteCounts> {
 }
 
 /**
- * Metadata for the whole subtree is removed by ONE cascading DELETE (all or
- * nothing at the database level). Blob paths are collected first and their
- * storage objects removed after the metadata commit — a failed cleanup can
- * only leave invisible orphan objects, never half-deleted trees.
+ * PERMANENT delete. Metadata for the whole subtree is removed by ONE
+ * cascading DELETE (all or nothing at the database level). Blob paths are
+ * collected first and their storage objects removed after the metadata
+ * commit — a failed cleanup can only leave invisible orphan objects, never
+ * half-deleted trees.
  */
-export async function deleteNodeRecursive(id: string): Promise<void> {
+export async function purgeNode(id: string): Promise<void> {
   const { data: paths, error: pathsError } = await supabase.rpc(
     "get_subtree_blob_paths",
     { node_id: id },
@@ -343,6 +497,15 @@ export async function deleteNodeRecursive(id: string): Promise<void> {
   for (let i = 0; i < blobPaths.length; i += 100) {
     await supabase.storage.from("pdfs").remove(blobPaths.slice(i, i + 100));
   }
+}
+
+/** Permanently deletes everything currently in the trash. */
+export async function emptyTrash(): Promise<number> {
+  const items = await listTrash();
+  for (const item of items) {
+    await purgeNode(item.node.id);
+  }
+  return items.length;
 }
 
 // ---------------------------------------------------------------------------
