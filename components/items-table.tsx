@@ -23,6 +23,10 @@ interface ItemsTableProps {
   /** Bulk actions for the selection bar. */
   onBulkTrash: (nodes: Node[]) => void;
   onBulkDownload: (files: Node[]) => void;
+  /** Opens the destination picker for the given nodes. */
+  onBulkMove: (nodes: Node[]) => void;
+  /** Ids dropped onto a folder row (drag-and-drop move). */
+  onDropNodes: (ids: string[], target: Node) => void;
 }
 
 /**
@@ -39,6 +43,8 @@ export function ItemsTable({
   onDelete,
   onBulkTrash,
   onBulkDownload,
+  onBulkMove,
+  onDropNodes,
 }: ItemsTableProps) {
   const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(
     new Set(),
@@ -104,6 +110,15 @@ export function ItemsTable({
                 selected={selectedIds.has(node.id)}
                 selectionActive={selectionActive}
                 onToggleSelect={toggle}
+                getDragIds={(n) =>
+                  selectedIds.has(n.id)
+                    ? liveSelected.map((s) => s.id)
+                    : [n.id]
+                }
+                onDropNodes={(ids, target) => {
+                  onDropNodes(ids, target);
+                  clear();
+                }}
               />
             ))}
           </TableBody>
@@ -116,6 +131,7 @@ export function ItemsTable({
           onDownload={() => {
             onBulkDownload(liveSelected.filter((n) => n.type === "file"));
           }}
+          onMove={() => onBulkMove(liveSelected)}
           onTrash={() => {
             onBulkTrash(liveSelected);
             clear();

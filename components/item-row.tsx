@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { FileText, Folder } from "lucide-react";
 import type { Node } from "@/types";
+import { MOVE_MIME, readIds } from "@/lib/dnd";
 import { cn, formatBytes, formatDate } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { TableCell, TableRow } from "@/components/ui/table";
@@ -20,6 +22,10 @@ interface ItemRowProps {
   /** While a selection exists, every row's checkbox stays visible. */
   selectionActive: boolean;
   onToggleSelect: (node: Node) => void;
+  /** Which ids a drag starting on this row carries (selection-aware). */
+  getDragIds: (node: Node) => string[];
+  /** Ids dropped onto a folder row. */
+  onDropNodes: (ids: string[], target: Node) => void;
 }
 
 /**
@@ -38,10 +44,33 @@ export function ItemRow({
   selected,
   selectionActive,
   onToggleSelect,
+  getDragIds,
+  onDropNodes,
 }: ItemRowProps) {
   const isFolder = node.type !== "file";
   const size = node.type === "file" ? formatBytes(node.size ?? 0) : null;
   const modified = formatDate(node.updatedAt);
+  // Folder rows light up while a compatible drag hovers over them.
+  const [dropReady, setDropReady] = useState(false);
+
+  const dropProps = isFolder
+    ? {
+        onDragOver: (e: React.DragEvent) => {
+          if (!e.dataTransfer.types.includes(MOVE_MIME)) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "move";
+          setDropReady(true);
+        },
+        onDragLeave: () => setDropReady(false),
+        onDrop: (e: React.DragEvent) => {
+          setDropReady(false);
+          const ids = readIds(e.dataTransfer, MOVE_MIME);
+          if (ids.length === 0 || ids.includes(node.id)) return;
+          e.preventDefault();
+          onDropNodes(ids, node);
+        },
+      }
+    : {};
 
   const nameContent = (
     <>
@@ -69,8 +98,18 @@ export function ItemRow({
 
   return (
     <TableRow
-      className={cn("group/row h-12", selected && "bg-muted/50")}
+      draggable
+      onDragStart={(e: React.DragEvent) => {
+        e.dataTransfer.setData(MOVE_MIME, JSON.stringify(getDragIds(node)));
+        e.dataTransfer.effectAllowed = "move";
+      }}
+      className={cn(
+        "group/row h-12",
+        selected && "bg-muted/50",
+        dropReady && "bg-folder-bg ring-2 ring-inset ring-ring/60",
+      )}
       data-state={selected ? "selected" : undefined}
+      {...dropProps}
     >
       <TableCell className="w-10 px-3 py-0">
         <Checkbox

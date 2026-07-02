@@ -1,8 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { ChevronRight, Ellipsis } from "lucide-react";
 import type { Node } from "@/types";
+import { MOVE_MIME, readIds } from "@/lib/dnd";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -15,6 +18,8 @@ interface BreadcrumbsProps {
   /** Ancestor chain, room first, current folder last. */
   crumbs: Node[];
   hrefFor: (id: string) => string;
+  /** Rows dragged onto an ancestor crumb move there. */
+  onDropNodes?: (ids: string[], target: Node) => void;
 }
 
 function Separator() {
@@ -26,12 +31,39 @@ function Separator() {
   );
 }
 
-function CrumbLink({ node, href }: { node: Node; href: string }) {
+function CrumbLink({
+  node,
+  href,
+  onDropNodes,
+}: {
+  node: Node;
+  href: string;
+  onDropNodes?: (ids: string[], target: Node) => void;
+}) {
+  const [dropReady, setDropReady] = useState(false);
   return (
     <Link
       href={href}
       title={node.name}
-      className="max-w-40 truncate rounded-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+      onDragOver={(e) => {
+        if (!onDropNodes || !e.dataTransfer.types.includes(MOVE_MIME)) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        setDropReady(true);
+      }}
+      onDragLeave={() => setDropReady(false)}
+      onDrop={(e) => {
+        setDropReady(false);
+        if (!onDropNodes) return;
+        const ids = readIds(e.dataTransfer, MOVE_MIME);
+        if (ids.length === 0 || ids.includes(node.id)) return;
+        e.preventDefault();
+        onDropNodes(ids, node);
+      }}
+      className={cn(
+        "max-w-40 truncate rounded-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50",
+        dropReady && "bg-folder-bg px-1 text-brand ring-2 ring-ring/60",
+      )}
     >
       {node.name}
     </Link>
@@ -44,7 +76,7 @@ function CrumbLink({ node, href }: { node: Node; href: string }) {
  * middle into an ellipsis menu, keeping the room and the current folder
  * always visible.
  */
-export function Breadcrumbs({ crumbs, hrefFor }: BreadcrumbsProps) {
+export function Breadcrumbs({ crumbs, hrefFor, onDropNodes }: BreadcrumbsProps) {
   if (crumbs.length === 0) return null;
   const current = crumbs[crumbs.length - 1];
   const ancestors = crumbs.slice(0, -1);
@@ -66,7 +98,11 @@ export function Breadcrumbs({ crumbs, hrefFor }: BreadcrumbsProps) {
         {head.map((node) => (
           <li key={node.id} className="flex min-w-0 items-center gap-1">
             <Separator />
-            <CrumbLink node={node} href={hrefFor(node.id)} />
+            <CrumbLink
+              node={node}
+              href={hrefFor(node.id)}
+              onDropNodes={onDropNodes}
+            />
           </li>
         ))}
         {middle.length > 0 && (

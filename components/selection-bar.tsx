@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, Trash2, X } from "lucide-react";
+import { Download, FolderInput, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface SelectionBarProps {
@@ -8,6 +8,7 @@ interface SelectionBarProps {
   /** How many of the selected items are files (downloadable). */
   fileCount: number;
   onDownload: () => void;
+  onMove: () => void;
   onTrash: () => void;
   onClear: () => void;
 }
@@ -20,6 +21,7 @@ export function SelectionBar({
   count,
   fileCount,
   onDownload,
+  onMove,
   onTrash,
   onClear,
 }: SelectionBarProps) {
@@ -40,6 +42,9 @@ export function SelectionBar({
           {fileCount > 0 && count !== fileCount
             ? `Download ${fileCount} ${fileCount === 1 ? "file" : "files"}`
             : "Download"}
+        </Button>
+        <Button variant="ghost" size="sm" onClick={onMove}>
+          <FolderInput /> Move to…
         </Button>
         <Button
           variant="ghost"
