@@ -1,6 +1,16 @@
-import { FolderOpen, FolderPlus, SearchX, type LucideIcon } from "lucide-react";
+import {
+  FolderOpen,
+  FolderPlus,
+  SearchX,
+  Trash2,
+  type LucideIcon,
+} from "lucide-react";
 
-type EmptyStateVariant = "no-datarooms" | "empty-folder" | "no-results";
+type EmptyStateVariant =
+  | "no-datarooms"
+  | "empty-folder"
+  | "no-results"
+  | "trash-empty";
 
 const COPY: Record<
   EmptyStateVariant,
@@ -20,6 +30,11 @@ const COPY: Record<
     icon: SearchX,
     title: "No matches",
     description: "Try a different name.",
+  },
+  "trash-empty": {
+    icon: Trash2,
+    title: "Trash is empty",
+    description: "Deleted items land here so you can restore them.",
   },
 };
 

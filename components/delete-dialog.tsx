@@ -44,8 +44,8 @@ function describe(target: Node, counts: DeleteCounts | null): string {
 }
 
 /**
- * Destructive confirm. Focus lands on Cancel by default (DOM order), so Enter
- * never deletes by accident; Esc closes.
+ * PERMANENT-delete confirm (trash purge). Focus lands on Cancel by default
+ * (DOM order), so Enter never deletes by accident; Esc closes.
  */
 export function DeleteDialog({
   open,
@@ -86,7 +86,7 @@ export function DeleteDialog({
           <>
             <AlertDialogHeader>
               <AlertDialogTitle className="line-clamp-2 [overflow-wrap:anywhere]">
-                Delete &ldquo;{target.name}&rdquo;?
+                Delete &ldquo;{target.name}&rdquo; forever?
               </AlertDialogTitle>
               <AlertDialogDescription>
                 {describe(target, counts)}
@@ -99,7 +99,7 @@ export function DeleteDialog({
                 disabled={pending}
                 onClick={handleConfirm}
               >
-                Delete
+                Delete forever
               </AlertDialogAction>
             </AlertDialogFooter>
           </>

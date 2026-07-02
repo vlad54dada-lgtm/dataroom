@@ -27,7 +27,7 @@ export function UserMenu() {
           variant="ghost"
           size="icon-sm"
           aria-label="Account"
-          className="ml-auto rounded-full"
+          className="rounded-full"
         >
           <span className="flex size-6 items-center justify-center rounded-full bg-folder-bg text-xs font-semibold text-brand">
             {initial}

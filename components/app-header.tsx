@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { FileText } from "lucide-react";
+import { FileText, Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { UserMenu } from "@/components/user-menu";
 
 /** App-wide header. `children` hosts the room view's breadcrumbs. */
@@ -18,7 +19,20 @@ export function AppHeader({ children }: { children?: React.ReactNode }) {
           <span className="text-sm font-semibold">DataRoom</span>
         </Link>
         {children}
-        <UserMenu />
+        <div className="ml-auto flex shrink-0 items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Trash"
+            className="text-muted-foreground"
+            asChild
+          >
+            <Link href="/trash">
+              <Trash2 />
+            </Link>
+          </Button>
+          <UserMenu />
+        </div>
       </div>
     </header>
   );
