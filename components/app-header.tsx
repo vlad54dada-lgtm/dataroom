@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { FileText } from "lucide-react";
+import { UserMenu } from "@/components/user-menu";
 
 /** App-wide header. `children` hosts the room view's breadcrumbs. */
 export function AppHeader({ children }: { children?: React.ReactNode }) {
@@ -17,6 +18,7 @@ export function AppHeader({ children }: { children?: React.ReactNode }) {
           <span className="text-sm font-semibold">DataRoom</span>
         </Link>
         {children}
+        <UserMenu />
       </div>
     </header>
   );
