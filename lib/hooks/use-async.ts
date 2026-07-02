@@ -14,13 +14,15 @@ interface Snapshot<T> {
 }
 
 /**
- * Minimal data-loading primitive over the async storage adapter.
+ * Minimal data-loading primitive over the async storage adapter, with
+ * stale-while-revalidate built in.
  *
  * - `key` identifies the request: the loader re-runs whenever it changes
  *   (e.g. the current folder id). `reload()` re-runs it explicitly.
- * - Loading is DERIVED: the last settled snapshot is tagged with the
- *   key/tick it answered, so a snapshot for an older request is simply
- *   ignored — fast navigation never flashes stale contents.
+ * - While a NEW key resolves, the previous key's successful data keeps
+ *   rendering (flagged `isStale`) instead of flashing a skeleton — this is
+ *   what makes folder navigation feel instant. A snapshot for an older
+ *   request can never overwrite a newer one (key/tick tagging).
  * - `setData` patches loaded data in place — the hook for optimistic updates.
  */
 export function useAsync<T>(load: () => Promise<T>, key: string) {
@@ -50,10 +52,14 @@ export function useAsync<T>(load: () => Promise<T>, key: string) {
     };
   }, [key, tick]);
 
-  const state: AsyncState<T> =
-    snapshot && snapshot.key === key && snapshot.tick === tick
-      ? snapshot.state
+  const fresh =
+    snapshot !== null && snapshot.key === key && snapshot.tick === tick;
+  const state: AsyncState<T> = fresh
+    ? snapshot.state
+    : snapshot && snapshot.state.status === "success"
+      ? snapshot.state // stale-while-revalidate: keep last good content
       : { status: "loading" };
+  const isStale = !fresh && state.status === "success";
 
   const reload = useCallback(() => setTick((t) => t + 1), []);
 
@@ -68,5 +74,5 @@ export function useAsync<T>(load: () => Promise<T>, key: string) {
     );
   }, []);
 
-  return { state, reload, setData };
+  return { state, isStale, reload, setData };
 }
