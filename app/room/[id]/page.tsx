@@ -2,20 +2,26 @@
 
 import { Suspense, useState } from "react";
 import { useParams } from "next/navigation";
+import { toast } from "sonner";
+import { Upload } from "lucide-react";
 import type { DeleteCounts, Node } from "@/types";
 import {
   compareNodes,
   createNode,
   deleteNodeRecursive,
   getDeleteCounts,
+  getNode,
   isDuplicateNameError,
   listChildren,
   renameNode,
+  saveFile,
 } from "@/lib/storage";
+import { partitionPdfs } from "@/lib/validate";
 import { useAsync } from "@/lib/hooks/use-async";
 import { useMutation } from "@/lib/hooks/use-mutation";
 import { useCurrentFolder } from "@/lib/hooks/use-current-folder";
 import { useBreadcrumbs } from "@/lib/hooks/use-breadcrumbs";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AppHeader } from "@/components/app-header";
 import { Breadcrumbs } from "@/components/breadcrumbs";
@@ -27,6 +33,8 @@ import { ListSkeleton } from "@/components/list-skeleton";
 import { NotFoundState } from "@/components/not-found-state";
 import { NameDialog } from "@/components/name-dialog";
 import { DeleteDialog } from "@/components/delete-dialog";
+import { UploadDropzone } from "@/components/upload-dropzone";
+import { PdfViewerDialog } from "@/components/pdf-viewer-dialog";
 
 type DialogState =
   | { kind: "none" }
@@ -74,6 +82,14 @@ export default function RoomPage() {
 
 const sortNodes = (nodes: Node[]) => [...nodes].sort(compareNodes);
 
+const summarizeInvalid = (files: File[]): string => {
+  if (files.length === 1) return `${files[0].name} isn't a PDF and was skipped`;
+  const names = files.map((f) => f.name);
+  const shown = names.slice(0, 3).join(", ");
+  const more = names.length > 3 ? ` and ${names.length - 3} more` : "";
+  return `${files.length} files aren't PDFs and were skipped: ${shown}${more}`;
+};
+
 function RoomView() {
   const { id: roomId } = useParams<{ id: string }>();
   const { currentFolderId, isRoot, hrefFor } = useCurrentFolder(roomId);
@@ -83,6 +99,7 @@ function RoomView() {
     currentFolderId,
   );
   const [dialog, setDialog] = useState<DialogState>({ kind: "none" });
+  const [viewerFile, setViewerFile] = useState<Node | null>(null);
   const closeDialog = () => setDialog({ kind: "none" });
 
   const createFolder = useMutation(
@@ -96,12 +113,12 @@ function RoomView() {
     },
   );
 
-  const renameFolder = useMutation(
+  const renameItem = useMutation(
     (node: Node, name: string) => renameNode(node.id, name),
     {
-      successToast: "Folder renamed",
-      errorToast: (e) =>
-        isDuplicateNameError(e) ? null : "Couldn't rename the folder",
+      successToast: (updated) =>
+        updated.type === "file" ? "File renamed" : "Folder renamed",
+      errorToast: (e) => (isDuplicateNameError(e) ? null : "Couldn't rename"),
       onSuccess: (updated) =>
         setData((items) =>
           sortNodes(items.map((i) => (i.id === updated.id ? updated : i))),
@@ -117,7 +134,7 @@ function RoomView() {
         return () => reload(); // rollback: refetch the authoritative list
       },
       successToast: "Deleted",
-      errorToast: () => "Couldn't delete the folder",
+      errorToast: () => "Couldn't delete",
     },
   );
 
@@ -130,9 +147,48 @@ function RoomView() {
     );
   };
 
-  // Files are only creatable once upload ships (next block, together with
-  // the viewer) — no file row can render yet, so this never fires.
-  const openFile = () => undefined;
+  /**
+   * Sequential upload: validation in code (ext + MIME + magic number), one
+   * file at a time so suffixing stays deterministic and the UI never
+   * freezes. The target is captured at drop time; rows are only injected
+   * into the list the user is currently looking at, and the batch stops if
+   * the destination folder is deleted mid-flight.
+   */
+  const handleFiles = async (incoming: File[]) => {
+    if (incoming.length === 0) return;
+    const parentId = currentFolderId;
+    const { valid, invalid } = await partitionPdfs(incoming);
+    if (invalid.length > 0) toast.error(summarizeInvalid(invalid));
+    if (valid.length === 0) return;
+    const toastId = toast.loading(`Uploading 1 of ${valid.length}…`);
+    let done = 0;
+    for (const file of valid) {
+      if (!(await getNode(parentId))) {
+        toast.error("Upload stopped — the destination folder was deleted", {
+          id: toastId,
+        });
+        return;
+      }
+      toast.loading(`Uploading ${done + 1} of ${valid.length}…`, {
+        id: toastId,
+      });
+      const node = await saveFile(parentId, file);
+      done++;
+      // The URL is the source of truth for where the user is NOW.
+      const hereNow =
+        new URLSearchParams(location.search).get("folder") ?? roomId;
+      if (hereNow === parentId) {
+        setData((items) =>
+          items.some((i) => i.id === node.id)
+            ? items
+            : sortNodes([...items, node]),
+        );
+      }
+    }
+    toast.success(done === 1 ? "1 file uploaded" : `${done} files uploaded`, {
+      id: toastId,
+    });
+  };
 
   if (crumbs.error) {
     return (
@@ -152,26 +208,38 @@ function RoomView() {
 
   return (
     <RoomShell>
-      <div className="flex items-center justify-between gap-4">
-        <Breadcrumbs crumbs={crumbs.crumbs} hrefFor={hrefFor} />
-        <RoomToolbar onNewFolder={() => setDialog({ kind: "create" })} />
-      </div>
-      <section className="mt-4">
-        {state.status === "loading" && <ListSkeleton variant="rows" count={4} />}
-        {state.status === "error" && <ErrorState onRetry={reload} />}
-        {state.status === "success" &&
-          (state.data.length === 0 ? (
-            <EmptyState variant="empty-folder" />
-          ) : (
-            <ItemsTable
-              items={state.data}
-              hrefFor={hrefFor}
-              onOpenFile={openFile}
-              onRename={(node) => setDialog({ kind: "rename", node })}
-              onDelete={openDelete}
-            />
-          ))}
-      </section>
+      <UploadDropzone onFiles={handleFiles}>
+        {({ open }) => (
+          <>
+            <div className="flex items-center justify-between gap-4">
+              <Breadcrumbs crumbs={crumbs.crumbs ?? []} hrefFor={hrefFor} />
+              <RoomToolbar onNewFolder={() => setDialog({ kind: "create" })}>
+                <Button onClick={open}>
+                  <Upload /> Upload
+                </Button>
+              </RoomToolbar>
+            </div>
+            <section className="mt-4">
+              {state.status === "loading" && (
+                <ListSkeleton variant="rows" count={4} />
+              )}
+              {state.status === "error" && <ErrorState onRetry={reload} />}
+              {state.status === "success" &&
+                (state.data.length === 0 ? (
+                  <EmptyState variant="empty-folder" />
+                ) : (
+                  <ItemsTable
+                    items={state.data}
+                    hrefFor={hrefFor}
+                    onOpenFile={setViewerFile}
+                    onRename={(node) => setDialog({ kind: "rename", node })}
+                    onDelete={openDelete}
+                  />
+                ))}
+            </section>
+          </>
+        )}
+      </UploadDropzone>
 
       <NameDialog
         key={
@@ -181,11 +249,14 @@ function RoomView() {
         }
         open={dialog.kind === "create" || dialog.kind === "rename"}
         mode={dialog.kind === "rename" ? "rename" : "create"}
-        entity="folder"
+        entity={
+          dialog.kind === "rename" && dialog.node.type === "file"
+            ? "file"
+            : "folder"
+        }
         initialName={dialog.kind === "rename" ? dialog.node.name : ""}
         onSubmit={async (name) => {
-          if (dialog.kind === "rename")
-            await renameFolder.run(dialog.node, name);
+          if (dialog.kind === "rename") await renameItem.run(dialog.node, name);
           else await createFolder.run(name);
         }}
         onClose={closeDialog}
@@ -199,6 +270,7 @@ function RoomView() {
         }}
         onClose={closeDialog}
       />
+      <PdfViewerDialog file={viewerFile} onClose={() => setViewerFile(null)} />
     </RoomShell>
   );
 }
