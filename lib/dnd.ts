@@ -93,7 +93,7 @@ export function startDragGhost(
   if (count > 1) {
     const badge = document.createElement("span");
     badge.className =
-      "absolute -top-2.5 -left-2.5 z-10 flex size-6 items-center justify-center rounded-full bg-brand text-xs font-semibold text-white shadow-md";
+      "absolute -top-2.5 -left-2.5 z-10 flex size-6 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground shadow-md";
     badge.textContent = count > 99 ? "99+" : String(count);
     stack.appendChild(badge);
   }

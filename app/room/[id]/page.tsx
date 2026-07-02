@@ -61,7 +61,7 @@ function RoomShell({ children }: { children: React.ReactNode }) {
   return (
     <>
       <AppHeader />
-      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-6 py-6 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200">
+      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-6 py-8 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200">
         {children}
       </main>
     </>

@@ -105,7 +105,9 @@
   --card-foreground: #edf0f5;
   --popover: #171b24;
   --popover-foreground: #edf0f5;
-  --primary: #3b82f6;
+  /* One step deeper than the link blue: white button labels need >=4.5:1
+     (white on #3b82f6 is only 3.68). */
+  --primary: #2563eb;
   --primary-foreground: #ffffff;
   --secondary: #1b202b;
   --secondary-foreground: #edf0f5;

@@ -91,7 +91,7 @@ export function TrashFab() {
                   );
                 }}
                 style={{ animationDelay: `${i * 45}ms` }}
-                className="group/peek flex h-11 cursor-grab items-center gap-2.5 rounded-xl border bg-popover px-3 shadow-md backdrop-blur transition-colors hover:bg-muted/60 active:cursor-grabbing motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-3 motion-safe:duration-200 motion-safe:fill-mode-backwards"
+                className="group/peek flex h-11 cursor-grab items-center gap-2.5 rounded-xl border bg-popover px-3 shadow-md transition-colors hover:bg-muted/60 active:cursor-grabbing motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-3 motion-safe:duration-200 motion-safe:fill-mode-backwards"
               >
                 {item.node.type === "dataroom" ? (
                   <RoomAvatar
@@ -160,7 +160,7 @@ export function TrashFab() {
       >
         <Trash2 className="size-5" strokeWidth={1.75} />
         {count > 0 && (
-          <span className="absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-brand px-1.5 text-xs font-medium text-white">
+          <span className="absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-medium text-primary-foreground">
             {count > 99 ? "99+" : count}
           </span>
         )}

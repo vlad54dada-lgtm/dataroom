@@ -51,7 +51,9 @@ export function UploadDropzone({ onFiles, children }: UploadDropzoneProps) {
           isDragActive && "opacity-100",
         )}
       >
-        <div className="flex flex-col items-center gap-2 text-brand">
+        {/* dark:brand-hover — plain brand blue reads 4.3:1 on the tinted
+            dark wash, just under AA; the lighter step clears it. */}
+        <div className="flex flex-col items-center gap-2 text-brand dark:text-brand-hover">
           <Upload className="size-8" strokeWidth={1.75} />
           <p className="text-sm font-medium">Drop PDF files to upload</p>
         </div>
