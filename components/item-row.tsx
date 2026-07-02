@@ -21,7 +21,8 @@ interface ItemRowProps {
   selected: boolean;
   /** While a selection exists, every row's checkbox stays visible. */
   selectionActive: boolean;
-  onToggleSelect: (node: Node) => void;
+  /** `range` = shift-click: select the whole stretch from the anchor row. */
+  onToggleSelect: (node: Node, range: boolean) => void;
   /** Which ids a drag starting on this row carries (selection-aware). */
   getDragIds: (node: Node) => string[];
   /** Ids dropped onto a folder row. */
@@ -150,7 +151,15 @@ export function ItemRow({
         >
           <Checkbox
             checked={selected}
-            onCheckedChange={() => onToggleSelect(node)}
+            onClick={(e) => {
+              if (e.shiftKey) {
+                // preventDefault stops Radix's own toggle — the range
+                // handler owns the whole selection change.
+                e.preventDefault();
+                onToggleSelect(node, true);
+              }
+            }}
+            onCheckedChange={() => onToggleSelect(node, false)}
             aria-label={`Select ${node.name}`}
           />
         </span>

@@ -6,6 +6,7 @@ import type { Node } from "@/types";
 import { getBlob } from "@/lib/storage";
 import { useAsync } from "@/lib/hooks/use-async";
 import { Button } from "@/components/ui/button";
+import { PdfCanvasViewer } from "@/components/pdf-canvas-viewer";
 import {
   Dialog,
   DialogContent,
@@ -39,6 +40,11 @@ export function PdfViewerDialog({
   if (file && file !== shownFile) setShownFile(file);
   const shown = file ?? shownFile;
   const blobKey = shown?.blobKey ?? null;
+
+  // pdf.js couldn't parse THIS document — fall back to the browser's
+  // iframe renderer for it (per-file, so the next file tries canvas again).
+  const [failedKey, setFailedKey] = useState<string | null>(null);
+  const canvasFailed = failedKey !== null && failedKey === blobKey;
 
   const restoreFocus = (event: Event) => {
     if (returnFocusTo?.isConnected) {
@@ -97,7 +103,14 @@ export function PdfViewerDialog({
               This file is unavailable.
             </div>
           )}
-          {url && shown && (
+          {url && shown && !canvasFailed && (
+            <PdfCanvasViewer
+              key={blobKey ?? url}
+              url={url}
+              onRenderError={() => setFailedKey(blobKey)}
+            />
+          )}
+          {url && shown && canvasFailed && (
             <>
               <iframe
                 src={url}

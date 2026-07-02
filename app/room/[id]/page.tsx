@@ -1,7 +1,12 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { Suspense, useEffect, useRef, useState } from "react";
+import {
+  useParams,
+  usePathname,
+  useRouter,
+  useSearchParams,
+} from "next/navigation";
 import { toast } from "sonner";
 import { RotateCcw, Search, Upload, X } from "lucide-react";
 import type { Node } from "@/types";
@@ -45,6 +50,7 @@ import { NotFoundState } from "@/components/not-found-state";
 import { NameDialog } from "@/components/name-dialog";
 import { MoveDialog } from "@/components/move-dialog";
 import { UploadDropzone } from "@/components/upload-dropzone";
+import { UploadPanel, type UploadState } from "@/components/upload-panel";
 import { PdfViewerDialog } from "@/components/pdf-viewer-dialog";
 
 type DialogState =
@@ -136,13 +142,25 @@ function RoomView() {
   const [restoreOver, setRestoreOver] = useState(false);
   const closeDialog = () => setDialog({ kind: "none" });
 
-  // Search: debounced so each keystroke doesn't hit the database.
-  const [query, setQuery] = useState("");
-  const [debouncedQuery, setDebouncedQuery] = useState("");
+  // Search: debounced so each keystroke doesn't hit the database. The
+  // query lives in the URL (?q=) so a refresh keeps the search — same
+  // source-of-truth rule as the current folder.
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [query, setQuery] = useState(() => searchParams.get("q") ?? "");
+  const [debouncedQuery, setDebouncedQuery] = useState(() => query.trim());
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQuery(query.trim()), 250);
     return () => clearTimeout(t);
   }, [query]);
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams);
+    if ((params.get("q") ?? "") === debouncedQuery) return;
+    if (debouncedQuery) params.set("q", debouncedQuery);
+    else params.delete("q");
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [debouncedQuery, pathname, router, searchParams]);
   const searching = debouncedQuery.length > 0;
   const search = useAsync(
     () =>
@@ -328,46 +346,76 @@ function RoomView() {
   /**
    * Sequential upload: validation in code (ext + MIME + magic number), one
    * file at a time so suffixing stays deterministic and the UI never
-   * freezes. The target is captured at drop time; rows are only injected
-   * into the list the user is currently looking at, and the batch stops if
-   * the destination folder is deleted mid-flight.
+   * freezes. Progress lives in a floating panel (per-file status, batch
+   * progress bar, Cancel between files). The target is captured at drop
+   * time; rows are only injected into the list the user is currently
+   * looking at, and the batch stops if the destination folder is deleted
+   * mid-flight.
    */
+  const [upload, setUpload] = useState<UploadState | null>(null);
+  const uploadCancelRef = useRef(false);
+  useEffect(() => {
+    if (!upload?.outcome) return;
+    const t = setTimeout(
+      () => setUpload(null),
+      upload.outcome === "done" ? 4000 : 8000,
+    );
+    return () => clearTimeout(t);
+  }, [upload?.outcome]);
+
   const handleFiles = async (incoming: File[]) => {
     if (incoming.length === 0) return;
     const parentId = currentFolderId;
     const { valid, invalid } = await partitionPdfs(incoming);
     if (invalid.length > 0) toast.error(summarizeInvalid(invalid));
     if (valid.length === 0) return;
-    const toastId = toast.loading(`Uploading 1 of ${valid.length}…`);
-    let done = 0;
-    for (const file of valid) {
-      if (!(await getNode(parentId))) {
-        toast.error("Upload stopped — the destination folder was deleted", {
-          id: toastId,
-        });
+
+    uploadCancelRef.current = false;
+    setUpload({
+      files: valid.map((f) => ({ name: f.name, status: "queued" })),
+      outcome: null,
+    });
+    const setFileStatus = (index: number, status: UploadState["files"][number]["status"]) =>
+      setUpload((u) =>
+        u && {
+          ...u,
+          files: u.files.map((f, j) => (j === index ? { ...f, status } : f)),
+        },
+      );
+    const settle = (outcome: NonNullable<UploadState["outcome"]>) =>
+      setUpload((u) => (u ? { ...u, outcome } : u));
+
+    for (let i = 0; i < valid.length; i++) {
+      if (uploadCancelRef.current) {
+        settle("cancelled");
         return;
       }
-      toast.loading(`Uploading ${done + 1} of ${valid.length}…`, {
-        id: toastId,
-      });
-      // Extracted text powers content search; scanned PDFs return null.
-      const contentText = await extractPdfText(file);
-      const node = await saveFile(parentId, file, contentText);
-      done++;
-      // The URL is the source of truth for where the user is NOW.
-      const hereNow =
-        new URLSearchParams(location.search).get("folder") ?? roomId;
-      if (hereNow === parentId) {
-        setData((items) =>
-          items.some((i) => i.id === node.id)
-            ? items
-            : sortNodes([...items, node]),
-        );
+      if (!(await getNode(parentId))) {
+        settle("stopped");
+        return;
+      }
+      setFileStatus(i, "uploading");
+      try {
+        // Extracted text powers content search; scanned PDFs return null.
+        const contentText = await extractPdfText(valid[i]);
+        const node = await saveFile(parentId, valid[i], contentText);
+        setFileStatus(i, "done");
+        // The URL is the source of truth for where the user is NOW.
+        const hereNow =
+          new URLSearchParams(location.search).get("folder") ?? roomId;
+        if (hereNow === parentId) {
+          setData((items) =>
+            items.some((it) => it.id === node.id)
+              ? items
+              : sortNodes([...items, node]),
+          );
+        }
+      } catch {
+        // One broken file must never sink the rest of the batch.
+        setFileStatus(i, "error");
       }
     }
-    toast.success(done === 1 ? "1 file uploaded" : `${done} files uploaded`, {
-      id: toastId,
-    });
+    settle("done");
   };
 
   if (crumbs.error) {
@@ -581,6 +629,15 @@ function RoomView() {
         onClose={() => setViewerFile(null)}
         returnFocusTo={returnTo}
       />
+      {upload && (
+        <UploadPanel
+          state={upload}
+          onCancel={() => {
+            uploadCancelRef.current = true;
+          }}
+          onDismiss={() => setUpload(null)}
+        />
+      )}
       <MoveDialog
         key={`move-${dialogGen}`}
         open={dialog.kind === "move"}

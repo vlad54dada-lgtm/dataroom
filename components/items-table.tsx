@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { ArrowUp } from "lucide-react";
 import type { Node } from "@/types";
 import { cn } from "@/lib/utils";
@@ -138,13 +138,32 @@ export function ItemsTable({
   const selectionActive = liveSelected.length > 0;
   const allSelected = selectionActive && liveSelected.length === items.length;
 
-  const toggle = (node: Node) =>
+  // Anchor for shift-click ranges: the last row toggled without shift.
+  const anchorRef = useRef<string | null>(null);
+  const toggle = (node: Node, range: boolean) => {
+    if (range && anchorRef.current && anchorRef.current !== node.id) {
+      // Select the whole stretch in DISPLAYED order (Drive behavior).
+      const ids = sorted.map((n) => n.id);
+      const a = ids.indexOf(anchorRef.current);
+      const b = ids.indexOf(node.id);
+      if (a !== -1 && b !== -1) {
+        const [lo, hi] = a < b ? [a, b] : [b, a];
+        setSelectedIds((prev) => {
+          const next = new Set(prev);
+          for (let i = lo; i <= hi; i++) next.add(ids[i]);
+          return next;
+        });
+        return; // the anchor holds, so ranges can be extended again
+      }
+    }
+    anchorRef.current = node.id;
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(node.id)) next.delete(node.id);
       else next.add(node.id);
       return next;
     });
+  };
 
   const toggleAll = () =>
     setSelectedIds(allSelected ? new Set() : new Set(items.map((i) => i.id)));

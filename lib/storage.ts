@@ -832,11 +832,14 @@ export interface SearchResult {
   parentName: string;
   /** True when the match came from document text, not the name. */
   contentMatch: boolean;
+  /** Matched fragment with [[ ]] highlight markers (content hits only). */
+  snippet: string | null;
 }
 
 interface SearchRow extends NodeRow {
   parent_name: string;
   content_match: boolean;
+  snippet: string | null;
 }
 
 /** Name substring OR full-text content match within one dataroom's subtree. */
@@ -855,5 +858,6 @@ export async function searchNodes(
     node: toNode(row),
     parentName: row.parent_name,
     contentMatch: row.content_match,
+    snippet: row.snippet,
   }));
 }

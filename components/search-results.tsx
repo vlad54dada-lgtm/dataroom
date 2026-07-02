@@ -11,9 +11,34 @@ interface SearchResultsProps {
 }
 
 /**
+ * ts_headline marks matched words with [[ ]]; render them as <mark> so the
+ * user sees exactly WHY a document surfaced.
+ */
+function Snippet({ text }: { text: string }) {
+  const parts: React.ReactNode[] = [];
+  text.split("[[").forEach((chunk, i) => {
+    if (i === 0) {
+      if (chunk) parts.push(chunk);
+      return;
+    }
+    const [hit, rest] = chunk.split("]]");
+    parts.push(
+      <mark
+        key={i}
+        className="rounded-[3px] bg-folder-bg px-0.5 font-medium text-brand"
+      >
+        {hit}
+      </mark>,
+    );
+    if (rest) parts.push(rest);
+  });
+  return <>&ldquo;…{parts}…&rdquo;</>;
+}
+
+/**
  * Flat result list for dataroom search. Each row shows where the match
  * lives; content matches (text inside the PDF, not the name) get a quiet
- * "Text match" tag so the hit is explainable.
+ * "Text match" tag plus the matched fragment, so every hit is explainable.
  */
 export function SearchResults({
   results,
@@ -22,7 +47,7 @@ export function SearchResults({
 }: SearchResultsProps) {
   return (
     <div className="divide-y overflow-hidden rounded-card border bg-card motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-200">
-      {results.map(({ node, parentName, contentMatch }) => {
+      {results.map(({ node, parentName, contentMatch, snippet }) => {
         const isFolder = node.type !== "file";
         return (
           <button
@@ -53,6 +78,12 @@ export function SearchResults({
               </span>
               <span className="block truncate text-xs text-muted-foreground">
                 in {parentName}
+                {snippet ? (
+                  <>
+                    {" · "}
+                    <Snippet text={snippet} />
+                  </>
+                ) : null}
               </span>
             </span>
             {contentMatch && (

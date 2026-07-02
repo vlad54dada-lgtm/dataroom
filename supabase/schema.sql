@@ -534,3 +534,69 @@ as $$
   order by (s.type = 'file'), lower(s.name)
   limit 100;
 $$;
+
+-- ---------------------------------------------------------------------------
+-- 8) search_snippets
+-- ---------------------------------------------------------------------------
+
+-- Search v4: content hits also return a short highlighted fragment
+-- (ts_headline) so results can show WHY a document matched. Highlight
+-- markers [[ ]] are parsed client-side into <mark>.
+drop function if exists public.search_nodes(uuid, text);
+
+create function public.search_nodes(root_id uuid, query text)
+returns table (
+  id uuid,
+  parent_id uuid,
+  type text,
+  name text,
+  size bigint,
+  blob_path text,
+  created_at timestamptz,
+  updated_at timestamptz,
+  parent_name text,
+  content_match boolean,
+  snippet text
+)
+language sql
+stable
+set search_path = ''
+as $$
+  with recursive subtree as (
+    select n.* from public.nodes n where n.id = root_id and n.deleted_at is null
+    union all
+    select n.* from public.nodes n
+    join subtree s on n.parent_id = s.id
+    where n.deleted_at is null
+  )
+  select
+    n.id, n.parent_id, n.type, n.name, n.size, n.blob_path,
+    n.created_at, n.updated_at,
+    p.name as parent_name,
+    (exists (
+      select 1 from public.file_texts ft
+      where ft.node_id = n.id
+        and ft.fts @@ websearch_to_tsquery('simple', query)
+    ) and n.name not ilike '%' || query || '%') as content_match,
+    (select ts_headline(
+       'simple', ft.content, websearch_to_tsquery('simple', query),
+       'MaxFragments=1, MaxWords=14, MinWords=8, StartSel=[[, StopSel=]]'
+     )
+     from public.file_texts ft
+     where ft.node_id = n.id
+       and ft.fts @@ websearch_to_tsquery('simple', query)) as snippet
+  from subtree n
+  join public.nodes p on p.id = n.parent_id
+  where n.id <> root_id
+    and length(trim(query)) > 0
+    and (
+      n.name ilike '%' || query || '%'
+      or exists (
+        select 1 from public.file_texts ft
+        where ft.node_id = n.id
+          and ft.fts @@ websearch_to_tsquery('simple', query)
+      )
+    )
+  order by (n.type = 'file'), lower(n.name)
+  limit 100;
+$$;
