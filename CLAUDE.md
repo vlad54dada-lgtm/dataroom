@@ -6,11 +6,14 @@ DataRoom — a virtual data room MVP (frontend take-home). **Read `PRODUCT.md` f
 
 ## Stack
 
-- Next.js 15 (App Router) + TypeScript **strict mode**
-- Tailwind CSS + shadcn/ui + lucide-react
-- Dexie (IndexedDB) for persistence — metadata AND PDF blobs
-- sonner (toasts), react-dropzone (uploads)
-- 100% client-side. No API routes, no server actions, no server code.
+> Updated after the extra-credit cloud migration (2026-07-02): persistence
+> and auth moved from IndexedDB to Supabase at the user's request.
+
+- Next.js 16 (App Router) + TypeScript **strict mode**, Tailwind v4 (CSS-first `@theme`)
+- shadcn/ui + lucide-react, sonner (toasts), react-dropzone (uploads)
+- **Supabase**: Postgres (node metadata, RLS per user), Storage (PDF blobs, private bucket `pdfs`), Auth (email/password)
+- pdfjs-dist: text extraction at upload for content search (Postgres FTS)
+- Client-only Next.js app (no API routes, no server actions) — all backend concerns live in Supabase, reached via supabase-js.
 
 ## Commands
 
@@ -32,12 +35,17 @@ components/
   upload-dropzone.tsx, pdf-viewer-dialog.tsx,
   name-dialog.tsx, delete-dialog.tsx, empty-state.tsx
 lib/
-  db.ts                    # Dexie schema (the only file that defines stores)
-  storage.ts               # storage adapter — the ONLY module allowed to query Dexie
+  supabase.ts              # Supabase browser client (singleton)
+  storage.ts               # storage adapter — the ONLY module doing data CRUD
+  extract-pdf-text.ts      # pdf.js text extraction for content search
   utils.ts                 # formatBytes, name helpers, cn
 types/
   index.ts                 # Node, NodeType
 ```
+
+Auth surfaces (app/login, components/require-auth, components/user-menu,
+lib/hooks/use-session) may import the Supabase client directly; everything
+else goes through `lib/storage.ts`.
 
 ## Architecture
 
@@ -60,19 +68,19 @@ interface Node {
 
 ### Storage adapter (`lib/storage.ts`)
 
-The single seam between UI and persistence. Async API that mimics a real backend:
-`createNode`, `getNode`, `listChildren(parentId)`, `renameNode`, `deleteNodeRecursive`, `saveFile(parentId, file)`, `getBlob(blobKey)`, `searchByName(rootId, query)`.
+The single seam between UI and persistence. Async API:
+`createNode`, `getNode`, `listChildren(parentId)`, `renameNode`, `deleteNodeRecursive`, `saveFile(parentId, file, contentText?)`, `getBlob(blobKey)`, `getDeleteCounts(id)`, `countChildren(parentId)`, `searchNodes(rootId, query)`.
 
-- Dexie stores: `nodes` (indexes: `parentId`, `[parentId+name]`) and `blobs` (`blobKey → Blob`).
-- `deleteNodeRecursive`: collect all descendant ids, delete nodes + their blobs in ONE Dexie transaction.
-- Name policy lives here (not in components): file duplicates get " (1)" suffixes; folder/dataroom duplicates throw a typed error the dialog renders inline.
-- Swapping mock → real backend later must mean rewriting only this file. State this in the README.
+- Backed by Supabase: `nodes` table (RLS per user; case-insensitive unique index blocks duplicate container names; self-FK cascade deletes subtrees) and Storage bucket `pdfs` (`{userId}/{uuid}.pdf`, `blobKey` = object path).
+- `deleteNodeRecursive`: collect subtree blob paths (RPC), one cascading metadata DELETE, then best-effort storage cleanup.
+- Name policy lives here (not in components): file duplicates get " (1)" suffixes client-side; folder/dataroom duplicates surface the DB unique violation as a typed error the dialog renders inline.
+- The seam was proven: the Dexie → Supabase swap touched only this file (see git history at 40d2a0b).
 
 ## Rules
 
 ### Always
 
-- All data access goes through `lib/storage.ts`. Components never import Dexie directly.
+- All data access goes through `lib/storage.ts`. Components never query Supabase directly (auth surfaces are the only exception, and only for auth).
 - TypeScript strict; no `any`, no `@ts-ignore`.
 - Validate names in the storage layer AND reflect errors in the UI (disabled buttons, inline messages).
 - Optimistic UI updates + toast feedback for every mutation.
@@ -84,11 +92,12 @@ The single seam between UI and persistence. Async API that mimics a real backend
 ### Never
 
 - Never ship a visible control that does nothing (no fake buttons, no "coming soon").
-- Never use localStorage for files or app state — IndexedDB via the adapter only.
-- Never add server code, API routes, or auth.
+- Never use localStorage for files or app state — everything goes through the adapter.
+- Never add API routes or server actions — backend concerns live in Supabase.
 - Never add state libraries (Redux/Zustand) — React hooks + the adapter are enough.
 - Never add a dependency beyond the stack above without a strong reason.
 - Never commit with a failing build or console errors.
+- Never commit secrets — Supabase keys live in `.env.local` (gitignored) and Vercel env; only the publishable anon key is used client-side.
 
 ## Workflow
 
