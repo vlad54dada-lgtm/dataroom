@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileText, Folder, Trash2 } from "lucide-react";
-import { countTrash, listTrash } from "@/lib/storage";
+import { toast } from "sonner";
+import { FileText, Folder, Trash2, X } from "lucide-react";
+import { countTrash, listTrash, purgeNode } from "@/lib/storage";
+import { RESTORE_MIME } from "@/lib/dnd";
 import { useAsync } from "@/lib/hooks/use-async";
 import { RoomAvatar } from "@/components/room-avatar";
 
@@ -51,20 +53,24 @@ export function TrashFab() {
       onPointerEnter={() => setPeeking(true)}
       onPointerLeave={() => setPeeking(false)}
     >
-      {/* The fan-out stack */}
+      {/* The fan-out stack: drag an item into the folder view to restore
+          it there; the ✕ deletes it forever on the spot. */}
       {peeking && count > 0 && items.length > 0 && (
-        <div
-          aria-hidden
-          className="absolute right-0 bottom-14 w-64 pb-1"
-        >
+        <div className="absolute right-0 bottom-14 w-64 pb-1">
           <div className="flex flex-col-reverse gap-1">
             {items.map((item, i) => (
-              <Link
+              <div
                 key={item.node.id}
-                href="/trash"
-                tabIndex={-1}
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData(
+                    RESTORE_MIME,
+                    JSON.stringify([item.node.id]),
+                  );
+                  e.dataTransfer.effectAllowed = "move";
+                }}
                 style={{ animationDelay: `${i * 45}ms` }}
-                className="flex h-11 items-center gap-2.5 rounded-xl border bg-popover px-3 shadow-md outline-none backdrop-blur transition-colors hover:bg-muted/60 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-3 motion-safe:duration-200 motion-safe:fill-mode-backwards"
+                className="group/peek flex h-11 cursor-grab items-center gap-2.5 rounded-xl border bg-popover px-3 shadow-md backdrop-blur transition-colors hover:bg-muted/60 active:cursor-grabbing motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-3 motion-safe:duration-200 motion-safe:fill-mode-backwards"
               >
                 {item.node.type === "dataroom" ? (
                   <RoomAvatar
@@ -89,14 +95,27 @@ export function TrashFab() {
                 <span className="min-w-0 flex-1 truncate text-sm">
                   {item.node.name}
                 </span>
-              </Link>
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  aria-label={`Delete ${item.node.name} forever`}
+                  onClick={() => {
+                    void purgeNode(item.node.id)
+                      .then(() => toast.success("Deleted forever"))
+                      .catch(() => toast.error("Couldn't delete it"));
+                  }}
+                  className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity group-hover/peek:opacity-100 hover:bg-destructive/10 hover:text-destructive"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
             ))}
           </div>
-          {overflow > 0 && (
-            <p className="mt-1.5 pr-1 text-right text-xs text-muted-foreground">
-              and {overflow} more in the trash
-            </p>
-          )}
+          <p className="mt-1.5 pr-1 text-right text-xs text-muted-foreground">
+            {overflow > 0
+              ? `and ${overflow} more in the trash`
+              : "drag out to restore"}
+          </p>
         </div>
       )}
 
