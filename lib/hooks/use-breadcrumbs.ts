@@ -11,7 +11,7 @@ import { useAsync } from "@/lib/hooks/use-async";
  * all resolve to `notFound` instead of a chain.
  */
 export function useBreadcrumbs(roomId: string, folderId: string) {
-  const { state } = useAsync<Node[] | null>(async () => {
+  const { state, reload } = useAsync<Node[] | null>(async () => {
     const chain: Node[] = [];
     let cursor: string | null = folderId;
     while (cursor !== null) {
@@ -31,5 +31,6 @@ export function useBreadcrumbs(roomId: string, folderId: string) {
     crumbs: state.status === "success" ? state.data : null,
     notFound: state.status === "success" && state.data === null,
     error: state.status === "error",
+    reload,
   };
 }
