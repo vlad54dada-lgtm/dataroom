@@ -93,11 +93,16 @@ export default function LoginPage() {
   return (
     <main className="flex flex-1 items-center justify-center px-6 py-12">
       <div className="w-full max-w-sm">
-        <div className="flex items-center justify-center gap-2">
-          <span className="flex size-8 items-center justify-center rounded-lg bg-brand">
-            <FileText className="size-4.5 text-white" strokeWidth={2} />
+        <div className="flex flex-col items-center gap-2">
+          <span className="flex size-10 items-center justify-center rounded-xl bg-brand">
+            <FileText className="size-5 text-white" strokeWidth={2} />
           </span>
-          <span className="text-lg font-semibold">DataRoom</span>
+          <span className="text-lg font-semibold tracking-tight">
+            Acme Corp.
+          </span>
+          <span className="-mt-1.5 text-xs text-muted-foreground">
+            Virtual data room
+          </span>
         </div>
         <div className="mt-6 rounded-card border bg-card p-6">
           <h1 className="text-base font-semibold">
