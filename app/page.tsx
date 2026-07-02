@@ -3,16 +3,16 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { Plus } from "lucide-react";
-import type { Node } from "@/types";
+import type { DataroomPatch, Node } from "@/types";
 import {
   compareNodes,
   countChildren,
   createNode,
   isDuplicateNameError,
   listChildren,
-  renameNode,
   restoreNode,
   trashNode,
+  updateDataroom,
 } from "@/lib/storage";
 import { useAsync } from "@/lib/hooks/use-async";
 import { useMutation } from "@/lib/hooks/use-mutation";
@@ -24,12 +24,15 @@ import type { DataroomListItem } from "@/components/dataroom-card";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
 import { ListSkeleton } from "@/components/list-skeleton";
-import { NameDialog } from "@/components/name-dialog";
+import {
+  DataroomDialog,
+  type DataroomValues,
+} from "@/components/dataroom-dialog";
 
 type DialogState =
   | { kind: "none" }
   | { kind: "create" }
-  | { kind: "rename"; room: Node };
+  | { kind: "edit"; room: Node };
 
 /** The toolbar/CTA button is focused by its own click — capture it. */
 const activeTrigger = () =>
@@ -77,7 +80,7 @@ function HomeView() {
   const closeDialog = () => setDialog({ kind: "none" });
 
   const createRoom = useMutation(
-    (name: string) => createNode({ type: "dataroom", name }),
+    (values: DataroomValues) => createNode({ type: "dataroom", ...values }),
     {
       successToast: "Dataroom created",
       errorToast: (e) =>
@@ -87,12 +90,12 @@ function HomeView() {
     },
   );
 
-  const renameRoom = useMutation(
-    (room: Node, name: string) => renameNode(room.id, name),
+  const editRoom = useMutation(
+    (room: Node, patch: DataroomPatch) => updateDataroom(room.id, patch),
     {
-      successToast: "Dataroom renamed",
+      successToast: "Dataroom updated",
       errorToast: (e) =>
-        isDuplicateNameError(e) ? null : "Couldn't rename the dataroom",
+        isDuplicateNameError(e) ? null : "Couldn't update the dataroom",
       onSuccess: (updated) =>
         setData((items) =>
           sortItems(
@@ -173,9 +176,9 @@ function HomeView() {
             ) : (
               <DataroomGrid
                 items={state.data}
-                onRename={(room, trigger) => {
+                onEdit={(room, trigger) => {
                   setReturnTo(trigger);
-                  setDialog({ kind: "rename", room });
+                  setDialog({ kind: "edit", room });
                 }}
                 onDelete={(room) => void trashRoom.run(room).catch(() => {})}
               />
@@ -183,15 +186,23 @@ function HomeView() {
         </section>
       </main>
 
-      <NameDialog
-        key={dialog.kind === "rename" ? `rename:${dialog.room.id}` : dialog.kind}
-        open={dialog.kind === "create" || dialog.kind === "rename"}
-        mode={dialog.kind === "rename" ? "rename" : "create"}
-        entity="dataroom"
-        initialName={dialog.kind === "rename" ? dialog.room.name : ""}
-        onSubmit={async (name) => {
-          if (dialog.kind === "rename") await renameRoom.run(dialog.room, name);
-          else await createRoom.run(name);
+      <DataroomDialog
+        key={dialog.kind === "edit" ? `edit:${dialog.room.id}` : dialog.kind}
+        open={dialog.kind === "create" || dialog.kind === "edit"}
+        mode={dialog.kind === "edit" ? "edit" : "create"}
+        initial={
+          dialog.kind === "edit"
+            ? {
+                name: dialog.room.name,
+                description: dialog.room.description ?? null,
+                icon: dialog.room.icon ?? null,
+                color: dialog.room.color ?? null,
+              }
+            : undefined
+        }
+        onSubmit={async (values) => {
+          if (dialog.kind === "edit") await editRoom.run(dialog.room, values);
+          else await createRoom.run(values);
         }}
         onClose={closeDialog}
         returnFocusTo={returnTo}

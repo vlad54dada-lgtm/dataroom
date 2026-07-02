@@ -8,18 +8,18 @@ import {
 
 interface DataroomGridProps {
   items: DataroomListItem[];
-  onRename: (room: Node, trigger: HTMLElement | null) => void;
+  onEdit: (room: Node, trigger: HTMLElement | null) => void;
   onDelete: (room: Node, trigger: HTMLElement | null) => void;
 }
 
-export function DataroomGrid({ items, onRename, onDelete }: DataroomGridProps) {
+export function DataroomGrid({ items, onEdit, onDelete }: DataroomGridProps) {
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {items.map((item) => (
         <DataroomCard
           key={item.node.id}
           item={item}
-          onRename={onRename}
+          onEdit={onEdit}
           onDelete={onDelete}
         />
       ))}

@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { Folder } from "lucide-react";
 import type { Node } from "@/types";
 import { formatDate } from "@/lib/utils";
+import { RoomAvatar } from "@/components/room-avatar";
 import { RowMenu } from "@/components/row-menu";
 
 export interface DataroomListItem {
@@ -13,26 +13,26 @@ export interface DataroomListItem {
 
 interface DataroomCardProps {
   item: DataroomListItem;
-  onRename: (room: Node, trigger: HTMLElement | null) => void;
+  onEdit: (room: Node, trigger: HTMLElement | null) => void;
   onDelete: (room: Node, trigger: HTMLElement | null) => void;
 }
 
 /**
  * The whole card navigates via a stretched link; the kebab is a separate
  * sibling control layered above it — one primary action, no nested
- * interactive elements.
+ * interactive elements. The avatar and optional description give each room
+ * its own identity at a glance.
  */
-export function DataroomCard({ item, onRename, onDelete }: DataroomCardProps) {
+export function DataroomCard({ item, onEdit, onDelete }: DataroomCardProps) {
   const { node, itemCount } = item;
   return (
-    <div className="group relative rounded-card border bg-card p-4 transition-[border-color,box-shadow] hover:border-line-strong hover:shadow-sm has-[a:focus-visible]:border-ring has-[a:focus-visible]:ring-3 has-[a:focus-visible]:ring-ring/50">
+    <div className="group relative flex flex-col rounded-card border bg-card p-4 transition-[border-color,box-shadow] hover:border-line-strong hover:shadow-sm has-[a:focus-visible]:border-ring has-[a:focus-visible]:ring-3 has-[a:focus-visible]:ring-ring/50">
       <div className="flex items-start justify-between gap-2">
-        <span className="flex size-10 shrink-0 items-center justify-center rounded-tile bg-folder-bg">
-          <Folder className="size-5 text-folder" strokeWidth={1.75} />
-        </span>
+        <RoomAvatar icon={node.icon} color={node.color} />
         <RowMenu
           className="relative z-10 -mt-1 -mr-1 text-muted-foreground"
-          onRename={(trigger) => onRename(node, trigger)}
+          renameLabel="Edit"
+          onRename={(trigger) => onEdit(node, trigger)}
           onDelete={(trigger) => onDelete(node, trigger)}
         />
       </div>
@@ -44,7 +44,12 @@ export function DataroomCard({ item, onRename, onDelete }: DataroomCardProps) {
           {node.name}
         </span>
       </Link>
-      <p className="mt-1 text-xs text-muted-foreground">
+      {node.description ? (
+        <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
+          {node.description}
+        </p>
+      ) : null}
+      <p className="mt-auto pt-2 text-xs text-muted-foreground">
         {itemCount === 1 ? "1 item" : `${itemCount} items`} &middot; Created{" "}
         {formatDate(node.createdAt)}
       </p>

@@ -14,11 +14,18 @@ interface RowMenuProps {
   /** Callbacks receive the kebab element so dialogs can restore focus to it. */
   onRename: (trigger: HTMLElement | null) => void;
   onDelete: (trigger: HTMLElement | null) => void;
+  /** Dataroom cards say "Edit" (name + description + avatar), rows "Rename". */
+  renameLabel?: string;
   className?: string;
 }
 
 /** Shared kebab menu for dataroom cards and table rows. */
-export function RowMenu({ onRename, onDelete, className }: RowMenuProps) {
+export function RowMenu({
+  onRename,
+  onDelete,
+  renameLabel = "Rename",
+  className,
+}: RowMenuProps) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   // Written only inside event handlers (never during render).
   const actionChosenRef = useRef(false);
@@ -58,7 +65,7 @@ export function RowMenu({ onRename, onDelete, className }: RowMenuProps) {
             onRename(triggerRef.current);
           }}
         >
-          <Pencil /> Rename
+          <Pencil /> {renameLabel}
         </DropdownMenuItem>
         <DropdownMenuItem
           variant="destructive"

@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { AppHeader } from "@/components/app-header";
 import { RequireAuth } from "@/components/require-auth";
+import { RoomAvatar } from "@/components/room-avatar";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
 import { ListSkeleton } from "@/components/list-skeleton";
@@ -133,23 +134,31 @@ function TrashView() {
                       key={node.id}
                       className="flex h-14 min-w-0 items-center gap-3 px-4"
                     >
-                      <span
-                        className={`flex size-8 shrink-0 items-center justify-center rounded-tile ${
-                          isFolder ? "bg-folder-bg" : "bg-file-bg"
-                        }`}
-                      >
-                        {isFolder ? (
-                          <Folder
-                            className="size-5 text-folder"
-                            strokeWidth={1.75}
-                          />
-                        ) : (
-                          <FileText
-                            className="size-5 text-file"
-                            strokeWidth={1.75}
-                          />
-                        )}
-                      </span>
+                      {node.type === "dataroom" ? (
+                        <RoomAvatar
+                          icon={node.icon}
+                          color={node.color}
+                          size="sm"
+                        />
+                      ) : (
+                        <span
+                          className={`flex size-8 shrink-0 items-center justify-center rounded-tile ${
+                            isFolder ? "bg-folder-bg" : "bg-file-bg"
+                          }`}
+                        >
+                          {isFolder ? (
+                            <Folder
+                              className="size-5 text-folder"
+                              strokeWidth={1.75}
+                            />
+                          ) : (
+                            <FileText
+                              className="size-5 text-file"
+                              strokeWidth={1.75}
+                            />
+                          )}
+                        </span>
+                      )}
                       <span className="min-w-0 flex-1">
                         <span
                           className="block truncate text-sm font-medium"
