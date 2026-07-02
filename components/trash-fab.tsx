@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { toast } from "sonner";
 import { FileText, Folder, Trash2, X } from "lucide-react";
 import { countTrash, listTrash, purgeNode } from "@/lib/storage";
-import { RESTORE_MIME, applyDragChip } from "@/lib/dnd";
+import { RESTORE_MIME, startDragGhost } from "@/lib/dnd";
 import { useAsync } from "@/lib/hooks/use-async";
 import { RoomAvatar } from "@/components/room-avatar";
 
@@ -83,7 +83,7 @@ export function TrashFab() {
                     JSON.stringify([item.node.id]),
                   );
                   e.dataTransfer.effectAllowed = "move";
-                  applyDragChip(
+                  startDragGhost(
                     e.dataTransfer,
                     item.node.name,
                     1,

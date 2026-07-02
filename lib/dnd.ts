@@ -10,32 +10,75 @@ export const MOVE_MIME = "application/x-dataroom-nodes";
 export const RESTORE_MIME = "application/x-dataroom-restore";
 
 /**
- * Replaces the browser's blurry row-snapshot drag ghost with a crisp chip:
- * a colored tile, the item's name, and a "+N" badge for multi-drags — it
- * reads as "I picked this file up". The element must be in the DOM when
- * setDragImage samples it; it's parked far offscreen and removed on the
- * next tick.
+ * Custom drag ghost. Browsers render native drag images half-transparent
+ * and washed out; instead the native image is replaced with a blank pixel
+ * and a SOLID card follows the cursor from a document-level dragover
+ * listener — it reads as physically holding the file. Multi-drags show a
+ * small stack behind the card plus a round count badge.
  */
-export function applyDragChip(
+
+let ghostEl: HTMLDivElement | null = null;
+let moveHandler: ((e: DragEvent) => void) | null = null;
+let endHandler: (() => void) | null = null;
+
+const BLANK_IMG = typeof Image !== "undefined" ? new Image() : null;
+if (BLANK_IMG) {
+  BLANK_IMG.src =
+    "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=";
+}
+
+function cleanupGhost(): void {
+  if (moveHandler) document.removeEventListener("dragover", moveHandler);
+  if (endHandler) {
+    document.removeEventListener("dragend", endHandler);
+    document.removeEventListener("drop", endHandler);
+  }
+  moveHandler = null;
+  endHandler = null;
+  ghostEl?.remove();
+  ghostEl = null;
+}
+
+export function startDragGhost(
   dt: DataTransfer,
   label: string,
   count: number,
   kind: "file" | "folder",
 ): void {
   if (typeof document === "undefined") return;
-  const chip = document.createElement("div");
-  chip.className =
-    "pointer-events-none fixed flex items-center gap-2 rounded-xl border bg-card px-3 py-2 text-sm font-medium text-foreground shadow-lg";
-  chip.style.top = "-1000px";
-  chip.style.left = "-1000px";
-  chip.style.maxWidth = "16rem";
+  cleanupGhost();
+  if (BLANK_IMG) dt.setDragImage(BLANK_IMG, 0, 0);
+
+  ghostEl = document.createElement("div");
+  ghostEl.className = "pointer-events-none fixed top-0 left-0 z-[100]";
+  ghostEl.style.willChange = "transform";
+  ghostEl.style.transform = "translate(-1000px, -1000px)";
+
+  const stack = document.createElement("div");
+  stack.className = "relative";
+
+  // Offset cards behind the main one sell the "stack in hand" effect.
+  if (count > 1) {
+    for (const offset of count > 2 ? [8, 4] : [4]) {
+      const behind = document.createElement("div");
+      behind.className =
+        "absolute inset-0 rounded-xl border bg-card shadow-md";
+      behind.style.transform = `translate(${offset}px, ${offset}px)`;
+      stack.appendChild(behind);
+    }
+  }
+
+  const card = document.createElement("div");
+  card.className =
+    "relative flex items-center gap-2 rounded-xl border bg-card px-3 py-2.5 text-sm font-medium text-foreground shadow-xl";
+  card.style.maxWidth = "16rem";
 
   const tile = document.createElement("span");
-  tile.className = `flex size-5 shrink-0 rounded-md ${
+  tile.className = `flex size-6 shrink-0 rounded-md ${
     kind === "folder" ? "bg-folder-bg" : "bg-file-bg"
   }`;
   const dot = document.createElement("span");
-  dot.className = `m-auto size-2.5 rounded-sm ${
+  dot.className = `m-auto size-3 rounded-sm ${
     kind === "folder" ? "bg-folder" : "bg-file"
   }`;
   tile.appendChild(dot);
@@ -44,18 +87,31 @@ export function applyDragChip(
   text.className = "truncate";
   text.textContent = label;
 
-  chip.append(tile, text);
+  card.append(tile, text);
+  stack.appendChild(card);
+
   if (count > 1) {
     const badge = document.createElement("span");
     badge.className =
-      "flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-brand px-1.5 text-xs font-semibold text-white";
-    badge.textContent = `+${count - 1}`;
-    chip.appendChild(badge);
+      "absolute -top-2.5 -left-2.5 z-10 flex size-6 items-center justify-center rounded-full bg-brand text-xs font-semibold text-white shadow-md";
+    badge.textContent = count > 99 ? "99+" : String(count);
+    stack.appendChild(badge);
   }
 
-  document.body.appendChild(chip);
-  dt.setDragImage(chip, 18, 22);
-  setTimeout(() => chip.remove(), 0);
+  ghostEl.appendChild(stack);
+  document.body.appendChild(ghostEl);
+
+  moveHandler = (e: DragEvent) => {
+    if (ghostEl && (e.clientX !== 0 || e.clientY !== 0)) {
+      ghostEl.style.transform = `translate(${e.clientX + 14}px, ${
+        e.clientY + 12
+      }px) rotate(2deg)`;
+    }
+  };
+  endHandler = () => cleanupGhost();
+  document.addEventListener("dragover", moveHandler);
+  document.addEventListener("dragend", endHandler);
+  document.addEventListener("drop", endHandler);
 }
 
 export function readIds(dt: DataTransfer, mime: string): string[] {
