@@ -67,12 +67,20 @@ export default function LoginPage() {
         setError(authErrorMessage(err.message));
         setSubmitting(false);
       } else if (!data.session) {
-        // Email confirmation is enabled on the project.
-        setNotice("Check your email to confirm your account, then sign in.");
-        setMode("sign-in");
-        setSubmitting(false);
+        // A database trigger auto-confirms new accounts, so signing in with
+        // the same credentials succeeds immediately — no email round-trip.
+        const { error: signInErr } = await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password,
+        });
+        if (signInErr) {
+          setNotice("Account created. Sign in with your email and password.");
+          setMode("sign-in");
+          setSubmitting(false);
+        }
+        // Success: the session effect above redirects.
       }
-      // With confirmation disabled a session is returned → redirect effect.
+      // If a session came straight back, the redirect effect handles it.
     }
   };
 
