@@ -91,20 +91,25 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="flex flex-1 items-center justify-center px-6 py-12">
-      <div className="w-full max-w-sm">
+    <main className="relative flex flex-1 items-center justify-center px-6 py-12">
+      {/* Barely-there brand wash at the top — depth without a redesign. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-gradient-to-b from-brand/[0.05] to-transparent"
+      />
+      <div className="relative w-full max-w-sm motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-300">
         <div className="flex flex-col items-center gap-2">
-          <span className="flex size-10 items-center justify-center rounded-xl bg-brand">
+          <span className="flex size-11 items-center justify-center rounded-xl bg-brand shadow-lg shadow-brand/25">
             <FileText className="size-5 text-white" strokeWidth={2} />
           </span>
-          <span className="text-lg font-semibold tracking-tight">
+          <span className="mt-1 text-lg font-semibold tracking-tight">
             Acme Corp.
           </span>
           <span className="-mt-1.5 text-xs text-muted-foreground">
             Virtual data room
           </span>
         </div>
-        <div className="mt-6 rounded-card border bg-card p-6">
+        <div className="mt-7 rounded-card border bg-card p-6 shadow-sm">
           <h1 className="text-base font-semibold">
             {mode === "sign-in" ? "Sign in" : "Create your account"}
           </h1>
@@ -120,7 +125,7 @@ export default function LoginPage() {
                 id="login-email"
                 type="email"
                 autoComplete="email"
-                className="h-9"
+                className="h-10"
                 value={email}
                 onChange={(e) => {
                   setEmail(e.target.value);
@@ -137,7 +142,7 @@ export default function LoginPage() {
                 autoComplete={
                   mode === "sign-in" ? "current-password" : "new-password"
                 }
-                className="h-9"
+                className="h-10"
                 value={password}
                 onChange={(e) => {
                   setPassword(e.target.value);
@@ -160,12 +165,12 @@ export default function LoginPage() {
                 {notice}
               </p>
             )}
-            <Button type="submit" disabled={!canSubmit} className="h-9 w-full">
+            <Button type="submit" disabled={!canSubmit} className="h-10 w-full">
               {mode === "sign-in" ? "Sign in" : "Create account"}
             </Button>
           </form>
         </div>
-        <p className="mt-4 text-center text-sm text-muted-foreground">
+        <p className="mt-5 text-center text-sm text-muted-foreground">
           {mode === "sign-in" ? (
             <>
               Don&apos;t have an account?{" "}
