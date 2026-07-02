@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { Node } from "@/types";
-import { formatDate } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 import { RoomAvatar } from "@/components/room-avatar";
 import { RowMenu } from "@/components/row-menu";
 
@@ -15,6 +15,9 @@ interface DataroomCardProps {
   item: DataroomListItem;
   onEdit: (room: Node, trigger: HTMLElement | null) => void;
   onDelete: (room: Node, trigger: HTMLElement | null) => void;
+  /** Lets the grid stagger card entrances. */
+  className?: string;
+  style?: React.CSSProperties;
 }
 
 /**
@@ -23,10 +26,22 @@ interface DataroomCardProps {
  * interactive elements. The avatar and optional description give each room
  * its own identity at a glance.
  */
-export function DataroomCard({ item, onEdit, onDelete }: DataroomCardProps) {
+export function DataroomCard({
+  item,
+  onEdit,
+  onDelete,
+  className,
+  style,
+}: DataroomCardProps) {
   const { node, itemCount } = item;
   return (
-    <div className="group relative flex flex-col rounded-card border bg-card p-4 transition-[border-color,box-shadow] hover:border-line-strong hover:shadow-sm has-[a:focus-visible]:border-ring has-[a:focus-visible]:ring-3 has-[a:focus-visible]:ring-ring/50">
+    <div
+      style={style}
+      className={cn(
+        "group relative flex flex-col rounded-card border bg-card p-4 transition-[border-color,box-shadow,translate] duration-200 ease-out-strong hover:-translate-y-0.5 hover:border-line-strong hover:shadow-md has-[a:focus-visible]:border-ring has-[a:focus-visible]:ring-3 has-[a:focus-visible]:ring-ring/50 motion-reduce:transition-none motion-reduce:hover:translate-y-0",
+        className,
+      )}
+    >
       <div className="flex items-start justify-between gap-2">
         <RoomAvatar icon={node.icon} color={node.color} />
         <RowMenu

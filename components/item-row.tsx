@@ -124,17 +124,22 @@ export function ItemRow({
       {...dropProps}
     >
       <TableCell className="w-10 px-3 py-0">
-        <Checkbox
-          checked={selected}
-          onCheckedChange={() => onToggleSelect(node)}
-          aria-label={`Select ${node.name}`}
+        {/* Reveal on the wrapper (zoom + fade) so it never fights the
+            checkbox's own press-scale transition. */}
+        <span
           className={cn(
-            "transition-opacity",
+            "flex transition-[opacity,scale] duration-150 ease-out motion-reduce:transition-none",
             selected || selectionActive
-              ? "opacity-100"
-              : "opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100",
+              ? "scale-100 opacity-100"
+              : "scale-90 opacity-0 group-hover/row:scale-100 group-hover/row:opacity-100 has-[:focus-visible]:scale-100 has-[:focus-visible]:opacity-100",
           )}
-        />
+        >
+          <Checkbox
+            checked={selected}
+            onCheckedChange={() => onToggleSelect(node)}
+            aria-label={`Select ${node.name}`}
+          />
+        </span>
       </TableCell>
       <TableCell className="w-full min-w-0 max-w-0 px-1 py-0">
         {isFolder ? (
@@ -162,7 +167,7 @@ export function ItemRow({
       </TableCell>
       <TableCell className="w-12 px-2 py-0 text-right">
         <RowMenu
-          className="text-muted-foreground opacity-0 transition-opacity group-hover/row:opacity-100 focus-visible:opacity-100 aria-expanded:opacity-100"
+          className="text-muted-foreground opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100 aria-expanded:opacity-100"
           onRename={(trigger) => onRename(node, trigger)}
           onDelete={(trigger) => onDelete(node, trigger)}
         />

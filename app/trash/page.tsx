@@ -65,6 +65,18 @@ function TrashView() {
   const router = useRouter();
   const { state, reload, setData } = useAsync(listTrash, "trash");
   const [confirm, setConfirm] = useState<ConfirmState>({ kind: "none" });
+  // Frozen copy of the last real confirm: dialog copy renders from it while
+  // the close animation plays; the gen key remounts the picker per open.
+  const [shownConfirm, setShownConfirm] = useState<ConfirmState>({
+    kind: "none",
+  });
+  const [confirmGen, setConfirmGen] = useState(0);
+  if (confirm.kind !== "none" && shownConfirm !== confirm)
+    setShownConfirm(confirm);
+  const openConfirm = (next: Exclude<ConfirmState, { kind: "none" }>) => {
+    setConfirmGen((g) => g + 1);
+    setConfirm(next);
+  };
   const [returnTo, setReturnTo] = useState<HTMLElement | null>(null);
   const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(
     new Set(),
@@ -192,7 +204,7 @@ function TrashView() {
 
   const openPurge = (node: Node, trigger: HTMLElement | null) => {
     setReturnTo(trigger);
-    setConfirm({ kind: "purge", node, counts: null });
+    openConfirm({ kind: "purge", node, counts: null });
     void getDeleteCounts(node.id).then((counts) =>
       setConfirm((c) =>
         c.kind === "purge" && c.node.id === node.id ? { ...c, counts } : c,
@@ -226,7 +238,7 @@ function TrashView() {
             <Button
               variant="outline"
               className="text-destructive hover:text-destructive"
-              onClick={() => setConfirm({ kind: "empty" })}
+              onClick={() => openConfirm({ kind: "empty" })}
             >
               <Trash2 /> Empty trash
             </Button>
@@ -370,7 +382,7 @@ function TrashView() {
               variant="ghost"
               size="sm"
               onClick={() =>
-                setConfirm({
+                openConfirm({
                   kind: "restoreTo",
                   nodes: liveSelected.map((i) => i.node),
                 })
@@ -383,7 +395,7 @@ function TrashView() {
               size="sm"
               className="text-destructive hover:text-destructive"
               onClick={() =>
-                setConfirm({
+                openConfirm({
                   kind: "purgeMany",
                   nodes: liveSelected.map((i) => i.node),
                 })
@@ -406,8 +418,8 @@ function TrashView() {
 
       <DeleteDialog
         open={confirm.kind === "purge"}
-        target={confirm.kind === "purge" ? confirm.node : null}
-        counts={confirm.kind === "purge" ? confirm.counts : null}
+        target={shownConfirm.kind === "purge" ? shownConfirm.node : null}
+        counts={shownConfirm.kind === "purge" ? shownConfirm.counts : null}
         onConfirm={async () => {
           if (confirm.kind === "purge")
             await purge.run(confirm.node).catch(() => {});
@@ -417,20 +429,20 @@ function TrashView() {
       />
 
       <MoveDialog
-        key={confirm.kind === "restoreTo" ? "restore-open" : "restore-closed"}
+        key={`restore-${confirmGen}`}
         open={confirm.kind === "restoreTo"}
         movingIds={
           new Set(
-            confirm.kind === "restoreTo"
-              ? confirm.nodes.map((n) => n.id)
+            shownConfirm.kind === "restoreTo"
+              ? shownConfirm.nodes.map((n) => n.id)
               : [],
           )
         }
         movingLabel={
-          confirm.kind === "restoreTo"
-            ? confirm.nodes.length === 1
-              ? confirm.nodes[0].name
-              : `${confirm.nodes.length} items`
+          shownConfirm.kind === "restoreTo"
+            ? shownConfirm.nodes.length === 1
+              ? shownConfirm.nodes[0].name
+              : `${shownConfirm.nodes.length} items`
             : ""
         }
         onConfirm={async (target) => {
@@ -448,8 +460,8 @@ function TrashView() {
           <AlertDialogHeader>
             <AlertDialogTitle>
               Delete{" "}
-              {confirm.kind === "purgeMany" ? confirm.nodes.length : 0} items
-              forever?
+              {shownConfirm.kind === "purgeMany" ? shownConfirm.nodes.length : 0}{" "}
+              items forever?
             </AlertDialogTitle>
             <AlertDialogDescription>
               This can&apos;t be undone.

@@ -117,6 +117,16 @@ function RoomView() {
     currentFolderId,
   );
   const [dialog, setDialog] = useState<DialogState>({ kind: "none" });
+  // Frozen copy of the last real dialog: content renders from it while the
+  // close animation plays (`open` flips off `dialog` immediately). The gen
+  // key remounts a dialog fresh per open — never mid-exit.
+  const [shownDialog, setShownDialog] = useState<DialogState>({ kind: "none" });
+  const [dialogGen, setDialogGen] = useState(0);
+  if (dialog.kind !== "none" && shownDialog !== dialog) setShownDialog(dialog);
+  const openDialog = (next: Exclude<DialogState, { kind: "none" }>) => {
+    setDialogGen((g) => g + 1);
+    setDialog(next);
+  };
   const [viewerFile, setViewerFile] = useState<Node | null>(null);
   // Survives close: dialogs read it in onCloseAutoFocus AFTER state resets.
   const [returnTo, setReturnTo] = useState<HTMLElement | null>(null);
@@ -384,7 +394,7 @@ function RoomView() {
                       type="button"
                       aria-label="Clear search"
                       onClick={() => setQuery("")}
-                      className="absolute top-1/2 right-1.5 flex size-5 -translate-y-1/2 items-center justify-center rounded-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+                      className="absolute top-1/2 right-1.5 flex size-5 -translate-y-1/2 items-center justify-center rounded-sm text-muted-foreground transition-[color,background-color,scale] duration-150 outline-none hover:bg-muted hover:text-foreground active:scale-90 focus-visible:ring-2 focus-visible:ring-ring/50 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-50 motion-safe:duration-150 motion-safe:ease-out-back"
                     >
                       <X className="size-4" />
                     </button>
@@ -393,7 +403,7 @@ function RoomView() {
                 <RoomToolbar
                   onNewFolder={() => {
                     setReturnTo(activeTrigger());
-                    setDialog({ kind: "create" });
+                    openDialog({ kind: "create" });
                   }}
                 >
                   <Button onClick={open}>
@@ -402,7 +412,10 @@ function RoomView() {
                 </RoomToolbar>
               </div>
             </div>
+            {/* Keyed by folder: navigating fades the new location's content
+                in with a slight rise — instant feedback on the click. */}
             <section
+              key={currentFolderId}
               onDragOver={(e) => {
                 if (e.dataTransfer.types.includes(RESTORE_MIME)) {
                   e.preventDefault();
@@ -418,7 +431,7 @@ function RoomView() {
                 e.preventDefault();
                 void handleRestoreDrop(ids);
               }}
-              className={`mt-4 rounded-card transition-[opacity,outline-color] duration-200 ${
+              className={`mt-4 rounded-card transition-[opacity,outline-color] duration-200 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-200 ${
                 restoreOver
                   ? "outline-2 outline-offset-4 outline-brand outline-dashed"
                   : "outline-2 outline-offset-4 outline-transparent outline-dashed"
@@ -483,7 +496,7 @@ function RoomView() {
                         }}
                         onRename={(node, trigger) => {
                           setReturnTo(trigger);
-                          setDialog({ kind: "rename", node });
+                          openDialog({ kind: "rename", node });
                         }}
                         onDelete={(node) =>
                           void trashItem.run(node).catch(() => {})
@@ -493,7 +506,7 @@ function RoomView() {
                           void handleBulkDownload(files)
                         }
                         onBulkMove={(nodes) =>
-                          setDialog({ kind: "move", nodes })
+                          openDialog({ kind: "move", nodes })
                         }
                         onDropNodes={(ids, target) =>
                           void handleMove(ids, target)
@@ -508,19 +521,15 @@ function RoomView() {
       </UploadDropzone>
 
       <NameDialog
-        key={
-          dialog.kind === "rename"
-            ? `rename:${dialog.node.id}`
-            : `${dialog.kind}:${currentFolderId}`
-        }
+        key={`name-${dialogGen}`}
         open={dialog.kind === "create" || dialog.kind === "rename"}
-        mode={dialog.kind === "rename" ? "rename" : "create"}
+        mode={shownDialog.kind === "rename" ? "rename" : "create"}
         entity={
-          dialog.kind === "rename" && dialog.node.type === "file"
+          shownDialog.kind === "rename" && shownDialog.node.type === "file"
             ? "file"
             : "folder"
         }
-        initialName={dialog.kind === "rename" ? dialog.node.name : ""}
+        initialName={shownDialog.kind === "rename" ? shownDialog.node.name : ""}
         onSubmit={async (name) => {
           if (dialog.kind === "rename") await renameItem.run(dialog.node, name);
           else await createFolder.run(name);
@@ -534,16 +543,20 @@ function RoomView() {
         returnFocusTo={returnTo}
       />
       <MoveDialog
-        key={dialog.kind === "move" ? "move-open" : "move-closed"}
+        key={`move-${dialogGen}`}
         open={dialog.kind === "move"}
         movingIds={
-          new Set(dialog.kind === "move" ? dialog.nodes.map((n) => n.id) : [])
+          new Set(
+            shownDialog.kind === "move"
+              ? shownDialog.nodes.map((n) => n.id)
+              : [],
+          )
         }
         movingLabel={
-          dialog.kind === "move"
-            ? dialog.nodes.length === 1
-              ? dialog.nodes[0].name
-              : `${dialog.nodes.length} items`
+          shownDialog.kind === "move"
+            ? shownDialog.nodes.length === 1
+              ? shownDialog.nodes[0].name
+              : `${shownDialog.nodes.length} items`
             : ""
         }
         onConfirm={async (target) => {

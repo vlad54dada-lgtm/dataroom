@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Download } from "lucide-react";
 import type { Node } from "@/types";
 import { getBlob } from "@/lib/storage";
@@ -33,7 +33,12 @@ export function PdfViewerDialog({
   onClose,
   returnFocusTo,
 }: PdfViewerDialogProps) {
-  const blobKey = file?.blobKey ?? null;
+  // Held past close so the title/iframe don't blank out mid-exit-animation
+  // (adjust-during-render pattern; `file` goes null the moment close starts).
+  const [shownFile, setShownFile] = useState<Node | null>(file);
+  if (file && file !== shownFile) setShownFile(file);
+  const shown = file ?? shownFile;
+  const blobKey = shown?.blobKey ?? null;
 
   const restoreFocus = (event: Event) => {
     if (returnFocusTo?.isConnected) {
@@ -69,13 +74,13 @@ export function PdfViewerDialog({
         <DialogHeader className="flex-row items-center gap-3 pr-10">
           <DialogTitle
             className="min-w-0 flex-1 truncate text-sm"
-            title={file?.name}
+            title={shown?.name}
           >
-            {file?.name}
+            {shown?.name}
           </DialogTitle>
-          {url && file && (
+          {url && shown && (
             <Button variant="outline" size="sm" asChild>
-              <a href={url} download={file.name}>
+              <a href={url} download={shown.name}>
                 <Download /> Download
               </a>
             </Button>
@@ -92,18 +97,18 @@ export function PdfViewerDialog({
               This file is unavailable.
             </div>
           )}
-          {url && file && (
+          {url && shown && (
             <>
               <iframe
                 src={url}
-                title={file.name}
+                title={shown.name}
                 className="min-h-0 w-full flex-1 rounded-lg border bg-white"
               />
               <p className="mt-2 text-center text-sm text-muted-foreground">
                 Can&apos;t preview?{" "}
                 <a
                   href={url}
-                  download={file.name}
+                  download={shown.name}
                   className="font-medium text-brand hover:underline"
                 >
                   Download the file

@@ -75,6 +75,15 @@ export default function HomePage() {
 function HomeView() {
   const { state, reload, setData } = useAsync(loadRooms, "datarooms");
   const [dialog, setDialog] = useState<DialogState>({ kind: "none" });
+  // Frozen copy of the last real dialog: content renders from it while the
+  // close animation plays; the gen key remounts fresh per open.
+  const [shownDialog, setShownDialog] = useState<DialogState>({ kind: "none" });
+  const [dialogGen, setDialogGen] = useState(0);
+  if (dialog.kind !== "none" && shownDialog !== dialog) setShownDialog(dialog);
+  const openDialog = (next: Exclude<DialogState, { kind: "none" }>) => {
+    setDialogGen((g) => g + 1);
+    setDialog(next);
+  };
   // Survives close: dialogs read it in onCloseAutoFocus AFTER state resets.
   const [returnTo, setReturnTo] = useState<HTMLElement | null>(null);
   const closeDialog = () => setDialog({ kind: "none" });
@@ -148,7 +157,7 @@ function HomeView() {
             <Button
               onClick={() => {
                 setReturnTo(activeTrigger());
-                setDialog({ kind: "create" });
+                openDialog({ kind: "create" });
               }}
             >
               <Plus /> Create dataroom
@@ -166,7 +175,7 @@ function HomeView() {
                   <Button
                     onClick={() => {
                       setReturnTo(activeTrigger());
-                      setDialog({ kind: "create" });
+                      openDialog({ kind: "create" });
                     }}
                   >
                     <Plus /> Create dataroom
@@ -178,7 +187,7 @@ function HomeView() {
                 items={state.data}
                 onEdit={(room, trigger) => {
                   setReturnTo(trigger);
-                  setDialog({ kind: "edit", room });
+                  openDialog({ kind: "edit", room });
                 }}
                 onDelete={(room) => void trashRoom.run(room).catch(() => {})}
               />
@@ -187,16 +196,16 @@ function HomeView() {
       </main>
 
       <DataroomDialog
-        key={dialog.kind === "edit" ? `edit:${dialog.room.id}` : dialog.kind}
+        key={`room-${dialogGen}`}
         open={dialog.kind === "create" || dialog.kind === "edit"}
-        mode={dialog.kind === "edit" ? "edit" : "create"}
+        mode={shownDialog.kind === "edit" ? "edit" : "create"}
         initial={
-          dialog.kind === "edit"
+          shownDialog.kind === "edit"
             ? {
-                name: dialog.room.name,
-                description: dialog.room.description ?? null,
-                icon: dialog.room.icon ?? null,
-                color: dialog.room.color ?? null,
+                name: shownDialog.room.name,
+                description: shownDialog.room.description ?? null,
+                icon: shownDialog.room.icon ?? null,
+                color: shownDialog.room.color ?? null,
               }
             : undefined
         }

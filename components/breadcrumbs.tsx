@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ChevronRight, Ellipsis } from "lucide-react";
 import type { Node } from "@/types";
@@ -23,9 +23,10 @@ interface BreadcrumbsProps {
 }
 
 function Separator() {
+  // `relative` lifts the chevron above the hover pill gliding beneath it.
   return (
     <ChevronRight
-      className="size-4 shrink-0 text-muted-foreground"
+      className="relative size-4 shrink-0 text-muted-foreground"
       aria-hidden
     />
   );
@@ -35,16 +36,21 @@ function CrumbLink({
   node,
   href,
   onDropNodes,
+  onHighlight,
 }: {
   node: Node;
   href: string;
   onDropNodes?: (ids: string[], target: Node) => void;
+  /** Reports the hovered/focused element so the shared pill can slide to it. */
+  onHighlight: (el: HTMLElement) => void;
 }) {
   const [dropReady, setDropReady] = useState(false);
   return (
     <Link
       href={href}
       title={node.name}
+      onPointerEnter={(e) => onHighlight(e.currentTarget)}
+      onFocus={(e) => onHighlight(e.currentTarget)}
       onDragOver={(e) => {
         if (!onDropNodes || !e.dataTransfer.types.includes(MOVE_MIME)) return;
         e.preventDefault();
@@ -61,8 +67,8 @@ function CrumbLink({
         onDropNodes(ids, node);
       }}
       className={cn(
-        "max-w-40 truncate rounded-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50",
-        dropReady && "bg-folder-bg px-1 text-brand ring-2 ring-ring/60",
+        "relative max-w-40 truncate rounded-md px-1.5 py-1 text-muted-foreground transition-colors duration-150 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50",
+        dropReady && "bg-folder-bg text-brand ring-2 ring-brand",
       )}
     >
       {node.name}
@@ -75,8 +81,62 @@ function CrumbLink({
  * is plain text with aria-current. Trails longer than three collapse the
  * middle into an ellipsis menu, keeping the room and the current folder
  * always visible.
+ *
+ * Hover feedback is one shared pill that slides between crumbs (tabs-sliding
+ * pattern): it appears in place on first hover, then tweens transform/size
+ * between targets, and fades out when the pointer leaves the trail.
  */
 export function Breadcrumbs({ crumbs, hrefFor, onDropNodes }: BreadcrumbsProps) {
+  const listRef = useRef<HTMLOListElement>(null);
+  const pillRef = useRef<HTMLSpanElement>(null);
+  const pillOn = useRef(false);
+
+  const showPill = (el: HTMLElement) => {
+    const list = listRef.current;
+    const pill = pillRef.current;
+    if (!list || !pill) return;
+    const listBox = list.getBoundingClientRect();
+    const box = el.getBoundingClientRect();
+    const place = () => {
+      pill.style.width = `${box.width}px`;
+      pill.style.height = `${box.height}px`;
+      pill.style.transform = `translate(${box.left - listBox.left}px, ${
+        box.top - listBox.top
+      }px)`;
+    };
+    if (pillOn.current) {
+      place(); // visible pill: let the stylesheet transition do the slide
+    } else {
+      // First hover: land in place (no cross-screen slide), then fade in.
+      pill.style.transition = "none";
+      place();
+      void pill.offsetWidth;
+      pill.style.transition = "";
+    }
+    pill.style.opacity = "1";
+    pillOn.current = true;
+  };
+
+  const hidePill = () => {
+    const pill = pillRef.current;
+    if (!pill) return;
+    pill.style.opacity = "0";
+    pillOn.current = false;
+  };
+
+  // Navigation rebuilds the trail — park the pill so it can't sit on a crumb
+  // that just moved or disappeared.
+  const trailKey = crumbs.map((c) => c.id).join("/");
+  useEffect(() => {
+    const pill = pillRef.current;
+    if (!pill) return;
+    pill.style.transition = "none";
+    pill.style.opacity = "0";
+    void pill.offsetWidth;
+    pill.style.transition = "";
+    pillOn.current = false;
+  }, [trailKey]);
+
   if (crumbs.length === 0) return null;
   const current = crumbs[crumbs.length - 1];
   const ancestors = crumbs.slice(0, -1);
@@ -85,12 +145,28 @@ export function Breadcrumbs({ crumbs, hrefFor, onDropNodes }: BreadcrumbsProps) 
   const middle = collapse ? ancestors.slice(1) : [];
 
   return (
-    <nav aria-label="Breadcrumb" className="min-w-0 flex-1">
-      <ol className="flex min-w-0 items-center gap-1 text-sm">
+    <nav
+      aria-label="Breadcrumb"
+      className="min-w-0 flex-1"
+      onPointerLeave={hidePill}
+      onBlur={(e) => {
+        const next = e.relatedTarget;
+        if (!(next instanceof HTMLElement) || !e.currentTarget.contains(next))
+          hidePill();
+      }}
+    >
+      <ol ref={listRef} className="relative flex min-w-0 items-center gap-1 text-sm">
+        <span
+          ref={pillRef}
+          aria-hidden
+          className="pointer-events-none absolute top-0 left-0 rounded-md bg-muted opacity-0 transition-[transform,width,height,opacity] duration-200 ease-out-strong will-change-[transform,width] motion-reduce:transition-none"
+        />
         <li className="flex items-center gap-1">
           <Link
             href="/"
-            className="rounded-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+            onPointerEnter={(e) => showPill(e.currentTarget)}
+            onFocus={(e) => showPill(e.currentTarget)}
+            className="relative rounded-md px-1.5 py-1 text-muted-foreground transition-colors duration-150 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
           >
             Home
           </Link>
@@ -102,6 +178,7 @@ export function Breadcrumbs({ crumbs, hrefFor, onDropNodes }: BreadcrumbsProps) 
               node={node}
               href={hrefFor(node.id)}
               onDropNodes={onDropNodes}
+              onHighlight={showPill}
             />
           </li>
         ))}
@@ -114,7 +191,9 @@ export function Breadcrumbs({ crumbs, hrefFor, onDropNodes }: BreadcrumbsProps) 
                   variant="ghost"
                   size="icon-xs"
                   aria-label="Show hidden folders"
-                  className="text-muted-foreground"
+                  onPointerEnter={(e) => showPill(e.currentTarget)}
+                  onFocus={(e) => showPill(e.currentTarget)}
+                  className="relative text-muted-foreground hover:bg-transparent dark:hover:bg-transparent"
                 >
                   <Ellipsis />
                 </Button>
@@ -131,12 +210,17 @@ export function Breadcrumbs({ crumbs, hrefFor, onDropNodes }: BreadcrumbsProps) 
             </DropdownMenu>
           </li>
         )}
-        <li className="flex min-w-0 items-center gap-1">
+        {/* Keyed by folder: navigating slides the new location in from the
+            trail's direction of travel. */}
+        <li
+          key={current.id}
+          className="flex min-w-0 items-center gap-1 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-left-2 motion-safe:duration-300 motion-safe:ease-out-strong"
+        >
           <Separator />
           <span
             aria-current="page"
             title={current.name}
-            className="max-w-56 truncate font-medium"
+            className="relative max-w-56 truncate px-1.5 py-1 font-medium"
           >
             {current.name}
           </span>

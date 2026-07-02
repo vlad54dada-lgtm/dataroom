@@ -124,21 +124,21 @@ export function ItemsTable({
           </TableBody>
         </Table>
       </div>
-      {selectionActive && (
-        <SelectionBar
-          count={liveSelected.length}
-          fileCount={liveSelected.filter((n) => n.type === "file").length}
-          onDownload={() => {
-            onBulkDownload(liveSelected.filter((n) => n.type === "file"));
-          }}
-          onMove={() => onBulkMove(liveSelected)}
-          onTrash={() => {
-            onBulkTrash(liveSelected);
-            clear();
-          }}
-          onClear={clear}
-        />
-      )}
+      {/* Always rendered: the bar mounts/unmounts itself so its exit
+          animation can play after the selection clears. */}
+      <SelectionBar
+        count={liveSelected.length}
+        fileCount={liveSelected.filter((n) => n.type === "file").length}
+        onDownload={() => {
+          onBulkDownload(liveSelected.filter((n) => n.type === "file"));
+        }}
+        onMove={() => onBulkMove(liveSelected)}
+        onTrash={() => {
+          onBulkTrash(liveSelected);
+          clear();
+        }}
+        onClear={clear}
+      />
     </>
   );
 }

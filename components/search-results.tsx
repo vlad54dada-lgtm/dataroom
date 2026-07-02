@@ -21,7 +21,7 @@ export function SearchResults({
   onOpenFile,
 }: SearchResultsProps) {
   return (
-    <div className="divide-y overflow-hidden rounded-card border bg-card">
+    <div className="divide-y overflow-hidden rounded-card border bg-card motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-200">
       {results.map(({ node, parentName, contentMatch }) => {
         const isFolder = node.type !== "file";
         return (
@@ -31,7 +31,7 @@ export function SearchResults({
             onClick={(e) =>
               isFolder ? onOpenFolder(node) : onOpenFile(node, e.currentTarget)
             }
-            className="flex h-14 w-full min-w-0 items-center gap-3 px-4 text-left outline-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring/50"
+            className="flex h-14 w-full min-w-0 items-center gap-3 px-4 text-left transition-colors duration-150 outline-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring/50"
           >
             <span
               className={`flex size-8 shrink-0 items-center justify-center rounded-tile ${

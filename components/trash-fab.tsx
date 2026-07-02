@@ -156,11 +156,16 @@ export function TrashFab() {
         }}
         onFocus={openPeek}
         onBlur={scheduleClose}
-        className="relative flex size-12 items-center justify-center rounded-full border bg-card text-muted-foreground shadow-lg transition-[box-shadow,transform,color] outline-none hover:-translate-y-0.5 hover:text-foreground hover:shadow-xl focus-visible:ring-2 focus-visible:ring-ring/50 motion-reduce:transition-none motion-reduce:hover:translate-y-0"
+        className="relative flex size-12 items-center justify-center rounded-full border bg-card text-muted-foreground shadow-lg transition-[box-shadow,translate,scale,color] duration-200 ease-out-strong outline-none hover:-translate-y-0.5 hover:text-foreground hover:shadow-xl active:scale-95 focus-visible:ring-2 focus-visible:ring-ring/50 motion-reduce:transition-none motion-reduce:hover:translate-y-0"
       >
         <Trash2 className="size-5" strokeWidth={1.75} />
         {count > 0 && (
-          <span className="absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-medium text-primary-foreground">
+          // Keyed: every count change pops the badge, so a delete you just
+          // made registers even at the edge of your vision.
+          <span
+            key={count}
+            className="absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-medium text-primary-foreground motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-50 motion-safe:duration-200 motion-safe:ease-out-back"
+          >
             {count > 99 ? "99+" : count}
           </span>
         )}
