@@ -67,7 +67,7 @@ export function RowMenu({ onRename, onDelete, className }: RowMenuProps) {
             onDelete(triggerRef.current);
           }}
         >
-          <Trash2 /> Delete
+          <Trash2 /> Move to trash
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

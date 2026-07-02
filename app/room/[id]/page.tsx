@@ -4,18 +4,18 @@ import { Suspense, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { toast } from "sonner";
 import { Search, Upload, X } from "lucide-react";
-import type { DeleteCounts, Node } from "@/types";
+import type { Node } from "@/types";
 import {
   compareNodes,
   createNode,
-  deleteNodeRecursive,
-  getDeleteCounts,
   getNode,
   isDuplicateNameError,
   listChildren,
   renameNode,
+  restoreNode,
   saveFile,
   searchNodes,
+  trashNode,
 } from "@/lib/storage";
 import { partitionPdfs } from "@/lib/validate";
 import { extractPdfText } from "@/lib/extract-pdf-text";
@@ -37,15 +37,13 @@ import { ErrorState } from "@/components/error-state";
 import { ListSkeleton } from "@/components/list-skeleton";
 import { NotFoundState } from "@/components/not-found-state";
 import { NameDialog } from "@/components/name-dialog";
-import { DeleteDialog } from "@/components/delete-dialog";
 import { UploadDropzone } from "@/components/upload-dropzone";
 import { PdfViewerDialog } from "@/components/pdf-viewer-dialog";
 
 type DialogState =
   | { kind: "none" }
   | { kind: "create" }
-  | { kind: "rename"; node: Node }
-  | { kind: "delete"; node: Node; counts: DeleteCounts | null };
+  | { kind: "rename"; node: Node };
 
 /** The toolbar button is focused by its own click — capture it. */
 const activeTrigger = () =>
@@ -57,14 +55,14 @@ function RoomShell({ children }: { children: React.ReactNode }) {
   return (
     <>
       <AppHeader />
-      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-6 py-6">
+      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-6 py-6 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200">
         {children}
       </main>
     </>
   );
 }
 
-/** Room-shaped skeleton — used as the Suspense fallback AND while resolving. */
+/** Room-shaped skeleton — used as the Suspense fallback AND on first load. */
 function RoomFallback() {
   return (
     <RoomShell>
@@ -108,7 +106,7 @@ function RoomView() {
   const { currentFolderId, isRoot, hrefFor, navigateToFolder } =
     useCurrentFolder(roomId);
   const crumbs = useBreadcrumbs(roomId, currentFolderId);
-  const { state, reload, setData } = useAsync(
+  const { state, isStale, reload, setData } = useAsync(
     () => listChildren(currentFolderId),
     currentFolderId,
   );
@@ -127,7 +125,8 @@ function RoomView() {
   }, [query]);
   const searching = debouncedQuery.length > 0;
   const search = useAsync(
-    () => (searching ? searchNodes(roomId, debouncedQuery) : Promise.resolve([])),
+    () =>
+      searching ? searchNodes(roomId, debouncedQuery) : Promise.resolve([]),
     `search:${roomId}:${debouncedQuery}`,
   );
 
@@ -155,27 +154,34 @@ function RoomView() {
     },
   );
 
-  const deleteItem = useMutation(
-    (node: Node) => deleteNodeRecursive(node.id),
-    {
-      optimistic: (node) => {
-        setData((items) => items.filter((i) => i.id !== node.id));
-        return () => reload(); // rollback: refetch the authoritative list
-      },
-      successToast: "Deleted",
-      errorToast: () => "Couldn't delete",
+  /**
+   * Moving to trash is reversible, so there's no confirm dialog: the row
+   * disappears immediately and the toast carries Undo.
+   */
+  const trashItem = useMutation((node: Node) => trashNode(node.id), {
+    optimistic: (node) => {
+      setData((items) => items.filter((i) => i.id !== node.id));
+      return () => reload(); // rollback: refetch the authoritative list
     },
-  );
-
-  const openDelete = (node: Node, trigger: HTMLElement | null) => {
-    setReturnTo(trigger);
-    setDialog({ kind: "delete", node, counts: null });
-    void getDeleteCounts(node.id).then((counts) =>
-      setDialog((d) =>
-        d.kind === "delete" && d.node.id === node.id ? { ...d, counts } : d,
-      ),
-    );
-  };
+    errorToast: () => "Couldn't move it to trash",
+    onSuccess: (_result, node) => {
+      // Deferred one tick: firing in the same commit as the closing kebab
+      // menu's portal teardown gets the toast node swept away with it.
+      setTimeout(() => {
+        toast.success("Moved to trash", {
+          description: node.name,
+          action: {
+            label: "Undo",
+            onClick: () => {
+              void restoreNode(node.id)
+                .then(() => reload())
+                .catch(() => toast.error("Couldn't restore it"));
+            },
+          },
+        });
+      }, 50);
+    },
+  });
 
   /**
    * Sequential upload: validation in code (ext + MIME + magic number), one
@@ -278,7 +284,13 @@ function RoomView() {
                 </RoomToolbar>
               </div>
             </div>
-            <section className="mt-4">
+            <section
+              className={`mt-4 transition-opacity duration-200 ${
+                isStale || (searching && search.isStale)
+                  ? "opacity-60"
+                  : "opacity-100"
+              }`}
+            >
               {searching ? (
                 <>
                   {search.state.status === "loading" && (
@@ -313,7 +325,10 @@ function RoomView() {
                   {state.status === "error" && <ErrorState onRetry={reload} />}
                   {state.status === "success" &&
                     (state.data.length === 0 ? (
-                      <EmptyState variant="empty-folder" />
+                      // Dashed frame doubles as a visual drop-target hint.
+                      <div className="rounded-card border border-dashed border-line-strong">
+                        <EmptyState variant="empty-folder" />
+                      </div>
                     ) : (
                       <ItemsTable
                         items={state.data}
@@ -326,7 +341,9 @@ function RoomView() {
                           setReturnTo(trigger);
                           setDialog({ kind: "rename", node });
                         }}
-                        onDelete={openDelete}
+                        onDelete={(node) =>
+                          void trashItem.run(node).catch(() => {})
+                        }
                       />
                     ))}
                 </>
@@ -353,16 +370,6 @@ function RoomView() {
         onSubmit={async (name) => {
           if (dialog.kind === "rename") await renameItem.run(dialog.node, name);
           else await createFolder.run(name);
-        }}
-        onClose={closeDialog}
-        returnFocusTo={returnTo}
-      />
-      <DeleteDialog
-        open={dialog.kind === "delete"}
-        target={dialog.kind === "delete" ? dialog.node : null}
-        counts={dialog.kind === "delete" ? dialog.counts : null}
-        onConfirm={async () => {
-          if (dialog.kind === "delete") await deleteItem.run(dialog.node);
         }}
         onClose={closeDialog}
         returnFocusTo={returnTo}
