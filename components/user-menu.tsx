@@ -25,11 +25,11 @@ export function UserMenu() {
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
-          size="icon-sm"
+          size="icon"
           aria-label="Account"
           className="rounded-full"
         >
-          <span className="flex size-6 items-center justify-center rounded-full bg-folder-bg text-xs font-semibold text-brand">
+          <span className="flex size-7 items-center justify-center rounded-full bg-folder-bg text-sm font-semibold text-brand">
             {initial}
           </span>
         </Button>
