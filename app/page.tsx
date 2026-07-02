@@ -17,6 +17,7 @@ import { useAsync } from "@/lib/hooks/use-async";
 import { useMutation } from "@/lib/hooks/use-mutation";
 import { Button } from "@/components/ui/button";
 import { AppHeader } from "@/components/app-header";
+import { RequireAuth } from "@/components/require-auth";
 import { DataroomGrid } from "@/components/dataroom-grid";
 import type { DataroomListItem } from "@/components/dataroom-card";
 import { EmptyState } from "@/components/empty-state";
@@ -51,6 +52,14 @@ const sortItems = (items: DataroomListItem[]) =>
   [...items].sort((a, b) => compareNodes(a.node, b.node));
 
 export default function HomePage() {
+  return (
+    <RequireAuth>
+      <HomeView />
+    </RequireAuth>
+  );
+}
+
+function HomeView() {
   const { state, reload, setData } = useAsync(loadRooms, "datarooms");
   const [dialog, setDialog] = useState<DialogState>({ kind: "none" });
   // Survives close: dialogs read it in onCloseAutoFocus AFTER state resets.

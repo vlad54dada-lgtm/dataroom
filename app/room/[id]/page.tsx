@@ -1,9 +1,9 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { toast } from "sonner";
-import { Upload } from "lucide-react";
+import { Search, Upload, X } from "lucide-react";
 import type { DeleteCounts, Node } from "@/types";
 import {
   compareNodes,
@@ -15,15 +15,20 @@ import {
   listChildren,
   renameNode,
   saveFile,
+  searchNodes,
 } from "@/lib/storage";
 import { partitionPdfs } from "@/lib/validate";
+import { extractPdfText } from "@/lib/extract-pdf-text";
 import { useAsync } from "@/lib/hooks/use-async";
 import { useMutation } from "@/lib/hooks/use-mutation";
 import { useCurrentFolder } from "@/lib/hooks/use-current-folder";
 import { useBreadcrumbs } from "@/lib/hooks/use-breadcrumbs";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AppHeader } from "@/components/app-header";
+import { RequireAuth } from "@/components/require-auth";
+import { SearchResults } from "@/components/search-results";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { RoomToolbar } from "@/components/room-toolbar";
 import { ItemsTable } from "@/components/items-table";
@@ -80,9 +85,11 @@ function RoomFallback() {
  */
 export default function RoomPage() {
   return (
-    <Suspense fallback={<RoomFallback />}>
-      <RoomView />
-    </Suspense>
+    <RequireAuth>
+      <Suspense fallback={<RoomFallback />}>
+        <RoomView />
+      </Suspense>
+    </RequireAuth>
   );
 }
 
@@ -98,7 +105,8 @@ const summarizeInvalid = (files: File[]): string => {
 
 function RoomView() {
   const { id: roomId } = useParams<{ id: string }>();
-  const { currentFolderId, isRoot, hrefFor } = useCurrentFolder(roomId);
+  const { currentFolderId, isRoot, hrefFor, navigateToFolder } =
+    useCurrentFolder(roomId);
   const crumbs = useBreadcrumbs(roomId, currentFolderId);
   const { state, reload, setData } = useAsync(
     () => listChildren(currentFolderId),
@@ -109,6 +117,19 @@ function RoomView() {
   // Survives close: dialogs read it in onCloseAutoFocus AFTER state resets.
   const [returnTo, setReturnTo] = useState<HTMLElement | null>(null);
   const closeDialog = () => setDialog({ kind: "none" });
+
+  // Search: debounced so each keystroke doesn't hit the database.
+  const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(query.trim()), 250);
+    return () => clearTimeout(t);
+  }, [query]);
+  const searching = debouncedQuery.length > 0;
+  const search = useAsync(
+    () => (searching ? searchNodes(roomId, debouncedQuery) : Promise.resolve([])),
+    `search:${roomId}:${debouncedQuery}`,
+  );
 
   const createFolder = useMutation(
     (name: string) =>
@@ -181,7 +202,9 @@ function RoomView() {
       toast.loading(`Uploading ${done + 1} of ${valid.length}…`, {
         id: toastId,
       });
-      const node = await saveFile(parentId, file);
+      // Extracted text powers content search; scanned PDFs return null.
+      const contentText = await extractPdfText(file);
+      const node = await saveFile(parentId, file, contentText);
       done++;
       // The URL is the source of truth for where the user is NOW.
       const hereNow =
@@ -222,40 +245,92 @@ function RoomView() {
           <>
             <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
               <Breadcrumbs crumbs={crumbs.crumbs ?? []} hrefFor={hrefFor} />
-              <RoomToolbar
-                onNewFolder={() => {
-                  setReturnTo(activeTrigger());
-                  setDialog({ kind: "create" });
-                }}
-              >
-                <Button onClick={open}>
-                  <Upload /> Upload
-                </Button>
-              </RoomToolbar>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative">
+                  <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Search this dataroom"
+                    aria-label="Search this dataroom"
+                    className="w-56 pl-8 pr-8"
+                  />
+                  {query.length > 0 && (
+                    <button
+                      type="button"
+                      aria-label="Clear search"
+                      onClick={() => setQuery("")}
+                      className="absolute top-1/2 right-1.5 flex size-5 -translate-y-1/2 items-center justify-center rounded-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+                    >
+                      <X className="size-4" />
+                    </button>
+                  )}
+                </div>
+                <RoomToolbar
+                  onNewFolder={() => {
+                    setReturnTo(activeTrigger());
+                    setDialog({ kind: "create" });
+                  }}
+                >
+                  <Button onClick={open}>
+                    <Upload /> Upload
+                  </Button>
+                </RoomToolbar>
+              </div>
             </div>
             <section className="mt-4">
-              {state.status === "loading" && (
-                <ListSkeleton variant="rows" count={4} />
+              {searching ? (
+                <>
+                  {search.state.status === "loading" && (
+                    <ListSkeleton variant="rows" count={3} />
+                  )}
+                  {search.state.status === "error" && (
+                    <ErrorState onRetry={search.reload} />
+                  )}
+                  {search.state.status === "success" &&
+                    (search.state.data.length === 0 ? (
+                      <EmptyState variant="no-results" query={debouncedQuery} />
+                    ) : (
+                      <SearchResults
+                        results={search.state.data}
+                        onOpenFolder={(node) => {
+                          setQuery("");
+                          setDebouncedQuery("");
+                          navigateToFolder(node.id);
+                        }}
+                        onOpenFile={(file, trigger) => {
+                          setReturnTo(trigger);
+                          setViewerFile(file);
+                        }}
+                      />
+                    ))}
+                </>
+              ) : (
+                <>
+                  {state.status === "loading" && (
+                    <ListSkeleton variant="rows" count={4} />
+                  )}
+                  {state.status === "error" && <ErrorState onRetry={reload} />}
+                  {state.status === "success" &&
+                    (state.data.length === 0 ? (
+                      <EmptyState variant="empty-folder" />
+                    ) : (
+                      <ItemsTable
+                        items={state.data}
+                        hrefFor={hrefFor}
+                        onOpenFile={(file, trigger) => {
+                          setReturnTo(trigger);
+                          setViewerFile(file);
+                        }}
+                        onRename={(node, trigger) => {
+                          setReturnTo(trigger);
+                          setDialog({ kind: "rename", node });
+                        }}
+                        onDelete={openDelete}
+                      />
+                    ))}
+                </>
               )}
-              {state.status === "error" && <ErrorState onRetry={reload} />}
-              {state.status === "success" &&
-                (state.data.length === 0 ? (
-                  <EmptyState variant="empty-folder" />
-                ) : (
-                  <ItemsTable
-                    items={state.data}
-                    hrefFor={hrefFor}
-                    onOpenFile={(file, trigger) => {
-                      setReturnTo(trigger);
-                      setViewerFile(file);
-                    }}
-                    onRename={(node, trigger) => {
-                      setReturnTo(trigger);
-                      setDialog({ kind: "rename", node });
-                    }}
-                    onDelete={openDelete}
-                  />
-                ))}
             </section>
           </>
         )}
