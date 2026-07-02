@@ -1,4 +1,4 @@
-import { db } from "@/lib/db";
+import { supabase } from "@/lib/supabase";
 import type { CreateNodeInput, DeleteCounts, Node, NodeType } from "@/types";
 import {
   MAX_NAME_LENGTH,
@@ -8,10 +8,15 @@ import {
 } from "@/lib/utils";
 
 /**
- * Storage adapter — the single seam between the UI and persistence. Every
- * method is async and throws typed errors, mimicking a real backend, so
- * swapping Dexie for an API later means rewriting only this file (and db.ts).
- * Components never import Dexie directly.
+ * Storage adapter — the single seam between the UI and persistence. This
+ * file originally spoke to IndexedDB (Dexie); swapping it to Supabase
+ * (Postgres + Storage) touched ONLY this module: the exported API and every
+ * error contract are unchanged, so no component was modified.
+ *
+ * Security model: every query runs under the caller's Supabase session; RLS
+ * scopes rows to the owner, and duplicate container names are enforced by a
+ * case-insensitive unique index (closes the cross-tab race the local
+ * version could only best-effort).
  */
 
 // ---------------------------------------------------------------------------
@@ -48,6 +53,50 @@ export class InvalidNameError extends Error {
 }
 
 // ---------------------------------------------------------------------------
+// Row mapping
+// ---------------------------------------------------------------------------
+
+interface NodeRow {
+  id: string;
+  parent_id: string | null;
+  type: NodeType;
+  name: string;
+  size: number | null;
+  blob_path: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+const NODE_COLUMNS =
+  "id, parent_id, type, name, size, blob_path, created_at, updated_at";
+
+function toNode(row: NodeRow): Node {
+  return {
+    id: row.id,
+    parentId: row.parent_id,
+    type: row.type,
+    name: row.name,
+    createdAt: Date.parse(row.created_at),
+    updatedAt: Date.parse(row.updated_at),
+    ...(row.type === "file"
+      ? { size: row.size ?? 0, blobKey: row.blob_path ?? undefined }
+      : {}),
+  };
+}
+
+async function currentUserId(): Promise<string> {
+  const { data } = await supabase.auth.getSession();
+  const id = data.session?.user.id;
+  if (!id) throw new Error("Not signed in");
+  return id;
+}
+
+/** Postgres unique-violation → our typed duplicate error. */
+function isUniqueViolation(error: { code?: string } | null): boolean {
+  return error?.code === "23505";
+}
+
+// ---------------------------------------------------------------------------
 // Sort contract: folders (and datarooms) before files, then name-asc with
 // numeric ordering. Exported so optimistic UI inserts reuse the exact order.
 // ---------------------------------------------------------------------------
@@ -70,61 +119,78 @@ export function compareNodes(a: Node, b: Node): number {
 
 /** Returns undefined for a missing id — never throws (feeds not-found UI). */
 export async function getNode(id: string): Promise<Node | undefined> {
-  return db.nodes.get(id);
+  const { data, error } = await supabase
+    .from("nodes")
+    .select(NODE_COLUMNS)
+    .eq("id", id)
+    .maybeSingle<NodeRow>();
+  if (error) {
+    // Malformed ids (?folder=garbage isn't a uuid) read as "not found".
+    if (error.code === "22P02") return undefined;
+    throw error;
+  }
+  return data ? toNode(data) : undefined;
 }
 
-/** `null` lists datarooms (IndexedDB can't index null, so that path filters). */
 export async function listChildren(parentId: string | null): Promise<Node[]> {
-  const children =
+  let query = supabase.from("nodes").select(NODE_COLUMNS);
+  query =
     parentId === null
-      ? await db.nodes.filter((n) => n.parentId === null).toArray()
-      : await db.nodes.where("parentId").equals(parentId).toArray();
-  return children.sort(compareNodes);
+      ? query.is("parent_id", null)
+      : query.eq("parent_id", parentId);
+  const { data, error } = await query.overrideTypes<NodeRow[]>();
+  if (error) throw error;
+  return (data ?? []).map(toNode).sort(compareNodes);
 }
 
 /** Direct children only — the "N items" count on dataroom cards. */
 export async function countChildren(parentId: string | null): Promise<number> {
-  return parentId === null
-    ? db.nodes.filter((n) => n.parentId === null).count()
-    : db.nodes.where("parentId").equals(parentId).count();
+  let query = supabase
+    .from("nodes")
+    .select("id", { count: "exact", head: true });
+  query =
+    parentId === null
+      ? query.is("parent_id", null)
+      : query.eq("parent_id", parentId);
+  const { count, error } = await query;
+  if (error) throw error;
+  return count ?? 0;
 }
 
 // ---------------------------------------------------------------------------
-// Name policy (lives here, not in components)
+// Name policy (files auto-suffix here; containers rely on the DB's
+// case-insensitive unique index and surface DuplicateNameError)
 // ---------------------------------------------------------------------------
 
-/** Lowercased names of same-type siblings, optionally excluding one node. */
-async function takenNames(
-  parentId: string | null,
-  type: NodeType,
+async function takenFileNames(
+  parentId: string,
   excludeId?: string,
 ): Promise<Set<string>> {
-  const siblings =
-    parentId === null
-      ? await db.nodes.filter((n) => n.parentId === null).toArray()
-      : await db.nodes.where("parentId").equals(parentId).toArray();
+  const { data, error } = await supabase
+    .from("nodes")
+    .select("id, name")
+    .eq("parent_id", parentId)
+    .eq("type", "file");
+  if (error) throw error;
   const taken = new Set<string>();
-  for (const sibling of siblings) {
-    if (sibling.type !== type) continue; // a folder "X" and file "X" may coexist
-    if (sibling.id === excludeId) continue;
-    taken.add(sibling.name.toLowerCase());
+  for (const row of data ?? []) {
+    if (row.id === excludeId) continue;
+    taken.add(row.name.toLowerCase());
   }
   return taken;
 }
 
 /**
  * File duplicates get " (N)" before the extension: report.pdf → report (1).pdf
- * → report (2).pdf. An existing "report (1).pdf" is treated literally, so a
- * new "report (1).pdf" becomes "report (1) (1).pdf" (Drive behavior). The base
- * is truncated if the suffixed name would exceed 255 chars; a random suffix
- * caps the loop as a last resort.
+ * → report (2).pdf. The base is truncated if the suffixed name would exceed
+ * 255 chars; a random suffix caps the loop as a last resort.
  */
 async function resolveFileName(
-  parentId: string | null,
+  parentId: string,
   desired: string,
   excludeId?: string,
 ): Promise<string> {
-  const taken = await takenNames(parentId, "file", excludeId);
+  const taken = await takenFileNames(parentId, excludeId);
   if (!taken.has(desired.toLowerCase())) return desired;
   const { base, ext } = splitExtension(desired);
   for (let n = 1; n <= 999; n++) {
@@ -151,34 +217,22 @@ function fitFileName(name: string): string {
 // Mutations
 // ---------------------------------------------------------------------------
 
-/**
- * Creates a dataroom or folder. The duplicate check runs inside the same rw
- * transaction as the insert, closing the same-tab double-submit race. The
- * null-parent (dataroom) path is filter-based — IndexedDB can't lock an
- * unindexed predicate — so cross-tab dataroom dedupe is best-effort by design.
- */
 export async function createNode(input: CreateNodeInput): Promise<Node> {
   const name = normalizeName(input.name);
   const invalid = validateName(name);
   if (invalid) throw new InvalidNameError(invalid);
+  const userId = await currentUserId();
   const parentId = input.type === "dataroom" ? null : input.parentId;
-  return db.transaction("rw", db.nodes, async () => {
-    const taken = await takenNames(parentId, input.type);
-    if (taken.has(name.toLowerCase())) {
-      throw new DuplicateNameError(input.type);
-    }
-    const now = Date.now();
-    const node: Node = {
-      id: crypto.randomUUID(),
-      parentId,
-      type: input.type,
-      name,
-      createdAt: now,
-      updatedAt: now,
-    };
-    await db.nodes.add(node);
-    return node;
-  });
+  const { data, error } = await supabase
+    .from("nodes")
+    .insert({ user_id: userId, parent_id: parentId, type: input.type, name })
+    .select(NODE_COLUMNS)
+    .single<NodeRow>();
+  if (error) {
+    if (isUniqueViolation(error)) throw new DuplicateNameError(input.type);
+    throw error;
+  }
+  return toNode(data);
 }
 
 /**
@@ -189,107 +243,140 @@ export async function renameNode(id: string, newName: string): Promise<Node> {
   const name = normalizeName(newName);
   const invalid = validateName(name);
   if (invalid) throw new InvalidNameError(invalid);
-  return db.transaction("rw", db.nodes, async () => {
-    const node = await db.nodes.get(id);
-    if (!node) throw new Error(`Node not found: ${id}`);
-    if (node.name === name) return node; // EC8: unchanged rename is a no-op
-    let finalName = name;
-    if (node.type === "file") {
-      finalName = await resolveFileName(node.parentId, name, id);
-    } else {
-      const taken = await takenNames(node.parentId, node.type, id);
-      if (taken.has(name.toLowerCase())) {
-        throw new DuplicateNameError(node.type);
-      }
-    }
-    const updated: Node = { ...node, name: finalName, updatedAt: Date.now() };
-    await db.nodes.put(updated);
-    return updated;
-  });
+  const node = await getNode(id);
+  if (!node) throw new Error(`Node not found: ${id}`);
+  if (node.name === name) return node; // EC8: unchanged rename is a no-op
+  let finalName = name;
+  if (node.type === "file" && node.parentId) {
+    finalName = await resolveFileName(node.parentId, name, id);
+  }
+  const { data, error } = await supabase
+    .from("nodes")
+    .update({ name: finalName })
+    .eq("id", id)
+    .select(NODE_COLUMNS)
+    .single<NodeRow>();
+  if (error) {
+    if (isUniqueViolation(error)) throw new DuplicateNameError(node.type);
+    throw error;
+  }
+  return toNode(data);
 }
 
 /**
- * Stores the blob and its node in ONE transaction over both stores — either
- * both land or neither (no orphan blob, no blobless node). Callers process
- * batches sequentially so suffixing stays deterministic.
+ * Uploads the blob to Storage, then inserts the node row. If the row insert
+ * fails the uploaded object is removed — no orphan blob, no blobless node.
+ * `contentText` is the pre-extracted PDF text used for content search.
  */
-export async function saveFile(parentId: string, file: File): Promise<Node> {
+export async function saveFile(
+  parentId: string,
+  file: File,
+  contentText?: string | null,
+): Promise<Node> {
+  const userId = await currentUserId();
   const desired = fitFileName(normalizeName(file.name) || "Untitled.pdf");
-  return db.transaction("rw", [db.nodes, db.blobs], async () => {
-    const name = await resolveFileName(parentId, desired);
-    const now = Date.now();
-    const blobKey = crypto.randomUUID();
-    await db.blobs.add({ blobKey, blob: file });
-    const node: Node = {
-      id: crypto.randomUUID(),
-      parentId,
+  const blobPath = `${userId}/${crypto.randomUUID()}.pdf`;
+
+  const { error: uploadError } = await supabase.storage
+    .from("pdfs")
+    .upload(blobPath, file, { contentType: "application/pdf" });
+  if (uploadError) throw uploadError;
+
+  const name = await resolveFileName(parentId, desired);
+  const { data, error } = await supabase
+    .from("nodes")
+    .insert({
+      user_id: userId,
+      parent_id: parentId,
       type: "file",
       name,
-      createdAt: now,
-      updatedAt: now,
       size: file.size,
-      blobKey,
-    };
-    await db.nodes.add(node);
-    return node;
-  });
+      blob_path: blobPath,
+      content_text: contentText ?? null,
+    })
+    .select(NODE_COLUMNS)
+    .single<NodeRow>();
+  if (error) {
+    await supabase.storage.from("pdfs").remove([blobPath]);
+    throw error;
+  }
+  return toNode(data);
 }
 
 /** Raw Blob or undefined — object-URL lifecycle belongs to the viewer. */
 export async function getBlob(blobKey: string): Promise<Blob | undefined> {
-  const record = await db.blobs.get(blobKey);
-  return record?.blob;
+  const { data, error } = await supabase.storage.from("pdfs").download(blobKey);
+  if (error) return undefined;
+  return data ?? undefined;
 }
 
 // ---------------------------------------------------------------------------
 // Recursive delete
 // ---------------------------------------------------------------------------
 
-/** Level-by-level BFS over the parentId index. Runs inside a transaction. */
-async function collectSubtree(rootId: string): Promise<{
-  nodeIds: string[];
-  blobKeys: string[];
-  counts: DeleteCounts;
-}> {
-  const nodeIds: string[] = [rootId];
-  const blobKeys: string[] = [];
-  const counts: DeleteCounts = { folders: 0, files: 0 };
-  const root = await db.nodes.get(rootId);
-  if (root?.blobKey) blobKeys.push(root.blobKey);
-  let level: string[] = [rootId];
-  while (level.length > 0) {
-    const children = await db.nodes.where("parentId").anyOf(level).toArray();
-    level = [];
-    for (const child of children) {
-      nodeIds.push(child.id);
-      if (child.type === "file") {
-        counts.files++;
-        if (child.blobKey) blobKeys.push(child.blobKey);
-      } else {
-        counts.folders++;
-        level.push(child.id);
-      }
-    }
-  }
-  return { nodeIds, blobKeys, counts };
-}
-
 /** Descendant counts for the delete confirm (target itself excluded). */
 export async function getDeleteCounts(id: string): Promise<DeleteCounts> {
-  return db.transaction("r", db.nodes, async () => {
-    const { counts } = await collectSubtree(id);
-    return counts;
-  });
+  const { data, error } = await supabase
+    .rpc("get_subtree_stats", { node_id: id })
+    .single<{ folders: number; files: number }>();
+  if (error) throw error;
+  return { folders: Number(data.folders), files: Number(data.files) };
 }
 
 /**
- * Deletes the node, every descendant, and all their blobs in ONE transaction
- * over both stores — all or nothing, never a half-deleted subtree.
+ * Metadata for the whole subtree is removed by ONE cascading DELETE (all or
+ * nothing at the database level). Blob paths are collected first and their
+ * storage objects removed after the metadata commit — a failed cleanup can
+ * only leave invisible orphan objects, never half-deleted trees.
  */
 export async function deleteNodeRecursive(id: string): Promise<void> {
-  await db.transaction("rw", [db.nodes, db.blobs], async () => {
-    const { nodeIds, blobKeys } = await collectSubtree(id);
-    await db.nodes.bulkDelete(nodeIds);
-    await db.blobs.bulkDelete(blobKeys);
+  const { data: paths, error: pathsError } = await supabase.rpc(
+    "get_subtree_blob_paths",
+    { node_id: id },
+  );
+  if (pathsError) throw pathsError;
+
+  const { error } = await supabase.from("nodes").delete().eq("id", id);
+  if (error) throw error;
+
+  const blobPaths = (paths ?? []) as string[];
+  for (let i = 0; i < blobPaths.length; i += 100) {
+    await supabase.storage.from("pdfs").remove(blobPaths.slice(i, i + 100));
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Search
+// ---------------------------------------------------------------------------
+
+export interface SearchResult {
+  node: Node;
+  /** Name of the containing folder/dataroom — "in {parentName}". */
+  parentName: string;
+  /** True when the match came from document text, not the name. */
+  contentMatch: boolean;
+}
+
+interface SearchRow extends NodeRow {
+  parent_name: string;
+  content_match: boolean;
+}
+
+/** Name substring OR full-text content match within one dataroom's subtree. */
+export async function searchNodes(
+  rootId: string,
+  query: string,
+): Promise<SearchResult[]> {
+  const trimmed = query.trim();
+  if (trimmed.length === 0) return [];
+  const { data, error } = await supabase.rpc("search_nodes", {
+    root_id: rootId,
+    query: trimmed,
   });
+  if (error) throw error;
+  return ((data ?? []) as SearchRow[]).map((row) => ({
+    node: toNode(row),
+    parentName: row.parent_name,
+    contentMatch: row.content_match,
+  }));
 }
