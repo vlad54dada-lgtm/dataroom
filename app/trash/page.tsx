@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { FileText, Folder, RotateCcw, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, FileText, Folder, RotateCcw, Trash2 } from "lucide-react";
 import type { DeleteCounts, Node } from "@/types";
 import {
   emptyTrash,
@@ -28,6 +29,7 @@ import {
 import { AppHeader } from "@/components/app-header";
 import { RequireAuth } from "@/components/require-auth";
 import { RoomAvatar } from "@/components/room-avatar";
+import { TRASH_RETURN_KEY } from "@/components/trash-fab";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
 import { ListSkeleton } from "@/components/list-skeleton";
@@ -47,7 +49,14 @@ export default function TrashPage() {
 }
 
 function TrashView() {
+  const router = useRouter();
   const { state, reload, setData } = useAsync(listTrash, "trash");
+
+  /** Returns exactly where the trash was opened from (home as fallback). */
+  const goBack = () => {
+    const returnTo = sessionStorage.getItem(TRASH_RETURN_KEY);
+    router.push(returnTo && returnTo.startsWith("/") ? returnTo : "/");
+  };
   const [confirm, setConfirm] = useState<ConfirmState>({ kind: "none" });
   const [returnTo, setReturnTo] = useState<HTMLElement | null>(null);
   const closeConfirm = () => setConfirm({ kind: "none" });
@@ -102,11 +111,22 @@ function TrashView() {
       <AppHeader />
       <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-8 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200">
         <div className="flex items-center justify-between gap-4">
-          <div>
-            <h1 className="text-xl font-semibold">Trash</h1>
-            <p className="mt-0.5 text-sm text-muted-foreground">
-              Restore items or delete them forever.
-            </p>
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Back"
+              className="text-muted-foreground"
+              onClick={goBack}
+            >
+              <ArrowLeft className="size-5" />
+            </Button>
+            <div>
+              <h1 className="text-xl font-semibold">Trash</h1>
+              <p className="mt-0.5 text-sm text-muted-foreground">
+                Restore items or delete them forever.
+              </p>
+            </div>
           </div>
           {items.length > 0 && (
             <Button

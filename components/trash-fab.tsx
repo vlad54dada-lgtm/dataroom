@@ -1,14 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { toast } from "sonner";
 import { FileText, Folder, Trash2, X } from "lucide-react";
 import { countTrash, listTrash, purgeNode } from "@/lib/storage";
-import { RESTORE_MIME } from "@/lib/dnd";
+import { RESTORE_MIME, applyDragChip } from "@/lib/dnd";
 import { useAsync } from "@/lib/hooks/use-async";
 import { RoomAvatar } from "@/components/room-avatar";
+
+/** Where the Back button on the trash page returns to. */
+export const TRASH_RETURN_KEY = "trash-return-to";
 
 const PEEK_SIZE = 4;
 
@@ -21,6 +24,16 @@ const PEEK_SIZE = 4;
 export function TrashFab() {
   const pathname = usePathname();
   const [peeking, setPeeking] = useState(false);
+  // Grace period so diagonal cursor paths to the stack never collapse it.
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const openPeek = () => {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+    setPeeking(true);
+  };
+  const scheduleClose = () => {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+    closeTimer.current = setTimeout(() => setPeeking(false), 250);
+  };
   const { state: countState, reload: reloadCount } = useAsync(
     countTrash,
     "trash-count",
@@ -50,13 +63,15 @@ export function TrashFab() {
   return (
     <div
       className="fixed right-6 bottom-6 z-40"
-      onPointerEnter={() => setPeeking(true)}
-      onPointerLeave={() => setPeeking(false)}
+      onPointerEnter={openPeek}
+      onPointerLeave={scheduleClose}
     >
       {/* The fan-out stack: drag an item into the folder view to restore
           it there; the ✕ deletes it forever on the spot. */}
+      {/* bottom-full keeps the hover area continuous with the button — no
+          dead zone where the stack collapses mid-way to the cursor. */}
       {peeking && count > 0 && items.length > 0 && (
-        <div className="absolute right-0 bottom-14 w-64 pb-1">
+        <div className="absolute right-0 bottom-full w-64 pb-2">
           <div className="flex flex-col-reverse gap-1">
             {items.map((item, i) => (
               <div
@@ -68,6 +83,12 @@ export function TrashFab() {
                     JSON.stringify([item.node.id]),
                   );
                   e.dataTransfer.effectAllowed = "move";
+                  applyDragChip(
+                    e.dataTransfer,
+                    item.node.name,
+                    1,
+                    item.node.type === "file" ? "file" : "folder",
+                  );
                 }}
                 style={{ animationDelay: `${i * 45}ms` }}
                 className="group/peek flex h-11 cursor-grab items-center gap-2.5 rounded-xl border bg-popover px-3 shadow-md backdrop-blur transition-colors hover:bg-muted/60 active:cursor-grabbing motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-3 motion-safe:duration-200 motion-safe:fill-mode-backwards"
@@ -126,8 +147,15 @@ export function TrashFab() {
             ? `Trash, ${count} ${count === 1 ? "item" : "items"}`
             : "Trash"
         }
-        onFocus={() => setPeeking(true)}
-        onBlur={() => setPeeking(false)}
+        onClick={() => {
+          // Let the trash page's Back button return exactly here.
+          sessionStorage.setItem(
+            TRASH_RETURN_KEY,
+            window.location.pathname + window.location.search,
+          );
+        }}
+        onFocus={openPeek}
+        onBlur={scheduleClose}
         className="relative flex size-12 items-center justify-center rounded-full border bg-card text-muted-foreground shadow-lg transition-[box-shadow,transform,color] outline-none hover:-translate-y-0.5 hover:text-foreground hover:shadow-xl focus-visible:ring-2 focus-visible:ring-ring/50 motion-reduce:transition-none motion-reduce:hover:translate-y-0"
       >
         <Trash2 className="size-5" strokeWidth={1.75} />

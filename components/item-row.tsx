@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { FileText, Folder } from "lucide-react";
 import type { Node } from "@/types";
-import { MOVE_MIME, readIds } from "@/lib/dnd";
+import { MOVE_MIME, applyDragChip, readIds } from "@/lib/dnd";
 import { cn, formatBytes, formatDate } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { TableCell, TableRow } from "@/components/ui/table";
@@ -52,6 +52,8 @@ export function ItemRow({
   const modified = formatDate(node.updatedAt);
   // Folder rows light up while a compatible drag hovers over them.
   const [dropReady, setDropReady] = useState(false);
+  // The source row dims while its drag is in flight.
+  const [dragging, setDragging] = useState(false);
 
   const dropProps = isFolder
     ? {
@@ -100,13 +102,23 @@ export function ItemRow({
     <TableRow
       draggable
       onDragStart={(e: React.DragEvent) => {
-        e.dataTransfer.setData(MOVE_MIME, JSON.stringify(getDragIds(node)));
+        const ids = getDragIds(node);
+        e.dataTransfer.setData(MOVE_MIME, JSON.stringify(ids));
         e.dataTransfer.effectAllowed = "move";
+        applyDragChip(
+          e.dataTransfer,
+          node.name,
+          ids.length,
+          isFolder ? "folder" : "file",
+        );
+        setDragging(true);
       }}
+      onDragEnd={() => setDragging(false)}
       className={cn(
-        "group/row h-12",
+        "group/row h-12 transition-opacity",
         selected && "bg-muted/50",
         dropReady && "bg-folder-bg ring-2 ring-inset ring-ring/60",
+        dragging && "opacity-40",
       )}
       data-state={selected ? "selected" : undefined}
       {...dropProps}
