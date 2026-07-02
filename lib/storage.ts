@@ -360,13 +360,20 @@ export async function saveFile(
       name,
       size: file.size,
       blob_path: blobPath,
-      content_text: contentText ?? null,
     })
     .select(NODE_COLUMNS)
     .single<NodeRow>();
   if (error) {
     await supabase.storage.from("pdfs").remove([blobPath]);
     throw error;
+  }
+  // Searchable text lives in its own table; a failed insert must never fail
+  // the upload (the file just won't be content-searchable).
+  if (contentText) {
+    await supabase
+      .from("file_texts")
+      .insert({ node_id: data.id, user_id: userId, content: contentText })
+      .then(() => undefined);
   }
   return toNode(data);
 }
@@ -404,6 +411,17 @@ export async function trashNode(id: string): Promise<void> {
     .from("nodes")
     .update({ deleted_at: new Date().toISOString() })
     .eq("id", id);
+  if (error) throw error;
+  emitTrashChanged();
+}
+
+/** Bulk variant of trashNode: one UPDATE for a whole selection. */
+export async function trashNodes(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  const { error } = await supabase
+    .from("nodes")
+    .update({ deleted_at: new Date().toISOString() })
+    .in("id", ids);
   if (error) throw error;
   emitTrashChanged();
 }
