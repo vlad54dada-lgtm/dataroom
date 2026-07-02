@@ -30,7 +30,13 @@ export function RowMenu({ onRename, onDelete, className }: RowMenuProps) {
           <EllipsisVertical />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-40">
+      {/* Both actions open a dialog that takes focus; returning focus to the
+          kebab would race the dialog's autofocus and clobber its selection. */}
+      <DropdownMenuContent
+        align="end"
+        className="w-40"
+        onCloseAutoFocus={(e) => e.preventDefault()}
+      >
         <DropdownMenuItem onSelect={onRename}>
           <Pencil /> Rename
         </DropdownMenuItem>

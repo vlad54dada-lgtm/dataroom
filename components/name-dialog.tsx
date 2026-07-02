@@ -95,18 +95,22 @@ export function NameDialog({
 
   const focusInput = (event: Event) => {
     event.preventDefault();
-    const input = inputRef.current;
-    if (!input) return;
-    input.focus();
-    if (mode === "rename") {
-      if (entity === "file") {
-        // Pre-select the base name so typing replaces it but keeps ".pdf".
-        const { base } = splitExtension(initialName);
-        input.setSelectionRange(0, base.length);
-      } else {
-        input.select();
+    // Deferred one frame: Radix's focus scope does its own focus pass after
+    // this handler and would clobber a synchronous selection.
+    requestAnimationFrame(() => {
+      const input = inputRef.current;
+      if (!input) return;
+      input.focus();
+      if (mode === "rename") {
+        if (entity === "file") {
+          // Pre-select the base name so typing replaces it but keeps ".pdf".
+          const { base } = splitExtension(initialName);
+          input.setSelectionRange(0, base.length);
+        } else {
+          input.select();
+        }
       }
-    }
+    });
   };
 
   return (
