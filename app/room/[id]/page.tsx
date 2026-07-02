@@ -120,6 +120,8 @@ function RoomView() {
   const [viewerFile, setViewerFile] = useState<Node | null>(null);
   // Survives close: dialogs read it in onCloseAutoFocus AFTER state resets.
   const [returnTo, setReturnTo] = useState<HTMLElement | null>(null);
+  // A trash-stack item is hovering over the content — show the drop zone.
+  const [restoreOver, setRestoreOver] = useState(false);
   const closeDialog = () => setDialog({ kind: "none" });
 
   // Search: debounced so each keystroke doesn't hit the database.
@@ -405,15 +407,22 @@ function RoomView() {
                 if (e.dataTransfer.types.includes(RESTORE_MIME)) {
                   e.preventDefault();
                   e.dataTransfer.dropEffect = "move";
+                  setRestoreOver(true);
                 }
               }}
+              onDragLeave={() => setRestoreOver(false)}
               onDrop={(e) => {
+                setRestoreOver(false);
                 const ids = readIds(e.dataTransfer, RESTORE_MIME);
                 if (ids.length === 0) return;
                 e.preventDefault();
                 void handleRestoreDrop(ids);
               }}
-              className={`mt-4 transition-opacity duration-200 ${
+              className={`mt-4 rounded-card transition-[opacity,outline-color] duration-200 ${
+                restoreOver
+                  ? "outline-2 outline-offset-4 outline-brand outline-dashed"
+                  : "outline-2 outline-offset-4 outline-transparent outline-dashed"
+              } ${
                 isStale || (searching && search.isStale)
                   ? "opacity-60"
                   : "opacity-100"
