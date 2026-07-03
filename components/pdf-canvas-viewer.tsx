@@ -9,10 +9,12 @@ import {
   ChevronUp,
   Loader2,
   Minus,
+  PanelLeft,
   Plus,
   Search,
   X,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -72,6 +74,15 @@ export function PdfCanvasViewer({
   const [fitScale, setFitScale] = useState(1);
   const [zoom, setZoom] = useState(1);
   const [page, setPage] = useState(1);
+
+  // Collapsible thumbnail rail: lazy mini-renders, click to jump.
+  const [railOpen, setRailOpen] = useState(false);
+  const [railEl, setRailEl] = useState<HTMLElement | null>(null);
+  const thumbRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  useEffect(() => {
+    if (!railOpen) return;
+    thumbRefs.current[page - 1]?.scrollIntoView({ block: "nearest" });
+  }, [page, railOpen]);
 
   // Find in document: query → matches over extracted page texts → marks
   // painted into the rendered pages' text layers.
@@ -426,6 +437,20 @@ export function PdfCanvasViewer({
         <div className="flex shrink-0 items-center gap-0.5">
           <Button
             variant="ghost"
+            size="icon-sm"
+            aria-label={
+              railOpen ? "Hide page thumbnails" : "Show page thumbnails"
+            }
+            aria-pressed={railOpen}
+            title="Page thumbnails"
+            className={cn(railOpen && "bg-muted text-foreground")}
+            onClick={() => setRailOpen((o) => !o)}
+          >
+            <PanelLeft />
+          </Button>
+          <span aria-hidden className="mx-1 h-4 w-px shrink-0 bg-border" />
+          <Button
+            variant="ghost"
             size="icon-xs"
             aria-label="Previous page"
             disabled={page <= 1}
@@ -541,47 +566,172 @@ export function PdfCanvasViewer({
           </Button>
         </div>
       </div>
-      <div
-        ref={(el) => {
-          containerRef.current = el;
-          setContainerEl(el);
-        }}
-        onScroll={handleScroll}
-        onKeyDown={handleKeyDown}
-        tabIndex={0}
-        role="document"
-        aria-label="Document pages"
-        // `relative` anchors the pages' offsetTop to THIS container — the
-        // scroll position math (current-page tracking, page stepper) reads
-        // offsets against it, not the dialog.
-        className="relative min-h-0 flex-1 overflow-auto rounded-lg border bg-muted/40 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset dark:bg-canvas"
-      >
-        {/* Keyed by url: a new document never inherits stale canvases. */}
-        <div key={url} className="flex flex-col items-center gap-3 p-4">
-          {Array.from({ length: doc.numPages }, (_, i) => (
-            <div
-              key={i}
-              ref={(el) => {
-                pageRefs.current[i] = el;
-              }}
-            >
-              <PageCanvas
-                doc={doc}
-                pageNumber={i + 1}
-                scale={scale}
-                estWidth={baseSize.w * scale}
-                estHeight={baseSize.h * scale}
-                container={containerEl}
-                watermark={watermark}
-                onTextLayer={onTextLayer}
-              />
-            </div>
-          ))}
+      <div className="flex min-h-0 flex-1 gap-2">
+        {railOpen && (
+          <nav
+            ref={setRailEl}
+            aria-label="Page thumbnails"
+            className="flex w-[104px] shrink-0 flex-col gap-1 overflow-y-auto rounded-lg border bg-muted/40 p-1.5 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-left-2 motion-safe:duration-200 motion-safe:ease-out-strong dark:bg-canvas"
+          >
+            {Array.from({ length: doc.numPages }, (_, i) => (
+              <button
+                key={i}
+                type="button"
+                ref={(el) => {
+                  thumbRefs.current[i] = el;
+                }}
+                onClick={() => scrollToPage(i + 1)}
+                aria-label={`Go to page ${i + 1}`}
+                aria-current={page === i + 1 ? "page" : undefined}
+                className={cn(
+                  "flex shrink-0 flex-col items-center gap-0.5 rounded-md p-1.5 outline-none transition-colors duration-150 focus-visible:ring-3 focus-visible:ring-ring/50",
+                  page === i + 1 ? "bg-folder-bg" : "hover:bg-muted",
+                )}
+              >
+                <ThumbCanvas
+                  doc={doc}
+                  pageNumber={i + 1}
+                  width={72}
+                  height={Math.round((72 * baseSize.h) / baseSize.w)}
+                  root={railEl}
+                  current={page === i + 1}
+                />
+                <span
+                  className={cn(
+                    "text-[10px] tabular-nums",
+                    page === i + 1
+                      ? "font-medium text-brand"
+                      : "text-muted-foreground",
+                  )}
+                >
+                  {i + 1}
+                </span>
+              </button>
+            ))}
+          </nav>
+        )}
+        <div
+          ref={(el) => {
+            containerRef.current = el;
+            setContainerEl(el);
+          }}
+          onScroll={handleScroll}
+          onKeyDown={handleKeyDown}
+          tabIndex={0}
+          role="document"
+          aria-label="Document pages"
+          // `relative` anchors the pages' offsetTop to THIS container — the
+          // scroll position math (current-page tracking, page stepper) reads
+          // offsets against it, not the dialog.
+          className="relative min-h-0 flex-1 overflow-auto rounded-lg border bg-muted/40 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset dark:bg-canvas"
+        >
+          {/* Keyed by url: a new document never inherits stale canvases. */}
+          <div key={url} className="flex flex-col items-center gap-3 p-4">
+            {Array.from({ length: doc.numPages }, (_, i) => (
+              <div
+                key={i}
+                ref={(el) => {
+                  pageRefs.current[i] = el;
+                }}
+              >
+                <PageCanvas
+                  doc={doc}
+                  pageNumber={i + 1}
+                  scale={scale}
+                  estWidth={baseSize.w * scale}
+                  estHeight={baseSize.h * scale}
+                  container={containerEl}
+                  watermark={watermark}
+                  onTextLayer={onTextLayer}
+                />
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>
   );
 }
+
+/**
+ * One rail thumbnail: renders its page once at rail width when it scrolls
+ * near (IO against the rail), then keeps the bitmap — thumbs are tiny, so
+ * a long document costs little.
+ */
+const ThumbCanvas = memo(function ThumbCanvas({
+  doc,
+  pageNumber,
+  width,
+  height,
+  root,
+  current,
+}: {
+  doc: PDFDocumentProxy;
+  pageNumber: number;
+  width: number;
+  height: number;
+  root: HTMLElement | null;
+  current: boolean;
+}) {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [visible, setVisible] = useState(pageNumber <= 14);
+  const renderedRef = useRef(false);
+
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el || !root) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) setVisible(true);
+      },
+      { root, rootMargin: "600px 0px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [root]);
+
+  useEffect(() => {
+    if (!visible || renderedRef.current) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const pg = await doc.getPage(pageNumber);
+        const canvas = canvasRef.current;
+        if (cancelled || !canvas) return;
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        const base = pg.getViewport({ scale: 1 });
+        const vp = pg.getViewport({ scale: (width / base.width) * dpr });
+        canvas.width = Math.floor(vp.width);
+        canvas.height = Math.floor(vp.height);
+        canvas.style.width = `${width}px`;
+        canvas.style.height = `${Math.floor(vp.height / dpr)}px`;
+        await pg.render({ canvas, viewport: vp }).promise;
+        if (!cancelled) renderedRef.current = true;
+      } catch {
+        // Broken page keeps its white placeholder; the rail stays usable.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [visible, doc, pageNumber, width]);
+
+  return (
+    <div
+      ref={wrapRef}
+      className={cn(
+        "overflow-hidden rounded-[3px] bg-white transition-shadow duration-150",
+        current
+          ? "ring-2 ring-brand"
+          : "ring-1 ring-foreground/15",
+      )}
+      style={{ width, height }}
+    >
+      <canvas ref={canvasRef} className="block" aria-hidden />
+    </div>
+  );
+});
 
 const PageCanvas = memo(function PageCanvas({
   doc,
