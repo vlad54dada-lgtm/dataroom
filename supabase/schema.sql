@@ -720,13 +720,3 @@ as $$
   select fv.blob_path from public.file_versions fv
   join subtree s on fv.node_id = s.id;
 $$;
-
--- ---------------------------------------------------------------------------
--- 11) webp thumbnails
--- ---------------------------------------------------------------------------
-
--- Hover previews are tiny first-page webp renders stored next to their
--- PDFs -- the bucket must accept both types.
-update storage.buckets
-set allowed_mime_types = array['application/pdf', 'image/webp']
-where id = 'pdfs';
