@@ -41,7 +41,9 @@ test.describe("datarooms", () => {
     await dialog.getByRole("button", { name: "Create dataroom" }).click();
     await expect(page.getByRole("link", { name })).toBeVisible();
 
-    const card = page.locator("div", { has: page.getByRole("link", { name }) });
+    const card = page.locator("div.group", {
+      has: page.getByRole("link", { name }),
+    });
     await card.getByRole("button", { name: "More actions" }).first().click();
     await page.getByRole("menuitem", { name: "Edit" }).click();
     dialog = page.getByRole("dialog");
@@ -60,7 +62,9 @@ test.describe("datarooms", () => {
     await dialog.getByRole("button", { name: "Create dataroom" }).click();
     await expect(page.getByRole("link", { name })).toBeVisible();
 
-    const card = page.locator("div", { has: page.getByRole("link", { name }) });
+    const card = page.locator("div.group", {
+      has: page.getByRole("link", { name }),
+    });
     await card.getByRole("button", { name: "More actions" }).first().click();
     await page.getByRole("menuitem", { name: "Move to trash" }).click();
     await expect(page.getByText("Moved to trash").last()).toBeVisible();

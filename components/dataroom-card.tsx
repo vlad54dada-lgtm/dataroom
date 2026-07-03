@@ -87,14 +87,21 @@ export function DataroomCard({
         </span>
       </Link>
       {node.description ? (
-        <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
+        <p className="mt-1 line-clamp-3 text-sm leading-relaxed text-muted-foreground">
           {node.description}
         </p>
       ) : null}
-      <p className="mt-auto pt-2 text-xs text-muted-foreground">
-        {itemCount === 1 ? "1 item" : `${itemCount} items`} &middot; Created{" "}
-        {formatDate(node.createdAt)}
-      </p>
+      {/* Zoned footer — the same tinted meta-band the dialogs use: facts
+          live on their own quiet register, content stays on the surface. */}
+      <div className="mt-auto pt-4">
+        <div className="-mx-4 -mb-4 rounded-b-[calc(var(--radius-card)-1px)] border-t bg-muted/40 px-4 py-2.5">
+          <p className="text-xs text-muted-foreground">
+            {itemCount === 1 ? "1 item" : `${itemCount} items`}
+            {" · Created "}
+            {formatDate(node.createdAt)}
+          </p>
+        </div>
+      </div>
     </div>
   );
 }
