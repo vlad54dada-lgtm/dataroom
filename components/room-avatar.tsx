@@ -82,6 +82,12 @@ interface RoomAvatarProps {
   color?: string | null;
   /** sm = table/list rows (32px), lg = cards and dialogs (40px). */
   size?: "sm" | "lg";
+  /**
+   * Live-preview mode (the dataroom dialog): tile color tweens and the
+   * glyph pops in when the icon prop changes. Off by default so avatars
+   * in lists and cards stay perfectly still.
+   */
+  animateSwaps?: boolean;
   className?: string;
 }
 
@@ -89,9 +95,11 @@ export function RoomAvatar({
   icon,
   color,
   size = "lg",
+  animateSwaps = false,
   className,
 }: RoomAvatarProps) {
-  const Icon = ROOM_ICONS[icon ?? DEFAULT_ICON] ?? ROOM_ICONS[DEFAULT_ICON];
+  const iconKey = ROOM_ICONS[icon ?? DEFAULT_ICON] ? (icon ?? DEFAULT_ICON) : DEFAULT_ICON;
+  const Icon = ROOM_ICONS[iconKey];
   const palette =
     ROOM_COLORS[color ?? DEFAULT_COLOR] ?? ROOM_COLORS[DEFAULT_COLOR];
   return (
@@ -100,10 +108,19 @@ export function RoomAvatar({
         "flex shrink-0 items-center justify-center rounded-tile",
         size === "lg" ? "size-10" : "size-8",
         palette.tile,
+        animateSwaps && "transition-colors duration-300",
         className,
       )}
     >
-      <Icon className={size === "lg" ? "size-5" : "size-4.5"} strokeWidth={1.75} />
+      <Icon
+        key={animateSwaps ? iconKey : undefined}
+        className={cn(
+          size === "lg" ? "size-5" : "size-4.5",
+          animateSwaps &&
+            "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-50 motion-safe:duration-200 motion-safe:ease-out-back",
+        )}
+        strokeWidth={1.75}
+      />
     </span>
   );
 }
