@@ -21,6 +21,31 @@ type SortDir = "asc" | "desc";
 export type ItemsSort = { key: SortKey; dir: SortDir } | null;
 
 /**
+ * The one displayed order, shared by the table AND the viewer's file
+ * navigation. Folders stay grouped on top in every mode; only the order
+ * inside each group follows the active column.
+ */
+export function sortItems(items: Node[], sort: ItemsSort): Node[] {
+  if (!sort) return items;
+  const dir = sort.dir === "asc" ? 1 : -1;
+  const byName = (a: Node, b: Node) =>
+    a.name.localeCompare(b.name, undefined, {
+      numeric: true,
+      sensitivity: "base",
+    });
+  return [...items].sort((a, b) => {
+    const aFolder = a.type !== "file";
+    const bFolder = b.type !== "file";
+    if (aFolder !== bFolder) return aFolder ? -1 : 1;
+    let cmp = 0;
+    if (sort.key === "name") cmp = byName(a, b);
+    else if (sort.key === "size") cmp = (a.size ?? 0) - (b.size ?? 0);
+    else cmp = a.updatedAt - b.updatedAt;
+    return cmp !== 0 ? cmp * dir : byName(a, b);
+  });
+}
+
+/**
  * Clickable column header. Each click cycles asc → desc → back to the
  * adapter's default order; the arrow fades in for the active column and
  * rotates when the direction flips.
@@ -85,6 +110,8 @@ interface ItemsTableProps {
   onMoveNode?: (node: Node) => void;
   /** Warms a folder's contents cache on row hover. */
   onPrefetch?: (id: string) => void;
+  /** Direct child counts per folder id — folders show them in Size. */
+  childCounts?: ReadonlyMap<string, number>;
   /** Bulk actions for the selection bar. */
   onBulkTrash: (nodes: Node[]) => void;
   onBulkDownload: (files: Node[]) => void;
@@ -111,6 +138,7 @@ export function ItemsTable({
   onDownloadNode,
   onMoveNode,
   onPrefetch,
+  childCounts,
   onBulkTrash,
   onBulkDownload,
   onBulkMove,
@@ -127,27 +155,7 @@ export function ItemsTable({
           ? { key, dir: "desc" }
           : null,
     );
-  // Folders stay grouped on top in every mode (Drive behavior); only the
-  // order inside each group follows the active column.
-  const sorted = useMemo(() => {
-    if (!sort) return items;
-    const dir = sort.dir === "asc" ? 1 : -1;
-    const byName = (a: Node, b: Node) =>
-      a.name.localeCompare(b.name, undefined, {
-        numeric: true,
-        sensitivity: "base",
-      });
-    return [...items].sort((a, b) => {
-      const aFolder = a.type !== "file";
-      const bFolder = b.type !== "file";
-      if (aFolder !== bFolder) return aFolder ? -1 : 1;
-      let cmp = 0;
-      if (sort.key === "name") cmp = byName(a, b);
-      else if (sort.key === "size") cmp = (a.size ?? 0) - (b.size ?? 0);
-      else cmp = a.updatedAt - b.updatedAt;
-      return cmp !== 0 ? cmp * dir : byName(a, b);
-    });
-  }, [items, sort]);
+  const sorted = useMemo(() => sortItems(items, sort), [items, sort]);
   // Drop ids that no longer exist (row trashed/renamed away underneath us).
   const liveSelected = items.filter((i) => selectedIds.has(i.id));
   const selectionActive = liveSelected.length > 0;
@@ -354,6 +362,7 @@ export function ItemsTable({
                 onDownload={onDownloadNode}
                 onMove={onMoveNode}
                 onPrefetch={onPrefetch}
+                childCount={childCounts?.get(node.id)}
                 selected={selectedIds.has(node.id)}
                 selectionActive={selectionActive}
                 onToggleSelect={toggle}

@@ -193,6 +193,8 @@ export async function listChildCounts(
 ): Promise<Map<string, number>> {
   const counts = new Map<string, number>();
   if (parentIds.length === 0) return counts;
+  // Seed zeros: an EMPTY parent returns no rows but must still read 0.
+  for (const id of parentIds) counts.set(id, 0);
   const { data, error } = await supabase
     .from("nodes")
     .select("parent_id")

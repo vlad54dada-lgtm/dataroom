@@ -40,6 +40,8 @@ interface ItemRowProps {
   onMove?: (node: Node) => void;
   /** Warm the folder's contents cache on hover so navigation is instant. */
   onPrefetch?: (id: string) => void;
+  /** Folders: direct child count, shown where files show their size. */
+  childCount?: number;
   selected: boolean;
   /** While a selection exists, every row's checkbox stays visible. */
   selectionActive: boolean;
@@ -68,6 +70,7 @@ export function ItemRow({
   onDownload,
   onMove,
   onPrefetch,
+  childCount,
   selected,
   selectionActive,
   onToggleSelect,
@@ -77,6 +80,15 @@ export function ItemRow({
   const router = useRouter();
   const isFolder = node.type !== "file";
   const size = node.type === "file" ? formatBytes(node.size ?? 0) : null;
+  // Folders show what files show in Size: how much is in there.
+  const contents =
+    isFolder && childCount !== undefined
+      ? childCount === 0
+        ? "Empty"
+        : childCount === 1
+          ? "1 item"
+          : `${childCount} items`
+      : null;
   const modified = formatModified(node.updatedAt);
   // Folder rows light up while a compatible drag hovers over them.
   const [dropReady, setDropReady] = useState(false);
@@ -121,7 +133,11 @@ export function ItemRow({
           <span className="sr-only">{isFolder ? ", folder" : ", PDF"}</span>
         </span>
         <span className="block truncate text-xs tabular-nums text-muted-foreground md:hidden">
-          {size ? `${size} · ${modified}` : modified}
+          {size
+            ? `${size} · ${modified}`
+            : contents
+              ? `${contents} · ${modified}`
+              : modified}
         </span>
       </span>
     </>
@@ -226,7 +242,7 @@ export function ItemRow({
             )}
           </TableCell>
           <TableCell className="hidden w-28 px-4 py-0 text-right text-sm tabular-nums text-muted-foreground md:table-cell">
-            {size ?? "—"}
+            {size ?? contents ?? "—"}
           </TableCell>
           <TableCell
             className="hidden w-44 px-4 py-0 text-sm tabular-nums text-muted-foreground md:table-cell"

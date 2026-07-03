@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import {
   useParams,
   usePathname,
@@ -16,6 +16,7 @@ import {
   getBlob,
   getNode,
   isDuplicateNameError,
+  listChildCounts,
   listChildren,
   moveNodes,
   renameNode,
@@ -44,7 +45,11 @@ import { RequireAuth } from "@/components/require-auth";
 import { SearchResults } from "@/components/search-results";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { RoomToolbar } from "@/components/room-toolbar";
-import { ItemsTable, type ItemsSort } from "@/components/items-table";
+import {
+  ItemsTable,
+  sortItems,
+  type ItemsSort,
+} from "@/components/items-table";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
 import { ListSkeleton } from "@/components/list-skeleton";
@@ -153,6 +158,40 @@ function RoomView() {
   // Column sort lives here so it survives per-folder table remounts.
   const [sortState, setSortState] = useState<ItemsSort>(null);
   const closeDialog = () => setDialog({ kind: "none" });
+
+  // Folder rows show what's inside them — one query per folder list.
+  const [childCounts, setChildCounts] = useState<ReadonlyMap<string, number>>(
+    new Map(),
+  );
+  useEffect(() => {
+    if (state.status !== "success") return;
+    const folderIds = state.data
+      .filter((n) => n.type !== "file")
+      .map((n) => n.id);
+    // Stale ids in the old map are harmless — unknown ids read undefined.
+    if (folderIds.length === 0) return;
+    let cancelled = false;
+    listChildCounts(folderIds)
+      .then((counts) => {
+        if (!cancelled) setChildCounts(counts);
+      })
+      .catch(() => undefined); // cosmetic — folders fall back to "—"
+    return () => {
+      cancelled = true;
+    };
+  }, [state]);
+
+  // The viewer flips through files in the same order the table shows them.
+  const viewerFiles = useMemo(
+    () =>
+      sortItems(state.status === "success" ? state.data : [], sortState).filter(
+        (n) => n.type === "file",
+      ),
+    [state, sortState],
+  );
+  const viewerIndex = viewerFile
+    ? viewerFiles.findIndex((f) => f.id === viewerFile.id)
+    : -1;
 
   // Search: debounced so each keystroke doesn't hit the database. The
   // query lives in the URL (?q=) so a refresh keeps the search — same
@@ -695,6 +734,7 @@ function RoomView() {
                         onPrefetch={(id) =>
                           prefetchAsync(id, () => listChildren(id))
                         }
+                        childCounts={childCounts}
                         hrefFor={hrefFor}
                         onOpenFile={(file, trigger) => {
                           setReturnTo(trigger);
@@ -766,6 +806,22 @@ function RoomView() {
         file={viewerFile}
         onClose={() => setViewerFile(null)}
         returnFocusTo={returnTo}
+        nav={
+          viewerIndex >= 0 && viewerFiles.length > 1
+            ? {
+                index: viewerIndex,
+                total: viewerFiles.length,
+                onPrev: () => {
+                  const prev = viewerFiles[viewerIndex - 1];
+                  if (prev) setViewerFile(prev);
+                },
+                onNext: () => {
+                  const next = viewerFiles[viewerIndex + 1];
+                  if (next) setViewerFile(next);
+                },
+              }
+            : undefined
+        }
       />
       {upload && (
         <UploadPanel

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Download, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, Loader2 } from "lucide-react";
 import type { Node } from "@/types";
 import { getBlob } from "@/lib/storage";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,16 @@ interface PdfViewerDialogProps {
   onClose: () => void;
   /** Element to focus when the viewer closes (the file row's button). */
   returnFocusTo?: HTMLElement | null;
+  /**
+   * Flip through the folder's files without leaving the viewer —
+   * gallery-style ‹ 2 of 5 › plus the arrow keys.
+   */
+  nav?: {
+    index: number;
+    total: number;
+    onPrev: () => void;
+    onNext: () => void;
+  };
 }
 
 /**
@@ -37,6 +47,7 @@ export function PdfViewerDialog({
   file,
   onClose,
   returnFocusTo,
+  nav,
 }: PdfViewerDialogProps) {
   // Held past close so the title/iframe don't blank out mid-exit-animation
   // (adjust-during-render pattern; `file` goes null the moment close starts).
@@ -105,6 +116,18 @@ export function PdfViewerDialog({
     <Dialog open={file !== null} onOpenChange={(next) => !next && onClose()}>
       <DialogContent
         onCloseAutoFocus={restoreFocus}
+        onKeyDown={(e) => {
+          // ←/→ flip files — unless the document itself can scroll
+          // horizontally (zoomed in), where arrows must keep panning.
+          if (!nav || (e.key !== "ArrowLeft" && e.key !== "ArrowRight")) return;
+          const target = e.target as HTMLElement;
+          const scroller = target.closest('[role="document"]');
+          if (scroller && scroller.scrollWidth > scroller.clientWidth + 1)
+            return;
+          e.preventDefault();
+          if (e.key === "ArrowRight" && nav.index < nav.total - 1) nav.onNext();
+          if (e.key === "ArrowLeft" && nav.index > 0) nav.onPrev();
+        }}
         className="flex h-[90dvh] w-[92vw] max-w-5xl flex-col gap-3 p-4 sm:max-w-5xl"
       >
         <DialogHeader className="flex-row items-center gap-3 pr-10">
@@ -117,6 +140,31 @@ export function PdfViewerDialog({
           <DialogDescription className="sr-only">
             Document preview with zoom and paging controls.
           </DialogDescription>
+          {nav && nav.total > 1 && (
+            <div className="flex shrink-0 items-center gap-0.5">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Previous file"
+                disabled={nav.index <= 0}
+                onClick={nav.onPrev}
+              >
+                <ChevronLeft />
+              </Button>
+              <span className="min-w-12 text-center text-xs tabular-nums text-muted-foreground">
+                {nav.index + 1} of {nav.total}
+              </span>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Next file"
+                disabled={nav.index >= nav.total - 1}
+                onClick={nav.onNext}
+              >
+                <ChevronRight />
+              </Button>
+            </div>
+          )}
           {url && shown && (
             <Button variant="outline" size="sm" asChild>
               <a href={url} download={shown.name}>
