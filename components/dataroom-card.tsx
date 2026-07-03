@@ -5,7 +5,7 @@ import Link from "next/link";
 import type { Node } from "@/types";
 import { RESTORE_MIME, readIds } from "@/lib/dnd";
 import { cn, formatDate } from "@/lib/utils";
-import { RoomAvatar } from "@/components/room-avatar";
+import { RoomAvatar, resolveRoomColor } from "@/components/room-avatar";
 import { RowMenu } from "@/components/row-menu";
 
 export interface DataroomListItem {
@@ -69,8 +69,22 @@ export function DataroomCard({
         className,
       )}
     >
+      {/* The room's identity color bleeds into the card as a soft top wash,
+          deepening on hover — translucent and pointer-transparent, so it
+          tints whatever sits under it without touching layout. */}
+      <div
+        aria-hidden
+        className={cn(
+          "pointer-events-none absolute inset-x-0 top-0 h-20 rounded-t-[calc(var(--radius-card)-1px)] bg-gradient-to-b to-transparent opacity-60 transition-opacity duration-200 ease-out-strong group-hover:opacity-100 motion-reduce:transition-none",
+          resolveRoomColor(node.color).wash,
+        )}
+      />
       <div className="flex items-start justify-between gap-2">
-        <RoomAvatar icon={node.icon} color={node.color} />
+        <RoomAvatar
+          icon={node.icon}
+          color={node.color}
+          className="transition-transform duration-200 ease-out-back group-hover:scale-105 motion-reduce:transition-none motion-reduce:group-hover:scale-100"
+        />
         <RowMenu
           className="relative z-10 -mt-1 -mr-1 text-muted-foreground"
           renameLabel="Edit"
