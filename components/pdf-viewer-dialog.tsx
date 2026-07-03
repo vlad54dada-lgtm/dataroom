@@ -125,6 +125,14 @@ export function PdfViewerDialog({
     <Dialog open={file !== null} onOpenChange={(next) => !next && onClose()}>
       <DialogContent
         onCloseAutoFocus={restoreFocus}
+        // While the viewer's find bar is open, Escape closes IT, not the
+        // dialog (Radix handles Escape in capture phase, so the bar can't
+        // defend itself with stopPropagation).
+        onEscapeKeyDown={(e) => {
+          if (document.querySelector("[data-pdf-find-open]")) {
+            e.preventDefault();
+          }
+        }}
         onKeyDown={(e) => {
           // ←/→ flip files — unless the document itself can scroll
           // horizontally (zoomed in), where arrows must keep panning.

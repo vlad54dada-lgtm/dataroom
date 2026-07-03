@@ -341,6 +341,19 @@ body {
   background-color: color-mix(in oklch, var(--brand) 30%, transparent);
 }
 
+/* Find-in-document highlights: all hits wear a brand wash, the active hit
+   is amber (fixed hues — the page sheet is white in both themes). The
+   text inside stays transparent like the rest of the layer. */
+.textLayer mark.pdf-mark {
+  color: transparent;
+  border-radius: 2px;
+  background-color: color-mix(in srgb, var(--brand) 22%, transparent);
+}
+
+.textLayer mark.pdf-mark-current {
+  background-color: color-mix(in srgb, #f59e0b 55%, transparent);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

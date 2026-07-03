@@ -1,13 +1,38 @@
 "use client";
 
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import type { PDFDocumentProxy, RenderTask, TextLayer } from "pdfjs-dist";
-import { ChevronLeft, ChevronRight, Loader2, Minus, Plus } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  Loader2,
+  Minus,
+  Plus,
+  Search,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 3;
 const ZOOM_STEP = 0.25;
+/** Find-in-document stops counting here — enough for any real query. */
+const MAX_MATCHES = 500;
+
+interface PdfMatch {
+  page: number;
+  start: number;
+  end: number;
+}
+
+/** A rendered page's text layer, aligned arrays: divs[i] renders strs[i]. */
+interface PageTextLayer {
+  strs: string[];
+  divs: HTMLElement[];
+}
 
 interface PdfCanvasViewerProps {
   /** Object URL of the PDF blob. */
@@ -48,6 +73,18 @@ export function PdfCanvasViewer({
   const [zoom, setZoom] = useState(1);
   const [page, setPage] = useState(1);
 
+  // Find in document: query → matches over extracted page texts → marks
+  // painted into the rendered pages' text layers.
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchInput, setSearchInput] = useState("");
+  const [searchQ, setSearchQ] = useState("");
+  const [matches, setMatches] = useState<PdfMatch[]>([]);
+  const [current, setCurrent] = useState(0);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const pageTextsRef = useRef<string[] | null>(null);
+  const layersRef = useRef(new Map<number, PageTextLayer>());
+  const markedDivsRef = useRef(new Map<number, Set<number>>());
+
   const onErrorRef = useRef(onRenderError);
   useEffect(() => {
     onErrorRef.current = onRenderError;
@@ -84,9 +121,217 @@ export function PdfCanvasViewer({
       setBaseSize(null);
       setZoom(1);
       setPage(1);
+      pageTextsRef.current = null;
+      layersRef.current.clear();
+      markedDivsRef.current.clear();
+      setSearchOpen(false);
+      setSearchInput("");
+      setSearchQ("");
+      setMatches([]);
+      setCurrent(0);
       destroy?.();
     };
   }, [url]);
+
+  // Keystrokes settle before the document-wide scan runs.
+  useEffect(() => {
+    const t = setTimeout(() => setSearchQ(searchInput), 180);
+    return () => clearTimeout(t);
+  }, [searchInput]);
+
+  // Extract every page's text once per document (lazily, on first query),
+  // then index all case-insensitive occurrences.
+  useEffect(() => {
+    const q = searchQ.trim().toLowerCase();
+    if (!doc || q.length === 0) {
+      setMatches([]);
+      setCurrent(0);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        if (!pageTextsRef.current) {
+          const texts: string[] = [];
+          for (let i = 1; i <= doc.numPages; i++) {
+            const content = await (await doc.getPage(i)).getTextContent();
+            if (cancelled) return;
+            texts.push(
+              content.items
+                .map((it) => ("str" in it ? it.str : ""))
+                .join(""),
+            );
+          }
+          pageTextsRef.current = texts;
+        }
+        const found: PdfMatch[] = [];
+        outer: for (let pi = 0; pi < pageTextsRef.current.length; pi++) {
+          const hay = pageTextsRef.current[pi].toLowerCase();
+          let idx = 0;
+          let at: number;
+          while ((at = hay.indexOf(q, idx)) !== -1) {
+            found.push({ page: pi + 1, start: at, end: at + q.length });
+            idx = at + q.length;
+            if (found.length >= MAX_MATCHES) break outer;
+          }
+        }
+        if (!cancelled) {
+          setMatches(found);
+          setCurrent(0);
+        }
+      } catch {
+        // Text extraction failed — find quietly reports zero matches; the
+        // document itself still renders.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [doc, searchQ]);
+
+  /**
+   * Paint the query's occurrences into one page's text layer. Previous
+   * marks are undone first (the layer arrays are the source of truth for
+   * original text), then per-div mark ranges rebuild each affected span.
+   */
+  const highlightPage = (pageNumber: number) => {
+    const layer = layersRef.current.get(pageNumber);
+    if (!layer) return;
+    const { strs, divs } = layer;
+    const prev = markedDivsRef.current.get(pageNumber);
+    if (prev) {
+      for (const i of prev) if (divs[i]) divs[i].textContent = strs[i];
+    }
+    const marked = new Set<number>();
+    markedDivsRef.current.set(pageNumber, marked);
+    const q = searchQ.trim().toLowerCase();
+    if (!q) return;
+    const cur = matches[current];
+    const starts: number[] = [];
+    let acc = 0;
+    for (const s of strs) {
+      starts.push(acc);
+      acc += s.length;
+    }
+    const hay = strs.join("").toLowerCase();
+    // Collect ranges per div first — a div can host several matches, and
+    // rebuilding once per div keeps earlier marks intact.
+    const perDiv = new Map<
+      number,
+      { from: number; to: number; isCurrent: boolean }[]
+    >();
+    let idx = 0;
+    let at: number;
+    let di = 0;
+    while ((at = hay.indexOf(q, idx)) !== -1) {
+      const isCurrent =
+        !!cur && cur.page === pageNumber && cur.start === at;
+      while (di < strs.length && starts[di] + strs[di].length <= at) di++;
+      let segStart = at;
+      const segEnd = at + q.length;
+      let dj = di;
+      while (segStart < segEnd && dj < strs.length) {
+        const from = Math.max(0, segStart - starts[dj]);
+        const to = Math.min(strs[dj].length, segEnd - starts[dj]);
+        if (to > from) {
+          let list = perDiv.get(dj);
+          if (!list) perDiv.set(dj, (list = []));
+          list.push({ from, to, isCurrent });
+        }
+        segStart = starts[dj] + strs[dj].length;
+        dj++;
+      }
+      idx = at + q.length;
+    }
+    for (const [divIndex, ranges] of perDiv) {
+      const div = divs[divIndex];
+      if (!div) continue;
+      const text = strs[divIndex];
+      const frag = document.createDocumentFragment();
+      let pos = 0;
+      for (const r of ranges.sort((a, b) => a.from - b.from)) {
+        if (r.from > pos) frag.append(text.slice(pos, r.from));
+        const mark = document.createElement("mark");
+        mark.className = r.isCurrent
+          ? "pdf-mark pdf-mark-current"
+          : "pdf-mark";
+        mark.textContent = text.slice(r.from, r.to);
+        frag.append(mark);
+        pos = r.to;
+      }
+      if (pos < text.length) frag.append(text.slice(pos));
+      div.replaceChildren(frag);
+      marked.add(divIndex);
+    }
+  };
+  const highlightPageRef = useRef(highlightPage);
+  highlightPageRef.current = highlightPage;
+
+  const scrollCurrentMarkIntoView = () => {
+    const mark = containerRef.current?.querySelector("mark.pdf-mark-current");
+    if (!mark) return false;
+    const reduce = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    mark.scrollIntoView({
+      block: "center",
+      behavior: reduce ? "auto" : "smooth",
+    });
+    return true;
+  };
+  const scrollCurrentMarkRef = useRef(scrollCurrentMarkIntoView);
+  scrollCurrentMarkRef.current = scrollCurrentMarkIntoView;
+
+  // Repaint every rendered page when the query or active match changes,
+  // then bring the active match into view (or its page, if not rendered
+  // yet — the page registers its layer on render and finishes the job).
+  const scrollToPageRef = useRef<(n: number) => void>(() => {});
+  useEffect(() => {
+    for (const pageNumber of layersRef.current.keys()) {
+      highlightPageRef.current(pageNumber);
+    }
+    const cur = matches[current];
+    if (!cur) return;
+    if (!scrollCurrentMarkRef.current()) scrollToPageRef.current(cur.page);
+  }, [matches, current]);
+
+  // Stable identity so the memoized PageCanvas never re-renders because of
+  // the callback; the ref hop reads fresh state.
+  const onTextLayer = useCallback((pageNumber: number, layer: PageTextLayer | null) => {
+    if (layer) {
+      layersRef.current.set(pageNumber, layer);
+      markedDivsRef.current.delete(pageNumber);
+      highlightPageRef.current(pageNumber);
+      scrollPendingRef.current?.(pageNumber);
+    } else {
+      layersRef.current.delete(pageNumber);
+      markedDivsRef.current.delete(pageNumber);
+    }
+  }, []);
+  // When a page renders and it hosts the active match, finish the pending
+  // scroll that the effect above could only start.
+  const scrollPendingRef = useRef<((pageNumber: number) => void) | null>(null);
+  scrollPendingRef.current = (pageNumber: number) => {
+    const cur = matches[current];
+    if (cur && cur.page === pageNumber) scrollCurrentMarkRef.current();
+  };
+
+  const openSearch = () => {
+    setSearchOpen(true);
+    requestAnimationFrame(() => searchInputRef.current?.focus());
+  };
+  const closeSearch = () => {
+    setSearchOpen(false);
+    setSearchInput("");
+    setSearchQ("");
+    containerRef.current?.focus({ preventScroll: true });
+  };
+  const goNext = () =>
+    setCurrent((c) => (matches.length ? (c + 1) % matches.length : 0));
+  const goPrev = () =>
+    setCurrent((c) =>
+      matches.length ? (c - 1 + matches.length) % matches.length : 0,
+    );
 
   // The topmost page crossing the viewport's middle is "the current page".
   const handleScroll = () => {
@@ -147,6 +392,7 @@ export function PdfCanvasViewer({
       behavior: reduce ? "auto" : "smooth",
     });
   };
+  scrollToPageRef.current = scrollToPage;
 
   if (!doc || !baseSize) {
     return (
@@ -157,7 +403,23 @@ export function PdfCanvasViewer({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-2">
+    <div
+      className="flex min-h-0 flex-1 flex-col gap-2"
+      // The dialog reads this to keep Escape from closing it while the
+      // find bar is open (Radix listens in capture phase on document, so
+      // stopPropagation alone can't protect it).
+      data-pdf-find-open={searchOpen ? "" : undefined}
+      onKeyDown={(e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") {
+          e.preventDefault();
+          e.stopPropagation();
+          openSearch();
+        } else if (e.key === "Escape" && searchOpen) {
+          e.stopPropagation();
+          closeSearch();
+        }
+      }}
+    >
       <div className="flex items-center justify-between gap-3">
         {/* Same anatomy as the header's "File X of Y" stepper — the
             matching shape plus the label is what tells pages from files. */}
@@ -184,7 +446,78 @@ export function PdfCanvasViewer({
             <ChevronRight />
           </Button>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex min-w-0 items-center gap-1">
+          {searchOpen ? (
+            <div className="flex min-w-0 items-center gap-1 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-right-1 motion-safe:duration-150">
+              <div className="relative min-w-0">
+                <Search className="pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  ref={searchInputRef}
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      if (e.shiftKey) goPrev();
+                      else goNext();
+                    }
+                    // Escape is handled by the viewer root — it closes the
+                    // find bar wherever focus is.
+                  }}
+                  placeholder="Find in document"
+                  aria-label="Find in document"
+                  className="h-7 w-40 min-w-0 pl-7 text-xs"
+                />
+              </div>
+              <span
+                role="status"
+                className="w-14 shrink-0 text-center text-xs tabular-nums text-muted-foreground"
+              >
+                {searchQ.trim()
+                  ? `${matches.length ? current + 1 : 0} / ${matches.length}${
+                      matches.length >= MAX_MATCHES ? "+" : ""
+                    }`
+                  : ""}
+              </span>
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                aria-label="Previous match"
+                disabled={matches.length === 0}
+                onClick={goPrev}
+              >
+                <ChevronUp />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                aria-label="Next match"
+                disabled={matches.length === 0}
+                onClick={goNext}
+              >
+                <ChevronDown />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                aria-label="Close search"
+                onClick={closeSearch}
+              >
+                <X />
+              </Button>
+            </div>
+          ) : (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Find in document"
+              title="Find in document (Ctrl+F)"
+              onClick={openSearch}
+            >
+              <Search />
+            </Button>
+          )}
+          <span aria-hidden className="mx-1 h-4 w-px shrink-0 bg-border" />
           <Button
             variant="ghost"
             size="icon-sm"
@@ -240,6 +573,7 @@ export function PdfCanvasViewer({
                 estHeight={baseSize.h * scale}
                 container={containerEl}
                 watermark={watermark}
+                onTextLayer={onTextLayer}
               />
             </div>
           ))}
@@ -257,6 +591,7 @@ const PageCanvas = memo(function PageCanvas({
   estHeight,
   container,
   watermark,
+  onTextLayer,
 }: {
   doc: PDFDocumentProxy;
   pageNumber: number;
@@ -265,6 +600,8 @@ const PageCanvas = memo(function PageCanvas({
   estHeight: number;
   container: HTMLDivElement | null;
   watermark?: { title: string; subtitle?: string };
+  /** Hands the rendered text layer to the viewer's find machinery. */
+  onTextLayer?: (pageNumber: number, layer: PageTextLayer | null) => void;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -274,6 +611,10 @@ const PageCanvas = memo(function PageCanvas({
   const renderTaskRef = useRef<RenderTask | null>(null);
   const textLayerRef = useRef<TextLayer | null>(null);
   const renderedScaleRef = useRef(0);
+  const onTextLayerRef = useRef(onTextLayer);
+  useEffect(() => {
+    onTextLayerRef.current = onTextLayer;
+  });
 
   // Observed BOTH ways: pages release their canvas memory when they leave
   // the (generous) margin, so a 200-page contract never accumulates
@@ -298,6 +639,7 @@ const PageCanvas = memo(function PageCanvas({
         textLayerRef.current?.cancel();
         textLayerRef.current = null;
         textRef.current?.replaceChildren();
+        onTextLayerRef.current?.(pageNumber, null);
         canvas.width = 0;
         canvas.height = 0;
         canvas.style.width = "";
@@ -342,6 +684,12 @@ const PageCanvas = memo(function PageCanvas({
           });
           textLayerRef.current = textLayer;
           await textLayer.render();
+          if (!cancelled) {
+            onTextLayerRef.current?.(pageNumber, {
+              strs: textLayer.textContentItemsStr,
+              divs: textLayer.textDivs,
+            });
+          }
         }
       } catch {
         // Render was cancelled mid-flight (zoom change, unmount) — the
@@ -358,7 +706,10 @@ const PageCanvas = memo(function PageCanvas({
     return () => {
       renderTaskRef.current?.cancel();
       textLayerRef.current?.cancel();
+      onTextLayerRef.current?.(pageNumber, null);
     };
+    // pageNumber is fixed for the life of the component.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
