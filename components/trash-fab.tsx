@@ -198,7 +198,7 @@ export function TrashFab() {
                   );
                 }}
                 style={{ animationDelay: `${i * 45}ms` }}
-                className="group/peek flex h-11 cursor-grab items-center gap-2.5 rounded-xl border bg-popover px-3 shadow-popover transition-colors hover:bg-muted/60 active:cursor-grabbing motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-3 motion-safe:duration-200 motion-safe:fill-mode-backwards"
+                className="group/peek flex h-11 cursor-grab items-center gap-2.5 rounded-xl border bg-popover px-3 shadow-popover transition-colors hover:bg-muted/60 active:cursor-grabbing motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-3 motion-safe:duration-200 motion-safe:fill-mode-backwards dark:hover:bg-foreground/10"
               >
                 {item.node.type === "dataroom" ? (
                   <RoomAvatar

@@ -185,7 +185,7 @@ function BranchNode({
       <div
         className={cn(
           "flex h-9 items-center gap-1 rounded-lg pr-2 transition-colors",
-          selected ? "bg-folder-bg" : "hover:bg-muted",
+          selected ? "bg-folder-bg" : "hover:bg-accent",
           disabled && "opacity-40",
         )}
         style={{ paddingLeft: `${depth * 20 + 4}px` }}

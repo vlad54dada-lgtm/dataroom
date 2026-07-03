@@ -168,7 +168,10 @@
   --secondary-foreground: #edf0f5;
   --muted: #1b202b;
   --muted-foreground: #99a3b5;
-  --accent: #1b202b;
+  /* Menus and dialogs render on the elevated --popover surface, so the hover
+     step must rise above THAT, not above card — a card-level accent (the old
+     #1b202b) computed to the popover color itself and hovers vanished. */
+  --accent: color-mix(in srgb, var(--foreground) 10%, var(--popover));
   --accent-foreground: #edf0f5;
   --destructive: #f87171;
   --border: #262c38;

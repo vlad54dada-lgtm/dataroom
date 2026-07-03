@@ -197,7 +197,7 @@ export function DataroomDialog({
                       "flex h-9 items-center justify-center rounded-lg border transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
                       selected
                         ? "border-ring bg-folder-bg text-brand"
-                        : "border-transparent text-muted-foreground hover:bg-muted hover:text-foreground",
+                        : "border-transparent text-muted-foreground hover:bg-accent hover:text-foreground",
                     )}
                   >
                     <Icon className="size-4.5" strokeWidth={1.75} />
