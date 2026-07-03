@@ -884,3 +884,41 @@ export async function searchNodes(
     snippet: row.snippet,
   }));
 }
+
+export interface GlobalSearchResult extends SearchResult {
+  /** The dataroom this hit lives in (equals node.id for dataroom hits). */
+  roomId: string;
+  roomName: string;
+}
+
+interface GlobalSearchRow extends NodeRow {
+  parent_name: string | null;
+  content_match: boolean;
+  snippet: string | null;
+  room_id: string;
+  room_name: string;
+}
+
+/**
+ * Name/content search across EVERY live dataroom — powers the home screen
+ * search. Dataroom hits carry their own id as roomId; parentName is null
+ * for them (they live at the top level).
+ */
+export async function searchAllNodes(
+  query: string,
+): Promise<GlobalSearchResult[]> {
+  const trimmed = query.trim();
+  if (trimmed.length === 0) return [];
+  const { data, error } = await supabase.rpc("search_all_nodes", {
+    query: trimmed,
+  });
+  if (error) throw error;
+  return ((data ?? []) as GlobalSearchRow[]).map((row) => ({
+    node: toNode(row),
+    parentName: row.parent_name ?? "Home",
+    contentMatch: row.content_match,
+    snippet: row.snippet,
+    roomId: row.room_id,
+    roomName: row.room_name,
+  }));
+}

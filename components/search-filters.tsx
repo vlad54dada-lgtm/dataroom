@@ -15,10 +15,10 @@ export const DEFAULT_SEARCH_FILTER: SearchFilter = {
   contentOnly: false,
 };
 
-export function applySearchFilter(
-  results: SearchResult[],
+export function applySearchFilter<T extends SearchResult>(
+  results: T[],
   filter: SearchFilter,
-): SearchResult[] {
+): T[] {
   return results.filter(
     (r) =>
       (filter.type === "all" ||

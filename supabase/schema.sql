@@ -600,3 +600,77 @@ as $$
   order by (n.type = 'file'), lower(n.name)
   limit 100;
 $$;
+
+-- ---------------------------------------------------------------------------
+-- 9) search_all_nodes
+-- ---------------------------------------------------------------------------
+
+-- Search v5: global search across every live dataroom (home screen).
+-- Same name/content semantics as search_nodes, but walks from ALL live
+-- roots, includes the datarooms themselves as hits, and returns the room
+-- each hit lives in so results can navigate anywhere. SECURITY INVOKER --
+-- RLS on nodes/file_texts keeps the walk inside the caller's own rows.
+create or replace function public.search_all_nodes(query text)
+returns table (
+  id uuid,
+  parent_id uuid,
+  type text,
+  name text,
+  size bigint,
+  blob_path text,
+  created_at timestamptz,
+  updated_at timestamptz,
+  description text,
+  icon text,
+  color text,
+  parent_name text,
+  content_match boolean,
+  snippet text,
+  room_id uuid,
+  room_name text
+)
+language sql
+stable
+set search_path = ''
+as $$
+  with recursive live as (
+    select n.*, n.id as room_id, n.name as room_name
+    from public.nodes n
+    where n.parent_id is null and n.deleted_at is null
+    union all
+    select n.*, l.room_id, l.room_name
+    from public.nodes n
+    join live l on n.parent_id = l.id
+    where n.deleted_at is null
+  )
+  select
+    l.id, l.parent_id, l.type, l.name, l.size, l.blob_path,
+    l.created_at, l.updated_at, l.description, l.icon, l.color,
+    p.name as parent_name,
+    (exists (
+      select 1 from public.file_texts ft
+      where ft.node_id = l.id
+        and ft.fts @@ websearch_to_tsquery('simple', query)
+    ) and l.name not ilike '%' || query || '%') as content_match,
+    (select ts_headline(
+       'simple', ft.content, websearch_to_tsquery('simple', query),
+       'MaxFragments=1, MaxWords=14, MinWords=8, StartSel=[[, StopSel=]]'
+     )
+     from public.file_texts ft
+     where ft.node_id = l.id
+       and ft.fts @@ websearch_to_tsquery('simple', query)) as snippet,
+    l.room_id, l.room_name
+  from live l
+  left join public.nodes p on p.id = l.parent_id
+  where length(trim(query)) > 0
+    and (
+      l.name ilike '%' || query || '%'
+      or exists (
+        select 1 from public.file_texts ft
+        where ft.node_id = l.id
+          and ft.fts @@ websearch_to_tsquery('simple', query)
+      )
+    )
+  order by (l.type = 'file'), (l.parent_id is not null), lower(l.name)
+  limit 100;
+$$;
