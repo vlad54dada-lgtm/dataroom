@@ -354,15 +354,35 @@ export async function renameNode(id: string, newName: string): Promise<Node> {
   return toNode(data);
 }
 
+/** Derived, never stored: a file's preview lives next to its PDF blob. */
+export function thumbKeyFor(blobKey: string): string {
+  return blobKey.replace(/\.pdf$/i, ".thumb.webp");
+}
+
+/** Best-effort: a missing preview never fails an upload. */
+async function uploadThumb(
+  blobPath: string,
+  thumbnail: Blob | null | undefined,
+): Promise<void> {
+  if (!thumbnail) return;
+  await supabase.storage
+    .from("pdfs")
+    .upload(thumbKeyFor(blobPath), thumbnail, { contentType: "image/webp" })
+    .then(() => undefined)
+    .catch(() => undefined);
+}
+
 /**
  * Uploads the blob to Storage, then inserts the node row. If the row insert
  * fails the uploaded object is removed — no orphan blob, no blobless node.
- * `contentText` is the pre-extracted PDF text used for content search.
+ * `contentText` is the pre-extracted PDF text used for content search;
+ * `thumbnail` is the pre-rendered first-page preview (hover peek).
  */
 export async function saveFile(
   parentId: string,
   file: File,
   contentText?: string | null,
+  thumbnail?: Blob | null,
 ): Promise<Node> {
   const userId = await currentUserId();
   const desired = fitFileName(normalizeName(file.name) || "Untitled.pdf");
@@ -390,6 +410,7 @@ export async function saveFile(
     await supabase.storage.from("pdfs").remove([blobPath]);
     throw error;
   }
+  await uploadThumb(blobPath, thumbnail);
   // Searchable text lives in its own table; a failed insert must never fail
   // the upload (the file just won't be content-searchable).
   if (contentText) {
@@ -399,6 +420,26 @@ export async function saveFile(
       .then(() => undefined);
   }
   return toNode(data);
+}
+
+// Settled object URLs (or null = no preview exists) for the session — a
+// hover peek is fetched once, then instant.
+const thumbUrlCache = new Map<string, Promise<string | null>>();
+
+/** Object URL of the file's first-page preview, or null when none exists. */
+export function getThumbUrl(blobKey: string): Promise<string | null> {
+  let cached = thumbUrlCache.get(blobKey);
+  if (!cached) {
+    cached = supabase.storage
+      .from("pdfs")
+      .download(thumbKeyFor(blobKey))
+      .then(({ data, error }) =>
+        error || !data ? null : URL.createObjectURL(data),
+      )
+      .catch(() => null);
+    thumbUrlCache.set(blobKey, cached);
+  }
+  return cached;
 }
 
 /** Raw Blob or undefined — object-URL lifecycle belongs to the viewer. */
@@ -525,6 +566,7 @@ export async function uploadNewVersion(
   node: Node,
   file: File,
   contentText?: string | null,
+  thumbnail?: Blob | null,
 ): Promise<Node> {
   const userId = await currentUserId();
   const maxVersion = await ensureBaselineVersion(node, userId);
@@ -533,6 +575,7 @@ export async function uploadNewVersion(
     .from("pdfs")
     .upload(blobPath, file, { contentType: "application/pdf" });
   if (uploadError) throw uploadError;
+  await uploadThumb(blobPath, thumbnail);
 
   const { error: versionError } = await supabase.from("file_versions").insert({
     node_id: node.id,
@@ -1013,7 +1056,12 @@ export async function purgeNode(id: string): Promise<void> {
   const { error } = await supabase.from("nodes").delete().eq("id", id);
   if (error) throw error;
 
-  const blobPaths = (paths ?? []) as string[];
+  // Previews live next to their PDFs at a derived path — sweep them too.
+  // remove() ignores keys that don't exist, so files without a thumb are
+  // harmless.
+  const blobPaths = ((paths ?? []) as string[]).flatMap((p) =>
+    p.toLowerCase().endsWith(".pdf") ? [p, thumbKeyFor(p)] : [p],
+  );
   for (let i = 0; i < blobPaths.length; i += 100) {
     await supabase.storage.from("pdfs").remove(blobPaths.slice(i, i + 100));
   }

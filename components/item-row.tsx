@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -16,6 +17,7 @@ import {
 } from "lucide-react";
 import type { Node } from "@/types";
 import { MOVE_MIME, readIds, startDragGhost } from "@/lib/dnd";
+import { getThumbUrl } from "@/lib/storage";
 import { cn, formatBytes, formatDateTime, formatModified } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -102,6 +104,58 @@ export function ItemRow({
   const [dropReady, setDropReady] = useState(false);
   // The source row dims while its drag is in flight.
   const [dragging, setDragging] = useState(false);
+  // First-page preview peek: warmed on pointer-enter (same pattern as
+  // folder prefetch), shown only once it actually exists — files without
+  // a preview never show an empty frame. Deliberately NOT a Radix
+  // HoverCard: the peek is pure pixels (pointer-events-none, aria-hidden),
+  // so it can never steal Escape from an open dialog or pop open when
+  // focus returns to the row.
+  const [thumbUrl, setThumbUrl] = useState<string | null | undefined>(
+    undefined,
+  );
+  const warmThumb = () => {
+    if (isFolder || !node.blobKey) return;
+    void getThumbUrl(node.blobKey).then(setThumbUrl);
+  };
+  const [peekAt, setPeekAt] = useState<{ left: number; top: number } | null>(
+    null,
+  );
+  const peekTimerRef = useRef<number | null>(null);
+  const clearPeekTimer = () => {
+    if (peekTimerRef.current !== null) {
+      clearTimeout(peekTimerRef.current);
+      peekTimerRef.current = null;
+    }
+  };
+  const cancelPeek = () => {
+    clearPeekTimer();
+    setPeekAt(null);
+  };
+  const schedulePeek = (e: React.PointerEvent<HTMLButtonElement>) => {
+    warmThumb();
+    // No hover on touch — a tap must never flash the peek.
+    if (window.matchMedia("(hover: none)").matches) return;
+    const button = e.currentTarget;
+    clearPeekTimer();
+    peekTimerRef.current = window.setTimeout(() => {
+      // The pointer can be resting on the row while a dialog opens over
+      // it (clicking a file does exactly that) — never peek on top.
+      if (
+        document.querySelector(
+          '[data-slot="dialog-content"][data-state="open"]',
+        )
+      )
+        return;
+      const rect = button.getBoundingClientRect();
+      setPeekAt({
+        left: Math.round(rect.left + Math.min(rect.width - 56, 460)),
+        top: Math.round(
+          Math.max(8, Math.min(rect.top - 4, window.innerHeight - 280)),
+        ),
+      });
+    }, 400);
+  };
+  useEffect(() => clearPeekTimer, []);
 
   const dropProps = isFolder
     ? {
@@ -166,6 +220,7 @@ export function ItemRow({
             onToggleSelect(node, e.shiftKey);
           }}
           onDragStart={(e: React.DragEvent) => {
+            cancelPeek();
             const ids = getDragIds(node);
             e.dataTransfer.setData(MOVE_MIME, JSON.stringify(ids));
             e.dataTransfer.effectAllowed = "move";
@@ -239,15 +294,41 @@ export function ItemRow({
                 {nameContent}
               </Link>
             ) : (
+              // Quick look without opening: hovering the name floats the
+              // file's first page next to the row.
               <button
                 type="button"
                 data-row-primary
-                onClick={(e) => onOpenFile(node, e.currentTarget)}
+                onClick={(e) => {
+                  cancelPeek();
+                  onOpenFile(node, e.currentTarget);
+                }}
+                onPointerEnter={schedulePeek}
+                onPointerLeave={cancelPeek}
+                onFocus={warmThumb}
                 className="flex h-12 w-full min-w-0 items-center gap-3 rounded-sm text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
               >
                 {nameContent}
               </button>
             )}
+            {peekAt &&
+              typeof thumbUrl === "string" &&
+              createPortal(
+                <div
+                  aria-hidden
+                  className="pointer-events-none fixed z-40 rounded-lg bg-popover p-1.5 shadow-popover ring-1 ring-foreground/10 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-150 motion-safe:ease-out-strong"
+                  style={{ left: peekAt.left, top: peekAt.top }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element -- object URL, not an optimizable asset */}
+                  <img
+                    src={thumbUrl}
+                    alt=""
+                    draggable={false}
+                    className="block w-44 rounded-[4px] bg-white ring-1 ring-foreground/10"
+                  />
+                </div>,
+                document.body,
+              )}
           </TableCell>
           <TableCell className="hidden w-28 px-4 py-0 text-right text-sm tabular-nums text-muted-foreground md:table-cell">
             {size ?? contents ?? "—"}

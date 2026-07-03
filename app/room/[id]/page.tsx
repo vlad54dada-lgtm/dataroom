@@ -33,7 +33,7 @@ import { RESTORE_MIME, readIds } from "@/lib/dnd";
 import { flySourcesFor, flyToTrash } from "@/lib/fly-to-trash";
 import { cn } from "@/lib/utils";
 import { partitionPdfs } from "@/lib/validate";
-import { extractPdfText } from "@/lib/extract-pdf-text";
+import { analyzePdf, extractPdfText } from "@/lib/extract-pdf-text";
 import { prefetchAsync, useAsync } from "@/lib/hooks/use-async";
 import { useMutation } from "@/lib/hooks/use-mutation";
 import { useCurrentFolder } from "@/lib/hooks/use-current-folder";
@@ -277,8 +277,11 @@ function RoomView() {
       description: target.name,
     });
     try {
-      const text = await extractPdfText(picked).catch(() => null);
-      const updated = await uploadNewVersion(target, picked, text);
+      const { text, thumbnail } = await analyzePdf(picked).catch(() => ({
+        text: null,
+        thumbnail: null,
+      }));
+      const updated = await uploadNewVersion(target, picked, text, thumbnail);
       setData((items) =>
         items.map((n) => (n.id === updated.id ? updated : n)),
       );
@@ -614,9 +617,15 @@ function RoomView() {
             setFileStatus(index, "error");
             continue;
           }
-          // Extracted text powers content search; scanned PDFs return null.
-          const contentText = await extractPdfText(job.file);
-          const node = await saveFile(job.parentId, job.file, contentText);
+          // Extracted text powers content search, the thumbnail powers the
+          // hover preview; scanned PDFs return null for both.
+          const { text: contentText, thumbnail } = await analyzePdf(job.file);
+          const node = await saveFile(
+            job.parentId,
+            job.file,
+            contentText,
+            thumbnail,
+          );
           setFileStatus(index, "done");
           // The URL is the source of truth for where the user is NOW.
           const hereNow =
