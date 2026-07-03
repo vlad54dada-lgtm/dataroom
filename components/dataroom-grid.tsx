@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { DragDropProvider } from "@dnd-kit/react";
 import { isSortable } from "@dnd-kit/react/sortable";
 import {
@@ -44,19 +44,22 @@ export function DataroomGrid({
 }: DataroomGridProps) {
   const reorderable = onReorder !== undefined && items.length > 1;
 
-  // The staggered entrance animation REPLAYS whenever dnd-kit re-inserts a
-  // card's DOM node to shuffle it live — reading as a "card turns
-  // transparent" flicker. Suppress the entrance for the whole drag; the
-  // clear is deferred so the drop's re-render settles the order before the
-  // class returns (otherwise it would replay once more on release).
-  const [dragging, setDragging] = useState(false);
+  // The staggered entrance animation restarts whenever a card's DOM node is
+  // re-inserted (which React does every time dnd-kit reorders the list) —
+  // that replay is the flicker seen while dragging and on drop. So the
+  // entrance runs ONCE, on the grid's first mount, then is dropped forever:
+  // no class means nothing to replay when cards shuffle.
+  const [entered, setEntered] = useState(false);
+  useEffect(() => {
+    // Longer than the last card's (delay + duration): 8*45 + 300 = 660ms.
+    const t = setTimeout(() => setEntered(true), 800);
+    return () => clearTimeout(t);
+  }, []);
 
   return (
     <DragDropProvider
       sensors={sensors}
-      onDragStart={() => setDragging(true)}
       onDragEnd={(event) => {
-        setTimeout(() => setDragging(false), 0);
         if (event.canceled) return;
         const { source } = event.operation;
         if (!isSortable(source)) return;
@@ -80,14 +83,15 @@ export function DataroomGrid({
             onEdit={onEdit}
             onDelete={onDelete}
             onDropRestore={onDropRestore}
-            // Staggered entrance, capped so late rows never feel held back.
-            // Dropped during a drag so the live shuffle never re-fires it.
+            // Staggered entrance on first load only (capped so late rows
+            // never feel held back); gone afterward so reorders never
+            // re-fire it.
             className={
-              dragging
+              entered
                 ? undefined
                 : "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:duration-300 motion-safe:ease-out-strong motion-safe:fill-mode-backwards"
             }
-            style={dragging ? undefined : { animationDelay: `${Math.min(i, 8) * 45}ms` }}
+            style={entered ? undefined : { animationDelay: `${Math.min(i, 8) * 45}ms` }}
           />
         ))}
       </div>

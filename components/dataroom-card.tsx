@@ -105,14 +105,20 @@ export function DataroomCard({
       className={cn(
         // isolate + the wash's -z-10 keep the wash BEHIND all content so the
         // icon never tints as the wash deepens.
-        "group relative isolate flex flex-col rounded-card border bg-card p-4 shadow-card outline-none transition-[border-color,box-shadow,translate,scale,rotate] duration-200 ease-out-strong hover:-translate-y-0.5 hover:border-line-strong hover:shadow-raised focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none motion-reduce:hover:translate-y-0",
-        !reorderDisabled && "cursor-grab active:cursor-grabbing",
+        // `transform` is in the transition list so the OTHER cards glide
+        // when dnd-kit shifts them via transform during a reorder (without
+        // it they snap). The actively dragged card is exempt — dnd-kit
+        // overrides its transition so it tracks the cursor 1:1.
+        "group relative isolate flex cursor-pointer flex-col rounded-card border bg-card p-4 shadow-card outline-none transition-[border-color,box-shadow,transform,translate,scale,rotate] duration-200 ease-out-strong hover:-translate-y-0.5 hover:border-line-strong hover:shadow-raised focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none motion-reduce:hover:translate-y-0",
+        // The grab cursor appears only while actually holding the card, not
+        // on plain hover (the card is primarily clickable).
+        !reorderDisabled && "active:cursor-grabbing",
         // 3D lift while carried: scale + tilt (Tailwind v4 sets the CSS
         // `scale`/`rotate` properties, which compose with dnd-kit's
         // transform-based translate) + the deepest elevation shadow, raised
         // above the grid. Press feedback only when NOT being dragged.
         isDragSource
-          ? "z-50 scale-[1.03] rotate-2 border-line-strong shadow-overlay"
+          ? "z-50 scale-[1.03] rotate-2 cursor-grabbing border-line-strong shadow-overlay"
           : "active:scale-[0.98] active:shadow-card motion-reduce:active:scale-100",
         dropReady &&
           "border-brand bg-folder-bg/40 outline-2 outline-offset-2 outline-brand outline-dashed",
