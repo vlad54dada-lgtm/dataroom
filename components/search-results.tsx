@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Folder, FolderOpen } from "lucide-react";
+import { FileText, Folder, FolderOpen, TextSearch } from "lucide-react";
 import type { Node } from "@/types";
 import type { SearchResult } from "@/lib/storage";
 import { Button } from "@/components/ui/button";
@@ -40,8 +40,9 @@ function Snippet({ text }: { text: string }) {
 
 /**
  * Flat result list for dataroom search. Each row shows where the match
- * lives; content matches (text inside the PDF, not the name) get a quiet
- * "Text match" tag plus the matched fragment, so every hit is explainable.
+ * lives; content matches (text inside the PDF, not the name) get a
+ * brand-tinted "Text match" badge plus the matched fragment, so every hit
+ * is explainable.
  */
 export function SearchResults({
   results,
@@ -99,8 +100,14 @@ export function SearchResults({
                 </span>
               </span>
             </button>
+            {/* Same visual language as the <mark> in the snippet — the badge
+                and the highlight explain each other. */}
             {contentMatch && (
-              <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-foreground/70">
+              <span
+                className="flex shrink-0 items-center gap-1 rounded-full bg-folder-bg px-2 py-0.5 text-xs font-medium text-brand ring-1 ring-brand/15 ring-inset"
+                title="The search query was found inside this document"
+              >
+                <TextSearch className="size-3.5" strokeWidth={2} />
                 Text match
               </span>
             )}
