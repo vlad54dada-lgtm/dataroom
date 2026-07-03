@@ -141,23 +141,27 @@ export function PdfViewerDialog({
             Document preview with zoom and paging controls.
           </DialogDescription>
           {nav && nav.total > 1 && (
+            // Labelled like the page stepper below ("Page X of Y") — the
+            // matching anatomy is what disambiguates files from pages.
             <div className="flex shrink-0 items-center gap-0.5">
               <Button
                 variant="ghost"
                 size="icon-sm"
                 aria-label="Previous file"
+                title="Previous file (←)"
                 disabled={nav.index <= 0}
                 onClick={nav.onPrev}
               >
                 <ChevronLeft />
               </Button>
-              <span className="min-w-12 text-center text-xs tabular-nums text-muted-foreground">
-                {nav.index + 1} of {nav.total}
+              <span className="min-w-16 text-center text-xs tabular-nums text-muted-foreground">
+                File {nav.index + 1} of {nav.total}
               </span>
               <Button
                 variant="ghost"
                 size="icon-sm"
                 aria-label="Next file"
+                title="Next file (→)"
                 disabled={nav.index >= nav.total - 1}
                 onClick={nav.onNext}
               >

@@ -2,7 +2,7 @@
 
 import { memo, useEffect, useRef, useState } from "react";
 import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
-import { Loader2, Minus, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2, Minus, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const MIN_ZOOM = 0.5;
@@ -125,6 +125,19 @@ export function PdfCanvasViewer({ url, onRenderError }: PdfCanvasViewerProps) {
 
   const scale = fitScale * zoom;
 
+  const scrollToPage = (n: number) => {
+    const target = pageRefs.current[n - 1];
+    const container = containerRef.current;
+    if (!target || !container) return;
+    const reduce = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    container.scrollTo({
+      top: target.offsetTop - 12,
+      behavior: reduce ? "auto" : "smooth",
+    });
+  };
+
   if (!doc || !baseSize) {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center text-muted-foreground">
@@ -136,9 +149,31 @@ export function PdfCanvasViewer({ url, onRenderError }: PdfCanvasViewerProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
       <div className="flex items-center justify-between gap-3">
-        <span className="text-xs tabular-nums text-muted-foreground">
-          Page {page} of {doc.numPages}
-        </span>
+        {/* Same anatomy as the header's "File X of Y" stepper — the
+            matching shape plus the label is what tells pages from files. */}
+        <div className="flex shrink-0 items-center gap-0.5">
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            aria-label="Previous page"
+            disabled={page <= 1}
+            onClick={() => scrollToPage(page - 1)}
+          >
+            <ChevronLeft />
+          </Button>
+          <span className="text-xs tabular-nums text-muted-foreground">
+            Page {page} of {doc.numPages}
+          </span>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            aria-label="Next page"
+            disabled={page >= doc.numPages}
+            onClick={() => scrollToPage(page + 1)}
+          >
+            <ChevronRight />
+          </Button>
+        </div>
         <div className="flex items-center gap-1">
           <Button
             variant="ghost"
@@ -173,7 +208,10 @@ export function PdfCanvasViewer({ url, onRenderError }: PdfCanvasViewerProps) {
         tabIndex={0}
         role="document"
         aria-label="Document pages"
-        className="min-h-0 flex-1 overflow-auto rounded-lg border bg-muted/40 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset dark:bg-black/35"
+        // `relative` anchors the pages' offsetTop to THIS container — the
+        // scroll position math (current-page tracking, page stepper) reads
+        // offsets against it, not the dialog.
+        className="relative min-h-0 flex-1 overflow-auto rounded-lg border bg-muted/40 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset dark:bg-black/35"
       >
         {/* Keyed by url: a new document never inherits stale canvases. */}
         <div key={url} className="flex flex-col items-center gap-3 p-4">

@@ -76,9 +76,12 @@ function SortableHead({
         onClick={() => onSort(sortKey)}
         className={cn(
           // The ledger register: 11px tracked caps separate the table's
-          // chrome from its data and make row content read calmer.
-          "inline-flex items-center gap-1 rounded-sm text-[11px] font-medium tracking-[0.08em] uppercase text-muted-foreground transition-colors duration-150 outline-none select-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
-          active && "text-foreground",
+          // chrome from its data. Hover gets the same quiet pill as the
+          // breadcrumbs; the ACTIVE sort keeps it — state stays visible.
+          // Negative margins keep the label optically aligned with the
+          // column content below while the pill extends around it.
+          "-mx-1.5 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-medium tracking-[0.08em] uppercase text-muted-foreground transition-colors duration-150 outline-none select-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
+          active && "bg-muted text-foreground",
         )}
       >
         {label}
