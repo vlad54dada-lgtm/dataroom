@@ -4,12 +4,10 @@ import { useEffect, useState } from "react";
 import { DragDropProvider } from "@dnd-kit/react";
 import { isSortable } from "@dnd-kit/react/sortable";
 import {
-  Feedback,
   PointerSensor,
   PointerActivationConstraints,
   type Sensors,
 } from "@dnd-kit/dom";
-import type { Plugins } from "@dnd-kit/abstract";
 import type { Node } from "@/types";
 import {
   DataroomCard,
@@ -37,17 +35,6 @@ const sensors = (defaults: Sensors): Sensors => [
   }),
 ];
 
-// 'clone' feedback + an explicit drop animation: on release, a copy glides
-// into the slot over ~220ms instead of the default 'move' mode snapping the
-// card home instantly.
-const plugins = (defaults: Plugins): Plugins => [
-  ...defaults,
-  Feedback.configure({
-    feedback: "clone",
-    dropAnimation: { duration: 220, easing: "cubic-bezier(0.2, 0, 0, 1)" },
-  }),
-];
-
 export function DataroomGrid({
   items,
   onEdit,
@@ -72,7 +59,6 @@ export function DataroomGrid({
   return (
     <DragDropProvider
       sensors={sensors}
-      plugins={plugins}
       onDragEnd={(event) => {
         if (event.canceled) return;
         const { source } = event.operation;

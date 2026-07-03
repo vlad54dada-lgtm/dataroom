@@ -112,12 +112,13 @@ export function DataroomCard({
         "group relative isolate flex cursor-pointer flex-col rounded-card border bg-card p-4 shadow-card outline-none transition-[border-color,box-shadow,transform,translate,scale,rotate] duration-200 ease-out-strong hover:-translate-y-0.5 hover:border-line-strong hover:shadow-raised focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none motion-reduce:hover:translate-y-0",
         // Grab cursor only once a real drag begins (isDragSource, after the
         // 8px threshold) — never a flash on a plain click.
-        // 3D lift while carried: scale + tilt (Tailwind v4 sets the CSS
-        // `scale`/`rotate` properties, which compose with dnd-kit's
+        // 3D lift while carried: a gentle scale + tilt (Tailwind v4 sets the
+        // CSS `scale`/`rotate` properties, which compose with dnd-kit's
         // transform-based translate) + the deepest elevation shadow, raised
-        // above the grid. Press feedback only when NOT being dragged.
+        // above the grid. Kept subtle so the un-lift on drop doesn't snap.
+        // Press feedback only when NOT being dragged.
         isDragSource
-          ? "z-50 scale-[1.03] rotate-2 cursor-grabbing border-line-strong shadow-overlay"
+          ? "z-50 scale-[1.02] rotate-1 cursor-grabbing border-line-strong shadow-overlay"
           : "active:scale-[0.98] active:shadow-card motion-reduce:active:scale-100",
         dropReady &&
           "border-brand bg-folder-bg/40 outline-2 outline-offset-2 outline-brand outline-dashed",
