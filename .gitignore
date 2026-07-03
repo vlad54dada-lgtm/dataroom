@@ -33,3 +33,8 @@ PLAN.md
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# playwright
+/playwright/.auth
+/test-results
+/playwright-report
