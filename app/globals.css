@@ -282,6 +282,65 @@ body {
   background-color: color-mix(in oklch, var(--brand) 35%, transparent);
 }
 
+/* ---------------------------------------------------------------------------
+   pdf.js text layer — the selectable, searchable invisible text sheet laid
+   over each rendered page canvas. Rules cribbed from
+   pdfjs-dist/web/pdf_viewer.css (only what the TextLayer class needs);
+   `--scale-factor` is set per page by the viewer.
+--------------------------------------------------------------------------- */
+.textLayer {
+  --user-unit: 1;
+  --total-scale-factor: calc(var(--scale-factor, 1) * var(--user-unit));
+  --scale-round-x: 1px;
+  --scale-round-y: 1px;
+  --min-font-size: 1;
+  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv: calc(1 / var(--min-font-size));
+
+  position: absolute;
+  inset: 0;
+  overflow: clip;
+  text-align: initial;
+  line-height: 1;
+  letter-spacing: normal;
+  word-spacing: normal;
+  text-size-adjust: none;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
+  caret-color: CanvasText;
+  z-index: 1;
+}
+
+.textLayer :is(span, br) {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+  user-select: text;
+}
+
+.textLayer > :not(.markedContent),
+.textLayer .markedContent span:not(.markedContent) {
+  z-index: 1;
+  --font-height: 0;
+  font-size: calc(var(--text-scale-factor) * var(--font-height));
+  --scale-x: 1;
+  --rotate: 0deg;
+  transform: rotate(var(--rotate)) scaleX(var(--scale-x))
+    scale(var(--min-font-size-inv));
+}
+
+.textLayer .markedContent {
+  display: contents;
+}
+
+/* Selecting document text carries the brand, like everywhere else. The
+   page sheet stays white in both themes, so one rule covers both. */
+.textLayer ::selection {
+  background-color: color-mix(in oklch, var(--brand) 30%, transparent);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

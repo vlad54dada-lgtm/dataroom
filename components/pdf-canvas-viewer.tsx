@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useEffect, useRef, useState } from "react";
-import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
+import type { PDFDocumentProxy, RenderTask, TextLayer } from "pdfjs-dist";
 import { ChevronLeft, ChevronRight, Loader2, Minus, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -255,9 +255,11 @@ const PageCanvas = memo(function PageCanvas({
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const textRef = useRef<HTMLDivElement>(null);
   // First pages render immediately; the rest wait until they scroll near.
   const [visible, setVisible] = useState(pageNumber <= 2);
   const renderTaskRef = useRef<RenderTask | null>(null);
+  const textLayerRef = useRef<TextLayer | null>(null);
   const renderedScaleRef = useRef(0);
 
   // Observed BOTH ways: pages release their canvas memory when they leave
@@ -280,6 +282,9 @@ const PageCanvas = memo(function PageCanvas({
       const canvas = canvasRef.current;
       if (canvas && renderedScaleRef.current !== 0) {
         renderTaskRef.current?.cancel();
+        textLayerRef.current?.cancel();
+        textLayerRef.current = null;
+        textRef.current?.replaceChildren();
         canvas.width = 0;
         canvas.height = 0;
         canvas.style.width = "";
@@ -306,7 +311,25 @@ const PageCanvas = memo(function PageCanvas({
         const task = pg.render({ canvas, viewport: vpDev });
         renderTaskRef.current = task;
         await task.promise;
-        if (!cancelled) renderedScaleRef.current = scale;
+        if (cancelled) return;
+        renderedScaleRef.current = scale;
+        // Selectable text: an invisible pdf.js text layer over the canvas.
+        // Re-rendered per scale — cheaper to rebuild than to keep in sync.
+        const textDiv = textRef.current;
+        if (textDiv) {
+          const pdfjs = await import("pdfjs-dist");
+          if (cancelled) return;
+          textLayerRef.current?.cancel();
+          textDiv.replaceChildren();
+          textDiv.style.setProperty("--scale-factor", String(vpCss.scale));
+          const textLayer = new pdfjs.TextLayer({
+            textContentSource: pg.streamTextContent(),
+            container: textDiv,
+            viewport: vpCss,
+          });
+          textLayerRef.current = textLayer;
+          await textLayer.render();
+        }
       } catch {
         // Render was cancelled mid-flight (zoom change, unmount) — the
         // next effect run repaints; a genuinely broken page keeps its
@@ -319,7 +342,10 @@ const PageCanvas = memo(function PageCanvas({
   }, [visible, scale, doc, pageNumber]);
 
   useEffect(() => {
-    return () => renderTaskRef.current?.cancel();
+    return () => {
+      renderTaskRef.current?.cancel();
+      textLayerRef.current?.cancel();
+    };
   }, []);
 
   return (
@@ -327,10 +353,12 @@ const PageCanvas = memo(function PageCanvas({
       ref={wrapRef}
       // Physical paper: hairline keyline + soft lift; in dark the keyline
       // does the edge work a border can't (outside the canvas, no shift).
-      className="bg-white shadow-paper"
+      // `relative` anchors the text layer to the page sheet.
+      className="relative bg-white shadow-paper"
       style={{ minWidth: estWidth, minHeight: estHeight }}
     >
       <canvas ref={canvasRef} className="block" aria-label={`Page ${pageNumber}`} />
+      <div ref={textRef} className="textLayer" />
     </div>
   );
 });
