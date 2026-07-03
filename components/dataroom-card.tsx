@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
-import { GripVertical } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useSortable } from "@dnd-kit/react/sortable";
 import type { Node } from "@/types";
 import { RESTORE_MIME, readIds } from "@/lib/dnd";
@@ -31,13 +30,11 @@ interface DataroomCardProps {
 }
 
 /**
- * The whole card navigates via a stretched link; the kebab is a separate
- * sibling control layered above it — one primary action, no nested
- * interactive elements. Reordering uses a dnd-kit drag HANDLE (the grip
- * that reveals on hover): dnd-kit refuses to start a drag on top of an
- * interactive element, and the stretched <a> covers the whole card, so a
- * dedicated non-interactive handle is what lets us keep the click/cmd-click
- * link AND drag-to-reorder.
+ * The whole card is grabbable: pointer-drag it (past the grid's 8px
+ * threshold) to reorder, or click/Enter to open the room. Navigation is a
+ * click handler rather than a stretched <a> because dnd-kit refuses to start
+ * a drag on an interactive element — so making the ENTIRE card draggable
+ * means it can't itself be a link. The kebab is a separate control above it.
  */
 export function DataroomCard({
   item,
@@ -50,11 +47,13 @@ export function DataroomCard({
   style,
 }: DataroomCardProps) {
   const { node, itemCount } = item;
+  const router = useRouter();
+  const href = `/room/${node.id}`;
   // A trash-stack item is hovering over this card.
   const [dropReady, setDropReady] = useState(false);
-  // dnd-kit sortable: `ref` marks the element that moves, `handleRef` the
-  // grip that starts the drag, `isDragSource` dims the card being moved.
-  const { ref, handleRef, isDragSource } = useSortable({
+  // dnd-kit sortable: `ref` on the element that moves; `isDragSource` marks
+  // the card being carried, so we lift it instead of dimming it.
+  const { ref, isDragSource } = useSortable({
     id: node.id,
     index,
     disabled: reorderDisabled,
@@ -65,6 +64,26 @@ export function DataroomCard({
       style={style}
       data-node-id={node.id}
       data-node-kind="folder"
+      role="link"
+      tabIndex={0}
+      aria-label={node.name}
+      onClick={(e) => {
+        const target = e.target as HTMLElement;
+        // The kebab's Radix menu is PORTALED (its DOM lives on <body>) but
+        // stays a React child, so menu-item clicks bubble here via React —
+        // ignore anything whose real DOM node isn't inside the card. Also
+        // ignore the kebab button itself. A drag suppresses the click.
+        if (!e.currentTarget.contains(target)) return;
+        if (target.closest("button")) return;
+        router.push(href);
+      }}
+      onKeyDown={(e) => {
+        // Enter opens; Space is left to dnd-kit's keyboard sorting.
+        if (e.key === "Enter") {
+          e.preventDefault();
+          router.push(href);
+        }
+      }}
       onDragOver={(e) => {
         // Native HTML5 drag = a trash item being restored onto this card.
         // (dnd-kit reordering uses pointer events, a separate system.)
@@ -84,11 +103,17 @@ export function DataroomCard({
         onDropRestore(ids, node);
       }}
       className={cn(
-        // isolate + the wash's -z-10 keep the wash BEHIND all content: the
-        // stretched link stays clickable across the whole card and the icon
-        // never tints as the wash deepens.
-        "group relative isolate flex flex-col rounded-card border bg-card p-4 shadow-card transition-[border-color,box-shadow,translate,scale,opacity] duration-200 ease-out-strong hover:-translate-y-0.5 hover:border-line-strong hover:shadow-raised has-[a:active]:scale-[0.98] has-[a:active]:shadow-card has-[a:focus-visible]:border-ring has-[a:focus-visible]:ring-3 has-[a:focus-visible]:ring-ring/50 motion-reduce:transition-none motion-reduce:hover:translate-y-0 motion-reduce:has-[a:active]:scale-100",
-        isDragSource && "opacity-40",
+        // isolate + the wash's -z-10 keep the wash BEHIND all content so the
+        // icon never tints as the wash deepens.
+        "group relative isolate flex flex-col rounded-card border bg-card p-4 shadow-card outline-none transition-[border-color,box-shadow,translate,scale,rotate] duration-200 ease-out-strong hover:-translate-y-0.5 hover:border-line-strong hover:shadow-raised focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none motion-reduce:hover:translate-y-0",
+        !reorderDisabled && "cursor-grab active:cursor-grabbing",
+        // 3D lift while carried: scale + tilt (Tailwind v4 sets the CSS
+        // `scale`/`rotate` properties, which compose with dnd-kit's
+        // transform-based translate) + the deepest elevation shadow, raised
+        // above the grid. Press feedback only when NOT being dragged.
+        isDragSource
+          ? "z-50 scale-[1.03] rotate-2 border-line-strong shadow-overlay"
+          : "active:scale-[0.98] active:shadow-card motion-reduce:active:scale-100",
         dropReady &&
           "border-brand bg-folder-bg/40 outline-2 outline-offset-2 outline-brand outline-dashed",
         className,
@@ -113,18 +138,6 @@ export function DataroomCard({
           )}
         />
       </div>
-      {/* Drag handle: a non-interactive grip (dnd-kit skips drags started on
-          <a>/<button>, so it must not be one) layered above the stretched
-          link, revealed on hover. touch-none lets it work on touch too. */}
-      {!reorderDisabled && (
-        <span
-          ref={handleRef}
-          aria-hidden
-          className="absolute top-1.5 left-1/2 z-10 flex h-5 w-7 -translate-x-1/2 cursor-grab touch-none items-center justify-center rounded-md text-muted-foreground/40 opacity-0 transition-[opacity,color] duration-150 group-hover:opacity-100 hover:text-muted-foreground active:cursor-grabbing"
-        >
-          <GripVertical className="size-4 rotate-90" strokeWidth={2} />
-        </span>
-      )}
       <div className="flex items-start justify-between gap-2">
         <RoomAvatar
           icon={node.icon}
@@ -138,17 +151,12 @@ export function DataroomCard({
           onDelete={(trigger) => onDelete(node, trigger)}
         />
       </div>
-      <Link
-        href={`/room/${node.id}`}
-        // draggable=false so a native trash-restore drag over the link
-        // never turns into a link-URL drag.
-        draggable={false}
-        className="mt-3 block outline-none after:absolute after:inset-0 after:rounded-card"
+      <span
+        className="mt-3 block truncate text-sm font-medium"
+        title={node.name}
       >
-        <span className="block truncate text-sm font-medium" title={node.name}>
-          {node.name}
-        </span>
-      </Link>
+        {node.name}
+      </span>
       {node.description ? (
         <p className="mt-1 line-clamp-3 text-sm leading-relaxed text-muted-foreground">
           {node.description}

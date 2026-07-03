@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { DragDropProvider } from "@dnd-kit/react";
 import { isSortable } from "@dnd-kit/react/sortable";
 import {
@@ -43,10 +44,19 @@ export function DataroomGrid({
 }: DataroomGridProps) {
   const reorderable = onReorder !== undefined && items.length > 1;
 
+  // The staggered entrance animation REPLAYS whenever dnd-kit re-inserts a
+  // card's DOM node to shuffle it live — reading as a "card turns
+  // transparent" flicker. Suppress the entrance for the whole drag; the
+  // clear is deferred so the drop's re-render settles the order before the
+  // class returns (otherwise it would replay once more on release).
+  const [dragging, setDragging] = useState(false);
+
   return (
     <DragDropProvider
       sensors={sensors}
+      onDragStart={() => setDragging(true)}
       onDragEnd={(event) => {
+        setTimeout(() => setDragging(false), 0);
         if (event.canceled) return;
         const { source } = event.operation;
         if (!isSortable(source)) return;
@@ -71,8 +81,13 @@ export function DataroomGrid({
             onDelete={onDelete}
             onDropRestore={onDropRestore}
             // Staggered entrance, capped so late rows never feel held back.
-            className="motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:duration-300 motion-safe:ease-out-strong motion-safe:fill-mode-backwards"
-            style={{ animationDelay: `${Math.min(i, 8) * 45}ms` }}
+            // Dropped during a drag so the live shuffle never re-fires it.
+            className={
+              dragging
+                ? undefined
+                : "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:duration-300 motion-safe:ease-out-strong motion-safe:fill-mode-backwards"
+            }
+            style={dragging ? undefined : { animationDelay: `${Math.min(i, 8) * 45}ms` }}
           />
         ))}
       </div>
