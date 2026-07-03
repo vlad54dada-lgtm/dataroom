@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, Download, Loader2 } from "lucide-react";
 import type { Node } from "@/types";
 import { getBlob } from "@/lib/storage";
+import { useSession } from "@/lib/hooks/use-session";
 import { Button } from "@/components/ui/button";
 import { PdfCanvasViewer } from "@/components/pdf-canvas-viewer";
 
@@ -60,6 +61,14 @@ export function PdfViewerDialog({
   // iframe renderer for it (per-file, so the next file tries canvas again).
   const [failedKey, setFailedKey] = useState<string | null>(null);
   const canvasFailed = failedKey !== null && failedKey === blobKey;
+
+  // Every page carries who is looking at it — the data-room watermark.
+  const session = useSession();
+  const watermark = {
+    title: "Confidential",
+    subtitle:
+      session.status === "signed-in" ? (session.user.email ?? undefined) : undefined,
+  };
 
   const restoreFocus = (event: Event) => {
     if (returnFocusTo?.isConnected) {
@@ -211,6 +220,7 @@ export function PdfViewerDialog({
               key={blobKey ?? url}
               url={url}
               onRenderError={() => setFailedKey(blobKey)}
+              watermark={watermark}
             />
           )}
           {url && shown && canvasFailed && (

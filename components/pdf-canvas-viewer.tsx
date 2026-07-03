@@ -14,6 +14,12 @@ interface PdfCanvasViewerProps {
   url: string;
   /** Fires when pdf.js can't parse the document — caller shows a fallback. */
   onRenderError: () => void;
+  /**
+   * Diagonal per-page overlay — the classic data-room deterrent: every
+   * page carries who was looking at it. Title big, subtitle (the viewer's
+   * email) smaller beneath.
+   */
+  watermark?: { title: string; subtitle?: string };
 }
 
 /**
@@ -22,7 +28,11 @@ interface PdfCanvasViewerProps {
  * lazily as they approach the viewport and re-render on zoom; rendering
  * happens on canvas, so it also works where iframe PDFs don't (iOS).
  */
-export function PdfCanvasViewer({ url, onRenderError }: PdfCanvasViewerProps) {
+export function PdfCanvasViewer({
+  url,
+  onRenderError,
+  watermark,
+}: PdfCanvasViewerProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   // Mirrors the ref as state so children can receive the element as a prop
   // (reading a ref during render is off-limits).
@@ -229,6 +239,7 @@ export function PdfCanvasViewer({ url, onRenderError }: PdfCanvasViewerProps) {
                 estWidth={baseSize.w * scale}
                 estHeight={baseSize.h * scale}
                 container={containerEl}
+                watermark={watermark}
               />
             </div>
           ))}
@@ -245,6 +256,7 @@ const PageCanvas = memo(function PageCanvas({
   estWidth,
   estHeight,
   container,
+  watermark,
 }: {
   doc: PDFDocumentProxy;
   pageNumber: number;
@@ -252,6 +264,7 @@ const PageCanvas = memo(function PageCanvas({
   estWidth: number;
   estHeight: number;
   container: HTMLDivElement | null;
+  watermark?: { title: string; subtitle?: string };
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -358,6 +371,32 @@ const PageCanvas = memo(function PageCanvas({
       style={{ minWidth: estWidth, minHeight: estHeight }}
     >
       <canvas ref={canvasRef} className="block" aria-label={`Page ${pageNumber}`} />
+      {/* Fixed gray, not a theme token: the page sheet is white in both
+          themes. Sized off the page width so it scales with zoom; the
+          subtitle truncates rather than spilling past the diagonal. */}
+      {watermark && (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 z-[2] flex items-center justify-center overflow-hidden select-none"
+        >
+          <div className="flex max-w-full -rotate-[28deg] flex-col items-center gap-1 text-gray-900/8">
+            <span
+              className="font-semibold tracking-[0.12em] whitespace-nowrap uppercase"
+              style={{ fontSize: Math.max(estWidth / 14, 14) }}
+            >
+              {watermark.title}
+            </span>
+            {watermark.subtitle && (
+              <span
+                className="max-w-full overflow-hidden font-medium tracking-wide text-ellipsis whitespace-nowrap"
+                style={{ fontSize: Math.max(estWidth / 34, 10) }}
+              >
+                {watermark.subtitle}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
       <div ref={textRef} className="textLayer" />
     </div>
   );
