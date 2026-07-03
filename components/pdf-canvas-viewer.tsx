@@ -48,6 +48,11 @@ interface PdfCanvasViewerProps {
    * email) smaller beneath.
    */
   watermark?: { title: string; subtitle?: string };
+  /**
+   * Opens with the find bar pre-armed with this query and jumps to the
+   * first hit — how a content-search result shows WHERE it matched.
+   */
+  initialFind?: string;
 }
 
 /**
@@ -60,6 +65,7 @@ export function PdfCanvasViewer({
   url,
   onRenderError,
   watermark,
+  initialFind,
 }: PdfCanvasViewerProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   // Mirrors the ref as state so children can receive the element as a prop
@@ -156,6 +162,19 @@ export function PdfCanvasViewer({
     const t = setTimeout(() => setSearchQ(searchInput), 180);
     return () => clearTimeout(t);
   }, [searchInput]);
+
+  // Arrived from a content-search hit: open the find bar pre-filled and
+  // skip the debounce so the first match is highlighted immediately. Runs
+  // once the document is ready; the doc/url reset above clears it per file.
+  const armedFindRef = useRef<string | null>(null);
+  useEffect(() => {
+    const q = initialFind?.trim();
+    if (!doc || !q || armedFindRef.current === url) return;
+    armedFindRef.current = url;
+    setSearchOpen(true);
+    setSearchInput(q);
+    setSearchQ(q);
+  }, [doc, initialFind, url]);
 
   // Extract every page's text once per document (lazily, on first query),
   // then index all case-insensitive occurrences. Only the async completion

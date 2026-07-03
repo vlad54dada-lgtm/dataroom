@@ -111,15 +111,18 @@ export function SearchResults({
               </span>
             </button>
             {/* Same visual language as the <mark> in the snippet — the badge
-                and the highlight explain each other. */}
+                and the highlight explain each other. Clicking it opens the
+                file jumped straight to the match. */}
             {contentMatch && (
-              <span
-                className="flex shrink-0 items-center gap-1 rounded-full bg-folder-bg px-2 py-0.5 text-xs font-medium text-brand ring-1 ring-brand/15 ring-inset"
-                title="The search query was found inside this document"
+              <button
+                type="button"
+                onClick={(e) => onOpenFile(node, e.currentTarget)}
+                title="Open and jump to the match"
+                className="flex shrink-0 items-center gap-1 rounded-full bg-folder-bg px-2 py-0.5 text-xs font-medium text-brand ring-1 ring-brand/15 outline-none ring-inset transition-colors duration-150 hover:bg-brand/15 focus-visible:ring-3 focus-visible:ring-ring/50"
               >
                 <TextSearch className="size-3.5" strokeWidth={2} />
                 Text match
-              </span>
+              </button>
             )}
             {onOpenLocation && node.type !== "dataroom" && (
               <Button

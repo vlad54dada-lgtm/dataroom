@@ -162,6 +162,13 @@ function RoomView() {
     setDialog(next);
   };
   const [viewerFile, setViewerFile] = useState<Node | null>(null);
+  // Set only when opening from a content-search hit — arms the viewer's
+  // find bar. Cleared on any other open (table click, gallery flip).
+  const [viewerFind, setViewerFind] = useState<string | undefined>(undefined);
+  const openViewer = (file: Node, find?: string) => {
+    setViewerFind(find);
+    setViewerFile(file);
+  };
   // Survives close: dialogs read it in onCloseAutoFocus AFTER state resets.
   const [returnTo, setReturnTo] = useState<HTMLElement | null>(null);
   // A trash-stack item is hovering over the content — show the drop zone.
@@ -807,7 +814,14 @@ function RoomView() {
                             }}
                             onOpenFile={(file, trigger) => {
                               setReturnTo(trigger);
-                              setViewerFile(file);
+                              // Content hit → open jumped to the match.
+                              const hit = filteredHits.find(
+                                (h) => h.node.id === file.id,
+                              );
+                              openViewer(
+                                file,
+                                hit?.contentMatch ? debouncedQuery : undefined,
+                              );
                             }}
                             onOpenLocation={(parentId) => {
                               setQuery("");
@@ -861,7 +875,7 @@ function RoomView() {
                         hrefFor={hrefFor}
                         onOpenFile={(file, trigger) => {
                           setReturnTo(trigger);
-                          setViewerFile(file);
+                          openViewer(file);
                         }}
                         onRename={(node, trigger) => {
                           setReturnTo(trigger);
@@ -929,6 +943,7 @@ function RoomView() {
         file={viewerFile}
         onClose={() => setViewerFile(null)}
         returnFocusTo={returnTo}
+        initialFind={viewerFind}
         nav={
           viewerIndex >= 0 && viewerFiles.length > 1
             ? {
@@ -936,11 +951,11 @@ function RoomView() {
                 total: viewerFiles.length,
                 onPrev: () => {
                   const prev = viewerFiles[viewerIndex - 1];
-                  if (prev) setViewerFile(prev);
+                  if (prev) openViewer(prev);
                 },
                 onNext: () => {
                   const next = viewerFiles[viewerIndex + 1];
-                  if (next) setViewerFile(next);
+                  if (next) openViewer(next);
                 },
               }
             : undefined

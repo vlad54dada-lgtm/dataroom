@@ -173,7 +173,15 @@ function HomeView() {
   };
   // File hits open right here — no detour into the room first.
   const [viewerFile, setViewerFile] = useState<Node | null>(null);
+  const [viewerFind, setViewerFind] = useState<string | undefined>(undefined);
   const [viewerReturn, setViewerReturn] = useState<HTMLElement | null>(null);
+  const openHitFile = (file: Node, trigger: HTMLElement | null) => {
+    setViewerReturn(trigger);
+    // Content hit → open jumped to the match.
+    const hit = hitById.get(file.id);
+    setViewerFind(hit?.contentMatch ? debouncedQuery : undefined);
+    setViewerFile(file);
+  };
 
   const [dialog, setDialog] = useState<DialogState>({ kind: "none" });
   // Frozen copy of the last real dialog: content renders from it while the
@@ -377,10 +385,7 @@ function HomeView() {
                       <SearchResults
                         results={displayHits}
                         onOpenFolder={openHitFolder}
-                        onOpenFile={(file, trigger) => {
-                          setViewerReturn(trigger);
-                          setViewerFile(file);
-                        }}
+                        onOpenFile={openHitFile}
                         onOpenLocation={openHitLocation}
                       />
                     )}
@@ -428,6 +433,7 @@ function HomeView() {
         file={viewerFile}
         onClose={() => setViewerFile(null)}
         returnFocusTo={viewerReturn}
+        initialFind={viewerFind}
       />
 
       <DataroomDialog

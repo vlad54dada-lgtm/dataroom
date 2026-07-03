@@ -70,16 +70,24 @@ export function DataroomCard({
       )}
     >
       {/* Light only: the room's identity color bleeds into the card as a
-          soft top wash, deepening on hover — translucent and
-          pointer-transparent. In dark the wash reads as smudge, so the
-          identity lives in the footer band instead (see below). */}
+          top wash; hovering stacks a second identical layer on top, so the
+          color visibly deepens instead of barely shifting. In dark the
+          wash reads as smudge, so the identity lives in the footer band
+          instead (see below). */}
       <div
         aria-hidden
         className={cn(
-          "pointer-events-none absolute inset-x-0 top-0 h-20 rounded-t-[calc(var(--radius-card)-1px)] bg-gradient-to-b to-transparent opacity-60 transition-opacity duration-200 ease-out-strong group-hover:opacity-100 motion-reduce:transition-none dark:hidden",
+          "pointer-events-none absolute inset-x-0 top-0 h-24 rounded-t-[calc(var(--radius-card)-1px)] bg-gradient-to-b to-transparent dark:hidden",
           resolveRoomColor(node.color).wash,
         )}
-      />
+      >
+        <div
+          className={cn(
+            "absolute inset-0 rounded-t-[calc(var(--radius-card)-1px)] bg-gradient-to-b to-transparent opacity-0 transition-opacity duration-200 ease-out-strong group-hover:opacity-100 motion-reduce:transition-none",
+            resolveRoomColor(node.color).wash,
+          )}
+        />
+      </div>
       <div className="flex items-start justify-between gap-2">
         <RoomAvatar
           icon={node.icon}

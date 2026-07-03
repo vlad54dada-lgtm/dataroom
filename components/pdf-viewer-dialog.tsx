@@ -26,6 +26,11 @@ interface PdfViewerDialogProps {
   /** Element to focus when the viewer closes (the file row's button). */
   returnFocusTo?: HTMLElement | null;
   /**
+   * Opened from a content-search hit: the find bar arms with this query and
+   * jumps to the first match. Keyed to `file`, so it only arms on open.
+   */
+  initialFind?: string;
+  /**
    * Flip through the folder's files without leaving the viewer —
    * gallery-style ‹ 2 of 5 › plus the arrow keys.
    */
@@ -48,6 +53,7 @@ export function PdfViewerDialog({
   file,
   onClose,
   returnFocusTo,
+  initialFind,
   nav,
 }: PdfViewerDialogProps) {
   // Held past close so the title/iframe don't blank out mid-exit-animation
@@ -229,6 +235,7 @@ export function PdfViewerDialog({
               url={url}
               onRenderError={() => setFailedKey(blobKey)}
               watermark={watermark}
+              initialFind={initialFind}
             />
           )}
           {url && shown && canvasFailed && (
