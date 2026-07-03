@@ -23,7 +23,16 @@ export function useSession(): SessionState {
           : { status: "signed-out" },
       );
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      // A recovery link can land anywhere (the email's redirect falls back
+      // to the site root) — always finish the flow on the reset screen.
+      if (
+        event === "PASSWORD_RECOVERY" &&
+        window.location.pathname !== "/reset-password"
+      ) {
+        window.location.assign("/reset-password");
+        return;
+      }
       setState(
         session
           ? { status: "signed-in", user: session.user }

@@ -4,26 +4,14 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, FileText, Loader2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { authErrorMessage } from "@/lib/auth-errors";
 import { useDocumentTitle } from "@/lib/hooks/use-document-title";
 import { useSession } from "@/lib/hooks/use-session";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-type Mode = "sign-in" | "sign-up";
-
-/** Maps raw Supabase auth errors to specific, non-apologetic copy. */
-function authErrorMessage(message: string): string {
-  const m = message.toLowerCase();
-  if (m.includes("invalid login credentials"))
-    return "Incorrect email or password";
-  if (m.includes("already registered"))
-    return "An account with this email already exists";
-  if (m.includes("at least 6 characters"))
-    return "Password must be at least 6 characters";
-  if (m.includes("valid email")) return "Enter a valid email address";
-  return message;
-}
+type Mode = "sign-in" | "sign-up" | "forgot";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -48,7 +36,9 @@ export default function LoginPage() {
   }, [session.status, router]);
 
   const canSubmit =
-    email.trim().length > 0 && password.length >= 6 && !submitting;
+    email.trim().length > 0 &&
+    (mode === "forgot" || password.length >= 6) &&
+    !submitting;
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -56,7 +46,18 @@ export default function LoginPage() {
     setSubmitting(true);
     setError(null);
     setNotice(null);
-    if (mode === "sign-in") {
+    if (mode === "forgot") {
+      const { error: err } = await supabase.auth.resetPasswordForEmail(
+        email.trim(),
+        { redirectTo: `${window.location.origin}/reset-password` },
+      );
+      if (err) setError(authErrorMessage(err.message));
+      else
+        setNotice(
+          `Check ${email.trim()} for a link to reset your password.`,
+        );
+      setSubmitting(false);
+    } else if (mode === "sign-in") {
       const { error: err } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password,
@@ -131,12 +132,18 @@ export default function LoginPage() {
             className="motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-200 motion-safe:ease-out-strong"
           >
             <h1 className="text-base font-semibold">
-              {mode === "sign-in" ? "Sign in" : "Create your account"}
+              {mode === "sign-in"
+                ? "Sign in"
+                : mode === "sign-up"
+                  ? "Create your account"
+                  : "Reset your password"}
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
               {mode === "sign-in"
                 ? "Access your datarooms and documents."
-                : "Datarooms you create are private to your account."}
+                : mode === "sign-up"
+                  ? "Datarooms you create are private to your account."
+                  : "We'll email you a link to set a new one."}
             </p>
           </div>
           <form onSubmit={handleSubmit} className="mt-5 flex flex-col gap-4">
@@ -155,8 +162,20 @@ export default function LoginPage() {
                 autoFocus
               />
             </div>
+            {mode !== "forgot" && (
             <div className="flex flex-col gap-2">
-              <Label htmlFor="login-password">Password</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="login-password">Password</Label>
+                {mode === "sign-in" && (
+                  <button
+                    type="button"
+                    className="text-xs font-medium text-brand hover:underline"
+                    onClick={() => switchMode("forgot")}
+                  >
+                    Forgot password?
+                  </button>
+                )}
+              </div>
               <div className="relative">
                 <Input
                   id="login-password"
@@ -190,6 +209,7 @@ export default function LoginPage() {
                 </p>
               )}
             </div>
+            )}
             {error && (
               <p className="text-sm text-danger" role="alert">
                 {error}
@@ -202,7 +222,11 @@ export default function LoginPage() {
             )}
             <Button type="submit" disabled={!canSubmit} className="h-10 w-full">
               {submitting && <Loader2 className="animate-spin" />}
-              {mode === "sign-in" ? "Sign in" : "Create account"}
+              {mode === "sign-in"
+                ? "Sign in"
+                : mode === "sign-up"
+                  ? "Create account"
+                  : "Send reset link"}
             </Button>
           </form>
         </div>
@@ -221,9 +245,20 @@ export default function LoginPage() {
                 Create one
               </button>
             </>
-          ) : (
+          ) : mode === "sign-up" ? (
             <>
               Already have an account?{" "}
+              <button
+                type="button"
+                className="font-medium text-brand hover:underline"
+                onClick={() => switchMode("sign-in")}
+              >
+                Sign in
+              </button>
+            </>
+          ) : (
+            <>
+              Remembered it?{" "}
               <button
                 type="button"
                 className="font-medium text-brand hover:underline"

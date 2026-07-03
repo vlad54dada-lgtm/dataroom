@@ -43,9 +43,9 @@ types/
   index.ts                 # Node, NodeType
 ```
 
-Auth surfaces (app/login, components/require-auth, components/user-menu,
-lib/hooks/use-session) may import the Supabase client directly; everything
-else goes through `lib/storage.ts`.
+Auth surfaces (app/login, app/reset-password, components/require-auth,
+components/user-menu, lib/hooks/use-session) may import the Supabase client
+directly; everything else goes through `lib/storage.ts`.
 
 ## Architecture
 
