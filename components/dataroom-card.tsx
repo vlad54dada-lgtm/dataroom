@@ -63,19 +63,20 @@ export function DataroomCard({
         onDropRestore(ids, node);
       }}
       className={cn(
-        "group relative flex flex-col rounded-card border bg-card p-4 shadow-card transition-[border-color,box-shadow,translate] duration-200 ease-out-strong hover:-translate-y-0.5 hover:border-line-strong hover:shadow-raised has-[a:focus-visible]:border-ring has-[a:focus-visible]:ring-3 has-[a:focus-visible]:ring-ring/50 motion-reduce:transition-none motion-reduce:hover:translate-y-0",
+        "group relative flex flex-col rounded-card border bg-card p-4 shadow-card transition-[border-color,box-shadow,translate,scale] duration-200 ease-out-strong hover:-translate-y-0.5 hover:border-line-strong hover:shadow-raised has-[a:active]:scale-[0.98] has-[a:active]:shadow-card has-[a:focus-visible]:border-ring has-[a:focus-visible]:ring-3 has-[a:focus-visible]:ring-ring/50 motion-reduce:transition-none motion-reduce:hover:translate-y-0 motion-reduce:has-[a:active]:scale-100",
         dropReady &&
           "border-brand bg-folder-bg/40 outline-2 outline-offset-2 outline-brand outline-dashed",
         className,
       )}
     >
-      {/* The room's identity color bleeds into the card as a soft top wash,
-          deepening on hover — translucent and pointer-transparent, so it
-          tints whatever sits under it without touching layout. */}
+      {/* Light only: the room's identity color bleeds into the card as a
+          soft top wash, deepening on hover — translucent and
+          pointer-transparent. In dark the wash reads as smudge, so the
+          identity lives in the footer band instead (see below). */}
       <div
         aria-hidden
         className={cn(
-          "pointer-events-none absolute inset-x-0 top-0 h-20 rounded-t-[calc(var(--radius-card)-1px)] bg-gradient-to-b to-transparent opacity-60 transition-opacity duration-200 ease-out-strong group-hover:opacity-100 motion-reduce:transition-none",
+          "pointer-events-none absolute inset-x-0 top-0 h-20 rounded-t-[calc(var(--radius-card)-1px)] bg-gradient-to-b to-transparent opacity-60 transition-opacity duration-200 ease-out-strong group-hover:opacity-100 motion-reduce:transition-none dark:hidden",
           resolveRoomColor(node.color).wash,
         )}
       />
@@ -106,9 +107,16 @@ export function DataroomCard({
         </p>
       ) : null}
       {/* Zoned footer — the same tinted meta-band the dialogs use: facts
-          live on their own quiet register, content stays on the surface. */}
+          live on their own quiet register, content stays on the surface.
+          In dark it carries the room's color (the dark counterpart of the
+          light theme's top wash). */}
       <div className="mt-auto pt-4">
-        <div className="-mx-4 -mb-4 rounded-b-[calc(var(--radius-card)-1px)] border-t bg-foreground/4 px-4 py-2.5">
+        <div
+          className={cn(
+            "-mx-4 -mb-4 rounded-b-[calc(var(--radius-card)-1px)] border-t bg-foreground/4 px-4 py-2.5",
+            resolveRoomColor(node.color).band,
+          )}
+        >
           <p className="text-xs text-muted-foreground">
             {itemCount === 1 ? "1 item" : `${itemCount} items`}
             {" · Created "}
