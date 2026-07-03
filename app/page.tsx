@@ -177,7 +177,7 @@ function HomeView() {
       <main
         id="main"
         tabIndex={-1}
-        className="mx-auto w-full max-w-6xl flex-1 px-6 py-8 outline-none motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200"
+        className="mx-auto w-full max-w-6xl flex-1 scroll-mt-14 px-6 py-8 outline-none motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200"
       >
         <div className="flex items-center justify-between gap-4">
           <h1 className="text-xl font-semibold">Datarooms</h1>

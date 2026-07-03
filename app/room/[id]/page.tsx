@@ -79,7 +79,7 @@ function RoomShell({ children }: { children: React.ReactNode }) {
       <main
         id="main"
         tabIndex={-1}
-        className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-6 py-8 outline-none motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200"
+        className="mx-auto flex w-full max-w-6xl flex-1 scroll-mt-14 flex-col px-6 py-8 outline-none motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200"
       >
         {children}
       </main>
