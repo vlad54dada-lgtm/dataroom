@@ -43,6 +43,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { AppHeader } from "@/components/app-header";
 import { RequireAuth } from "@/components/require-auth";
 import { SearchResults } from "@/components/search-results";
+import {
+  DEFAULT_SEARCH_FILTER,
+  SearchFilters,
+  applySearchFilter,
+  type SearchFilter,
+} from "@/components/search-filters";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { RoomToolbar } from "@/components/room-toolbar";
 import {
@@ -219,6 +225,19 @@ function RoomView() {
     () =>
       searching ? searchNodes(roomId, debouncedQuery) : Promise.resolve([]),
     `search:${roomId}:${debouncedQuery}`,
+  );
+  // Result refinement chips; reset when the user leaves search so the next
+  // query never starts silently pre-filtered.
+  const [searchFilter, setSearchFilter] = useState<SearchFilter>(
+    DEFAULT_SEARCH_FILTER,
+  );
+  useEffect(() => {
+    if (!searching) setSearchFilter(DEFAULT_SEARCH_FILTER);
+  }, [searching]);
+  const searchHits = search.state.status === "success" ? search.state.data : [];
+  const filteredHits = useMemo(
+    () => applySearchFilter(searchHits, searchFilter),
+    [searchHits, searchFilter],
   );
 
   const createFolder = useMutation(
@@ -672,32 +691,60 @@ function RoomView() {
                       <EmptyState variant="no-results" query={debouncedQuery} />
                     ) : (
                       <>
-                        <p
-                          role="status"
-                          className="mb-2 text-xs text-muted-foreground"
-                        >
-                          {search.state.data.length === 1
-                            ? "1 result"
-                            : `${search.state.data.length} results`}{" "}
-                          for &ldquo;{debouncedQuery}&rdquo;
-                        </p>
-                        <SearchResults
-                          results={search.state.data}
-                          onOpenFolder={(node) => {
-                            setQuery("");
-                            setDebouncedQuery("");
-                            navigateToFolder(node.id);
-                          }}
-                          onOpenFile={(file, trigger) => {
-                            setReturnTo(trigger);
-                            setViewerFile(file);
-                          }}
-                          onOpenLocation={(parentId) => {
-                            setQuery("");
-                            setDebouncedQuery("");
-                            navigateToFolder(parentId ?? roomId);
-                          }}
-                        />
+                        <div className="mb-2 flex min-h-7 flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                          <p
+                            role="status"
+                            className="text-xs text-muted-foreground"
+                          >
+                            {filteredHits.length === search.state.data.length
+                              ? search.state.data.length === 1
+                                ? "1 result"
+                                : `${search.state.data.length} results`
+                              : `${filteredHits.length} of ${search.state.data.length} results`}{" "}
+                            for &ldquo;{debouncedQuery}&rdquo;
+                          </p>
+                          <SearchFilters
+                            value={searchFilter}
+                            onChange={setSearchFilter}
+                            hasContentMatches={search.state.data.some(
+                              (r) => r.contentMatch,
+                            )}
+                          />
+                        </div>
+                        {filteredHits.length === 0 ? (
+                          <div className="flex flex-col items-center gap-3 rounded-card border bg-card px-6 py-10 text-center motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200">
+                            <p className="text-sm text-muted-foreground">
+                              No results match these filters.
+                            </p>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                setSearchFilter(DEFAULT_SEARCH_FILTER)
+                              }
+                            >
+                              Reset filters
+                            </Button>
+                          </div>
+                        ) : (
+                          <SearchResults
+                            results={filteredHits}
+                            onOpenFolder={(node) => {
+                              setQuery("");
+                              setDebouncedQuery("");
+                              navigateToFolder(node.id);
+                            }}
+                            onOpenFile={(file, trigger) => {
+                              setReturnTo(trigger);
+                              setViewerFile(file);
+                            }}
+                            onOpenLocation={(parentId) => {
+                              setQuery("");
+                              setDebouncedQuery("");
+                              navigateToFolder(parentId ?? roomId);
+                            }}
+                          />
+                        )}
                       </>
                     ))}
                 </>
