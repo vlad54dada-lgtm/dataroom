@@ -168,7 +168,8 @@ export function ItemRow({
           }}
           className={cn(
             "group/row h-12 transition-opacity",
-            selected && "bg-muted/50",
+            // Selection is a STATE (brand wash); hover stays the gray gesture.
+            selected && "bg-selected",
             dropReady && "bg-folder-bg ring-2 ring-inset ring-brand",
             dragging && "opacity-40",
           )}

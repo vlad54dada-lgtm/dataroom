@@ -44,6 +44,26 @@
   --folder-bg: #eff6ff;
   --file: #dc2626;
   --file-bg: #fef2f2;
+
+  /* Solid hover for the brand button — translucent hovers muddy over any
+     backdrop. Light: one step deeper. */
+  --primary-hover: #1e40af;
+
+  /* Selected rows are a STATE, not a gesture — brand-washed, not gray. */
+  --selected: color-mix(in srgb, var(--brand) 6%, var(--card));
+
+  /* Elevation scale tied to real layers: resting card, hovered card,
+     menu, floating bar, dialog. Shadow hue follows --foreground so depth
+     reads as the surface's own color, not soot. */
+  --elev-card: 0 1px 2px 0 rgb(17 24 39 / 0.04);
+  --elev-raised: 0 1px 2px 0 rgb(17 24 39 / 0.04),
+    0 4px 8px -2px rgb(17 24 39 / 0.05), 0 12px 24px -6px rgb(17 24 39 / 0.07);
+  --elev-popover: 0 1px 2px 0 rgb(17 24 39 / 0.05),
+    0 4px 10px -2px rgb(17 24 39 / 0.07), 0 12px 24px -6px rgb(17 24 39 / 0.09);
+  --elev-float: 0 1px 2px 0 rgb(17 24 39 / 0.05),
+    0 8px 16px -4px rgb(17 24 39 / 0.08), 0 24px 48px -12px rgb(17 24 39 / 0.14);
+  --elev-overlay: 0 2px 4px 0 rgb(17 24 39 / 0.04),
+    0 16px 32px -8px rgb(17 24 39 / 0.12), 0 48px 96px -16px rgb(17 24 39 / 0.18);
 }
 
 /* ---------------------------------------------------------------------------
@@ -89,6 +109,15 @@
   --radius-card: 12px;
   --radius-tile: 8px;
 
+  --color-primary-hover: var(--primary-hover);
+  --color-selected: var(--selected);
+
+  --shadow-card: var(--elev-card);
+  --shadow-raised: var(--elev-raised);
+  --shadow-popover: var(--elev-popover);
+  --shadow-float: var(--elev-float);
+  --shadow-overlay: var(--elev-overlay);
+
   --font-sans: var(--font-geist-sans);
   --font-heading: var(--font-geist-sans);
 
@@ -127,7 +156,9 @@
   --foreground: #edf0f5;
   --card: #12151c;
   --card-foreground: #edf0f5;
-  --popover: #171b24;
+  /* One full surface step above card — dark elevation is done with
+     lighter surfaces, not shadows. */
+  --popover: #1b2130;
   --popover-foreground: #edf0f5;
   /* One step deeper than the link blue: white button labels need >=4.5:1
      (white on #3b82f6 is only 3.68). */
@@ -157,6 +188,24 @@
   --folder-bg: #19263f;
   --file: #f89b9b;
   --file-bg: #311c22;
+
+  /* Dark solids DARKEN on hover — anything lighter than #2563eb drops
+     white labels under AA. */
+  --primary-hover: #1d4ed8;
+
+  --selected: color-mix(in srgb, var(--brand) 13%, var(--card));
+
+  /* Dark elevation: shadows the eye can't see are replaced by a 1px inset
+     top highlight — the surface catches overhead light as it rises. */
+  --elev-card: 0 1px 2px 0 rgb(0 0 0 / 0.35);
+  --elev-raised: inset 0 1px 0 0 rgb(255 255 255 / 0.04),
+    0 4px 8px -2px rgb(0 0 0 / 0.4), 0 12px 24px -6px rgb(0 0 0 / 0.45);
+  --elev-popover: inset 0 1px 0 0 rgb(255 255 255 / 0.05),
+    0 4px 12px -2px rgb(0 0 0 / 0.5), 0 12px 24px -6px rgb(0 0 0 / 0.55);
+  --elev-float: inset 0 1px 0 0 rgb(255 255 255 / 0.05),
+    0 8px 16px -4px rgb(0 0 0 / 0.55), 0 24px 48px -12px rgb(0 0 0 / 0.6);
+  --elev-overlay: inset 0 1px 0 0 rgb(255 255 255 / 0.06),
+    0 16px 32px -8px rgb(0 0 0 / 0.55), 0 48px 96px -16px rgb(0 0 0 / 0.65);
 }
 
 html {
@@ -171,11 +220,25 @@ body {
   background-color: var(--canvas);
   color: var(--foreground);
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  /* Numbers align everywhere — sizes, dates, counters — by default. */
+  font-variant-numeric: tabular-nums;
+}
+
+/* Text selection carries the brand, not the OS default. */
+::selection {
+  background-color: color-mix(in oklch, var(--brand) 20%, transparent);
+}
+.dark ::selection {
+  background-color: color-mix(in oklch, var(--brand) 35%, transparent);
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    /* Thin themed scrollbars — the loudest un-designed element on
+       Windows, fixed for every scroll container in both themes. */
+    scrollbar-width: thin;
+    scrollbar-color: var(--line-strong) transparent;
   }
   html {
     @apply font-sans;

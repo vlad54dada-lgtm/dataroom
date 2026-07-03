@@ -63,7 +63,7 @@ export function DataroomCard({
         onDropRestore(ids, node);
       }}
       className={cn(
-        "group relative flex flex-col rounded-card border bg-card p-4 transition-[border-color,box-shadow,translate] duration-200 ease-out-strong hover:-translate-y-0.5 hover:border-line-strong hover:shadow-md has-[a:focus-visible]:border-ring has-[a:focus-visible]:ring-3 has-[a:focus-visible]:ring-ring/50 motion-reduce:transition-none motion-reduce:hover:translate-y-0",
+        "group relative flex flex-col rounded-card border bg-card p-4 shadow-card transition-[border-color,box-shadow,translate] duration-200 ease-out-strong hover:-translate-y-0.5 hover:border-line-strong hover:shadow-raised has-[a:focus-visible]:border-ring has-[a:focus-visible]:ring-3 has-[a:focus-visible]:ring-ring/50 motion-reduce:transition-none motion-reduce:hover:translate-y-0",
         dropReady &&
           "border-brand bg-folder-bg/40 outline-2 outline-offset-2 outline-brand outline-dashed",
         className,

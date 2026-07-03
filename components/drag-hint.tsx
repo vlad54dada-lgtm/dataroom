@@ -54,7 +54,7 @@ export function DragHint() {
 
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-20 z-50 flex justify-center">
-      <div className="flex items-center gap-1.5 rounded-full bg-foreground/90 px-3.5 py-1.5 text-xs font-medium text-background shadow-lg motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:duration-200">
+      <div className="flex items-center gap-1.5 rounded-full bg-foreground/90 px-3.5 py-1.5 text-xs font-medium text-background shadow-float motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:duration-200">
         {drag.kind === "restore" ? (
           <>
             <RotateCcw className="size-3.5" aria-hidden />

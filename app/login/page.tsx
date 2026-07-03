@@ -117,7 +117,7 @@ export default function LoginPage() {
             Virtual data room
           </span>
         </div>
-        <div className="mt-7 rounded-card border bg-card p-6 shadow-sm">
+        <div className="mt-7 rounded-card border bg-card p-6 shadow-card">
           <h1 className="text-base font-semibold">
             {mode === "sign-in" ? "Sign in" : "Create your account"}
           </h1>
