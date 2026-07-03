@@ -9,9 +9,6 @@ export const MOVE_MIME = "application/x-dataroom-nodes";
 /** Single trashed node id being dragged out of the trash stack to restore. */
 export const RESTORE_MIME = "application/x-dataroom-restore";
 
-/** Single dataroom id being dragged to reorder the home grid. */
-export const REORDER_MIME = "application/x-dataroom-reorder";
-
 /**
  * Custom drag ghost. Browsers render native drag images half-transparent
  * and washed out; instead the native image is replaced with a blank pixel

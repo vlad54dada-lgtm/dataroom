@@ -11,7 +11,7 @@ Next.js 16 (App Router) · React 19 · TypeScript strict · Tailwind 4 · shadcn
 
 Core:
 
-- Datarooms with names, descriptions and avatars; folders nest without limit; drag cards on the home grid to reorder them (persisted)
+- Datarooms with names, descriptions and avatars; folders nest without limit; grab the grip on a card (hover) to drag-reorder the home grid (dnd-kit, persisted)
 - PDF upload — button or drag & drop anywhere, multi-file, with a progress panel (per-file status, cancel, honest failure labels); a second drop mid-batch queues up instead of breaking
 - Built-in PDF viewer on pdf.js: continuous scroll, fit-width zoom, "Page X of N", lazy page rendering that releases memory on long documents, keyboard zoom — with a graceful iframe fallback per file
 - Search within a dataroom by name **and by PDF content** — hits show a highlighted snippet of the matched text, a "Text match" badge, and a jump-to-containing-folder button; the query lives in the URL so refresh keeps it

@@ -1,6 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { DragDropProvider } from "@dnd-kit/react";
+import { isSortable } from "@dnd-kit/react/sortable";
+import {
+  PointerSensor,
+  PointerActivationConstraints,
+  type Sensors,
+} from "@dnd-kit/dom";
 import type { Node } from "@/types";
 import {
   DataroomCard,
@@ -17,6 +23,17 @@ interface DataroomGridProps {
   onReorder?: (orderedIds: string[]) => void;
 }
 
+// A drag starts only after the pointer travels 8px, so a plain click still
+// falls through to the card's stretched link (opens the room).
+const sensors = (defaults: Sensors): Sensors => [
+  ...defaults.filter((s) => s !== PointerSensor),
+  PointerSensor.configure({
+    activationConstraints: [
+      new PointerActivationConstraints.Distance({ value: 8 }),
+    ],
+  }),
+];
+
 export function DataroomGrid({
   items,
   onEdit,
@@ -24,73 +41,41 @@ export function DataroomGrid({
   onDropRestore,
   onReorder,
 }: DataroomGridProps) {
-  // Live order during a reorder drag; null the rest of the time so the grid
-  // simply follows `items` (parent is the source of truth between drags).
-  const [dragOrder, setDragOrder] = useState<string[] | null>(null);
-  const [draggingId, setDraggingId] = useState<string | null>(null);
-
-  const byId = new Map(items.map((it) => [it.node.id, it]));
-  const displayIds = dragOrder ?? items.map((it) => it.node.id);
-  const ordered = displayIds
-    .map((id) => byId.get(id))
-    .filter((it): it is DataroomListItem => it !== undefined);
-
   const reorderable = onReorder !== undefined && items.length > 1;
 
-  const handleStart = (id: string) => {
-    setDraggingId(id);
-    setDragOrder(items.map((it) => it.node.id));
-  };
-  const handleEnter = (targetId: string) => {
-    if (!draggingId || draggingId === targetId) return;
-    setDragOrder((prev) => {
-      const base = prev ?? items.map((it) => it.node.id);
-      const from = base.indexOf(draggingId);
-      const to = base.indexOf(targetId);
-      if (from === -1 || to === -1 || from === to) return base;
-      const next = [...base];
-      next.splice(from, 1);
-      next.splice(to, 0, draggingId);
-      return next;
-    });
-  };
-  const handleEnd = () => {
-    const final = dragOrder;
-    setDraggingId(null);
-    setDragOrder(null);
-    if (!final) return;
-    const original = items.map((it) => it.node.id);
-    if (
-      final.length === original.length &&
-      final.some((id, i) => id !== original[i])
-    ) {
-      onReorder?.(final);
-    }
-  };
-
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {ordered.map((item, i) => (
-        <DataroomCard
-          key={item.node.id}
-          item={item}
-          onEdit={onEdit}
-          onDelete={onDelete}
-          onDropRestore={onDropRestore}
-          onReorderStart={reorderable ? handleStart : undefined}
-          onReorderEnter={reorderable ? handleEnter : undefined}
-          onReorderEnd={reorderable ? handleEnd : undefined}
-          isDragSource={draggingId === item.node.id}
-          // Staggered entrance, capped so late rows never feel held back.
-          // Suppressed during a reorder drag so swapped cards don't replay it.
-          className={
-            dragOrder
-              ? undefined
-              : "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:duration-300 motion-safe:ease-out-strong motion-safe:fill-mode-backwards"
-          }
-          style={dragOrder ? undefined : { animationDelay: `${Math.min(i, 8) * 45}ms` }}
-        />
-      ))}
-    </div>
+    <DragDropProvider
+      sensors={sensors}
+      onDragEnd={(event) => {
+        if (event.canceled) return;
+        const { source } = event.operation;
+        if (!isSortable(source)) return;
+        const { initialIndex, index } = source;
+        if (initialIndex === index) return;
+        // dnd-kit shifted the cards optimistically during the drag; commit
+        // the final order (parent persists it and re-renders in place).
+        const ids = items.map((it) => it.node.id);
+        const [moved] = ids.splice(initialIndex, 1);
+        ids.splice(index, 0, moved);
+        onReorder?.(ids);
+      }}
+    >
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {items.map((item, i) => (
+          <DataroomCard
+            key={item.node.id}
+            item={item}
+            index={i}
+            reorderDisabled={!reorderable}
+            onEdit={onEdit}
+            onDelete={onDelete}
+            onDropRestore={onDropRestore}
+            // Staggered entrance, capped so late rows never feel held back.
+            className="motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:duration-300 motion-safe:ease-out-strong motion-safe:fill-mode-backwards"
+            style={{ animationDelay: `${Math.min(i, 8) * 45}ms` }}
+          />
+        ))}
+      </div>
+    </DragDropProvider>
   );
 }
