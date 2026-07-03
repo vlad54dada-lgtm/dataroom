@@ -22,35 +22,48 @@
   --popover-foreground: #111827;
   --primary: #1d4ed8; /* brand actions */
   --primary-foreground: #ffffff;
-  --secondary: #f3f4f6; /* subtle surface */
+  --secondary: #f2f4f7; /* subtle surface, tinted toward the brand's blue-gray */
   --secondary-foreground: #111827;
-  --muted: #f3f4f6; /* muted surface */
-  --muted-foreground: #6b7280; /* secondary text */
-  --accent: #f3f4f6; /* shadcn "accent" = subtle hover surface, NOT the brand */
+  --muted: #f2f4f7; /* muted surface */
+  /* One step darker than the classic gray-500: must hold 4.5:1 not just on
+     white but on the muted and selected washes secondary text sits on. */
+  --muted-foreground: #616b7a;
+  /* shadcn "accent" = subtle hover surface, NOT the brand. Mixed relative to
+     the popover surface (same pattern as dark) so menu hovers register. */
+  --accent: color-mix(in srgb, var(--foreground) 8%, var(--popover));
   --accent-foreground: #111827;
   --destructive: #dc2626;
-  --border: #e5e7eb;
-  --input: #e5e7eb;
+  --destructive-foreground: #ffffff;
+  --border: #e0e3e8;
+  --input: #e0e3e8;
   --ring: #1d4ed8; /* focus ring = brand */
 
   /* Our additions (non-colliding names) */
-  --canvas: #fafafa; /* page background behind surfaces */
-  --line-strong: #d1d5db;
+  /* A real step below white so cards/header read as raised surfaces
+     (#fafafa vs #ffffff was a 1.04:1 non-event). */
+  --canvas: #f6f7f9;
+  --line-strong: #ccd2db;
+  /* Control boundaries (checkboxes): unlike field borders these must clear
+     3:1 against their row or the control reads as missing (WCAG 1.4.11). */
+  --control: #848d9c;
   --brand: #1d4ed8;
   --brand-hover: #1e40af;
   --danger: #dc2626;
   --danger-hover: #b91c1c;
   --folder: #1d4ed8;
   --folder-bg: #eff6ff;
-  --file: #dc2626;
-  --file-bg: #fef2f2;
+  /* Rose, deliberately NOT the danger red: PDF icons are the most common
+     glyph on screen and must not wear the destructive color. */
+  --file: #be123c;
+  --file-bg: #fff1f2;
 
   /* Solid hover for the brand button — translucent hovers muddy over any
      backdrop. Light: one step deeper. */
   --primary-hover: #1e40af;
 
-  /* Selected rows are a STATE, not a gesture — brand-washed, not gray. */
-  --selected: color-mix(in srgb, var(--brand) 6%, var(--card));
+  /* Selected rows are a STATE, not a gesture — brand-washed, not gray.
+     8%: 6% measured 1.0995:1 vs white, under the distinguishability bar. */
+  --selected: color-mix(in srgb, var(--brand) 8%, var(--card));
 
   /* Elevation scale tied to real layers: resting card, hovered card,
      menu, floating bar, dialog. Shadow hue follows --foreground so depth
@@ -64,6 +77,9 @@
     0 8px 16px -4px rgb(17 24 39 / 0.08), 0 24px 48px -12px rgb(17 24 39 / 0.14);
   --elev-overlay: 0 2px 4px 0 rgb(17 24 39 / 0.04),
     0 16px 32px -8px rgb(17 24 39 / 0.12), 0 48px 96px -16px rgb(17 24 39 / 0.18);
+  /* PDF "paper": hairline keyline + soft lift, hue from --foreground like
+     every other elevation tier. */
+  --elev-paper: 0 0 0 1px rgb(17 24 39 / 0.06), 0 2px 8px rgb(17 24 39 / 0.08);
 }
 
 /* ---------------------------------------------------------------------------
@@ -86,6 +102,7 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -93,6 +110,7 @@
   --color-canvas: var(--canvas);
   --color-line: var(--border);
   --color-line-strong: var(--line-strong);
+  --color-control: var(--control);
   --color-brand: var(--brand);
   --color-brand-hover: var(--brand-hover);
   --color-danger: var(--danger);
@@ -117,6 +135,7 @@
   --shadow-popover: var(--elev-popover);
   --shadow-float: var(--elev-float);
   --shadow-overlay: var(--elev-overlay);
+  --shadow-paper: var(--elev-paper);
 
   --font-sans: var(--font-geist-sans);
   --font-heading: var(--font-geist-sans);
@@ -173,24 +192,33 @@
      #1b202b) computed to the popover color itself and hovers vanished. */
   --accent: color-mix(in srgb, var(--foreground) 10%, var(--popover));
   --accent-foreground: #edf0f5;
-  --destructive: #f87171;
+  /* #f87171 measured 4.43:1 on the popover — under AA exactly where the
+     "Move to trash" label lives. One step lighter clears every surface. */
+  --destructive: #f98d8d;
+  --destructive-foreground: var(--background); /* light red needs a dark label */
   --border: #262c38;
-  --input: #2c3341;
-  --ring: #3b82f6;
+  /* Field borders must survive the elevated popover (#1b2130) too, where
+     the old #2c3341 sat at ~1.3:1 and unfocused fields dissolved. */
+  --input: #343d4f;
+  --ring: #4e8df6;
 
-  --canvas: #0b0d12; /* page background behind surfaces */
+  --canvas: #090b10; /* page background behind surfaces, one step deeper */
   --line-strong: #333b4a;
-  --brand: #3b82f6;
+  --control: #5e6b83;
+  /* Brighter than the old #3b82f6: link text must hold 4.5:1 on the
+     elevated popover too (menus, dialogs), not only on the card. */
+  --brand: #4e8df6;
   --brand-hover: #60a5fa;
-  --danger: #f87171;
-  --danger-hover: #ef4444;
+  --danger: #f98d8d;
+  --danger-hover: #fca5a5; /* dark hovers brighten, they don't deepen */
   --folder: #7ab3ff;
   /* Opaque equivalents of the old translucent washes (over #12151c):
      slash-opacity modifiers (bg-folder-bg/70 etc.) collapse translucent
      tokens to near-nothing in dark, so the raw values must be solid. */
   --folder-bg: #19263f;
-  --file: #f89b9b;
-  --file-bg: #311c22;
+  /* Rose (not danger red) — see the light block. */
+  --file: #fda4af;
+  --file-bg: #33191f;
 
   /* Dark solids DARKEN on hover — anything lighter than #2563eb drops
      white labels under AA. */
@@ -199,16 +227,20 @@
   --selected: color-mix(in srgb, var(--brand) 13%, var(--card));
 
   /* Dark elevation: shadows the eye can't see are replaced by a 1px inset
-     top highlight — the surface catches overhead light as it rises. */
-  --elev-card: 0 1px 2px 0 rgb(0 0 0 / 0.35);
+     top highlight — the surface catches overhead light as it rises. The
+     resting card gets one too, so cards lift off the canvas by surface,
+     not border alone. */
+  --elev-card: inset 0 1px 0 0 rgb(255 255 255 / 0.04),
+    0 1px 2px 0 rgb(0 0 0 / 0.35);
   --elev-raised: inset 0 1px 0 0 rgb(255 255 255 / 0.04),
     0 4px 8px -2px rgb(0 0 0 / 0.4), 0 12px 24px -6px rgb(0 0 0 / 0.45);
   --elev-popover: inset 0 1px 0 0 rgb(255 255 255 / 0.05),
     0 4px 12px -2px rgb(0 0 0 / 0.5), 0 12px 24px -6px rgb(0 0 0 / 0.55);
-  --elev-float: inset 0 1px 0 0 rgb(255 255 255 / 0.05),
+  --elev-float: inset 0 1px 0 0 rgb(255 255 255 / 0.08),
     0 8px 16px -4px rgb(0 0 0 / 0.55), 0 24px 48px -12px rgb(0 0 0 / 0.6);
   --elev-overlay: inset 0 1px 0 0 rgb(255 255 255 / 0.06),
     0 16px 32px -8px rgb(0 0 0 / 0.55), 0 48px 96px -16px rgb(0 0 0 / 0.65);
+  --elev-paper: 0 0 0 1px rgb(255 255 255 / 0.09), 0 4px 16px rgb(0 0 0 / 0.5);
 }
 
 html {

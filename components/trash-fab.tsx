@@ -78,8 +78,7 @@ function HoldToDeleteX({
       <X
         className={cn(
           "relative size-4 transition-colors duration-150",
-          // dark --destructive is a light red — white fails contrast on it
-          holding && "text-white dark:text-background",
+          holding && "text-destructive-foreground",
         )}
       />
     </button>
@@ -288,7 +287,7 @@ export function TrashFab() {
           );
         }}
         className={cn(
-          "relative flex size-12 items-center justify-center rounded-full border bg-popover text-muted-foreground shadow-float transition-[box-shadow,translate,scale,color] duration-200 ease-out-strong outline-none hover:-translate-y-0.5 hover:text-foreground hover:shadow-overlay active:scale-95 focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none motion-reduce:hover:translate-y-0",
+          "relative flex size-12 items-center justify-center rounded-full border bg-popover text-muted-foreground shadow-float transition-[box-shadow,translate,scale,color] duration-200 ease-out-strong outline-none hover:-translate-y-0.5 hover:text-foreground hover:shadow-overlay active:scale-95 focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:border-line-strong",
           dropReady &&
             "scale-110 text-brand outline-2 outline-offset-2 outline-brand outline-dashed",
         )}

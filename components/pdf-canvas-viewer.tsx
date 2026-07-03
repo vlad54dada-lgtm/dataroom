@@ -211,7 +211,7 @@ export function PdfCanvasViewer({ url, onRenderError }: PdfCanvasViewerProps) {
         // `relative` anchors the pages' offsetTop to THIS container — the
         // scroll position math (current-page tracking, page stepper) reads
         // offsets against it, not the dialog.
-        className="relative min-h-0 flex-1 overflow-auto rounded-lg border bg-muted/40 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset dark:bg-black/35"
+        className="relative min-h-0 flex-1 overflow-auto rounded-lg border bg-muted/40 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset dark:bg-canvas"
       >
         {/* Keyed by url: a new document never inherits stale canvases. */}
         <div key={url} className="flex flex-col items-center gap-3 p-4">
@@ -327,7 +327,7 @@ const PageCanvas = memo(function PageCanvas({
       ref={wrapRef}
       // Physical paper: hairline keyline + soft lift; in dark the keyline
       // does the edge work a border can't (outside the canvas, no shift).
-      className="bg-white shadow-[0_0_0_1px_rgb(16_24_40/0.06),0_2px_8px_rgb(16_24_40/0.08)] dark:shadow-[0_0_0_1px_rgb(255_255_255/0.09),0_4px_16px_rgb(0_0_0/0.5)]"
+      className="bg-white shadow-paper"
       style={{ minWidth: estWidth, minHeight: estHeight }}
     >
       <canvas ref={canvasRef} className="block" aria-label={`Page ${pageNumber}`} />

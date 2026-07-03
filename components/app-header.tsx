@@ -20,8 +20,10 @@ export function AppHeader({ children }: { children?: React.ReactNode }) {
             aria-label="Acme Corp. home"
             className="flex shrink-0 items-center gap-2.5 rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
           >
-            <span className="flex size-7 items-center justify-center rounded-lg bg-brand">
-              <FileText className="size-4 text-white" strokeWidth={2} />
+            {/* bg-primary, not bg-brand: dark --brand is a link blue that
+                fails AA under white; --primary is the guaranteed pair. */}
+            <span className="flex size-7 items-center justify-center rounded-lg bg-primary">
+              <FileText className="size-4 text-primary-foreground" strokeWidth={2} />
             </span>
             <span className="flex items-baseline gap-2">
               <span className="text-sm font-semibold tracking-tight">

@@ -218,7 +218,7 @@ export function PdfViewerDialog({
               <iframe
                 src={url}
                 title={shown.name}
-                className="min-h-0 w-full flex-1 rounded-lg border bg-white dark:border-white/10"
+                className="min-h-0 w-full flex-1 rounded-lg border bg-white dark:border-line-strong"
               />
               <p className="mt-2 text-center text-sm text-muted-foreground">
                 Can&apos;t preview?{" "}

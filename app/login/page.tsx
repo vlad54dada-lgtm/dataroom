@@ -107,8 +107,8 @@ export default function LoginPage() {
       />
       <div className="relative w-full max-w-sm motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-300">
         <div className="flex flex-col items-center gap-2">
-          <span className="flex size-11 items-center justify-center rounded-xl bg-brand shadow-lg shadow-brand/25">
-            <FileText className="size-5 text-white" strokeWidth={2} />
+          <span className="flex size-11 items-center justify-center rounded-xl bg-primary shadow-lg shadow-primary/25">
+            <FileText className="size-5 text-primary-foreground" strokeWidth={2} />
           </span>
           <span className="mt-1 text-lg font-semibold tracking-tight">
             Acme Corp.

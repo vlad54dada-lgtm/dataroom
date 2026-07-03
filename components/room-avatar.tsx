@@ -50,7 +50,7 @@ export const ROOM_COLORS: Record<string, { tile: string; swatch: string }> = {
     swatch: "bg-emerald-500",
   },
   amber: {
-    tile: "bg-amber-100 text-amber-600 dark:bg-amber-500/15 dark:text-amber-400",
+    tile: "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400",
     swatch: "bg-amber-500",
   },
   rose: {
@@ -62,7 +62,7 @@ export const ROOM_COLORS: Record<string, { tile: string; swatch: string }> = {
     swatch: "bg-cyan-500",
   },
   orange: {
-    tile: "bg-orange-100 text-orange-600 dark:bg-orange-500/15 dark:text-orange-400",
+    tile: "bg-orange-100 text-orange-700 dark:bg-orange-500/15 dark:text-orange-400",
     swatch: "bg-orange-500",
   },
   slate: {

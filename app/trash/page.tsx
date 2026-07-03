@@ -436,8 +436,9 @@ function TrashView() {
                       <div key={node.id}>
                       <div
                         className={cn(
-                          "group/trash flex h-14 min-w-0 items-center gap-3 px-4",
-                          selected && "bg-muted/50",
+                          "group/trash flex h-14 min-w-0 items-center gap-3 px-4 transition-colors hover:bg-muted/50 dark:hover:bg-foreground/5",
+                          selected &&
+                            "bg-selected hover:bg-selected dark:hover:bg-selected",
                         )}
                       >
                         {/* Same zoom+fade reveal wrapper as the room rows. */}
@@ -553,7 +554,7 @@ function TrashView() {
           the room's SelectionBar. */}
       {selectionActive && (
         <div className="pointer-events-none fixed inset-x-0 bottom-6 z-40 flex justify-center">
-          <div className="pointer-events-auto flex items-center gap-1 rounded-full border bg-popover py-1.5 pr-1.5 pl-4 shadow-float motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:slide-in-from-bottom-4 motion-safe:duration-300 motion-safe:ease-out-back">
+          <div className="pointer-events-auto flex items-center gap-1 rounded-full border bg-popover py-1.5 pr-1.5 pl-4 shadow-float dark:border-line-strong motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:slide-in-from-bottom-4 motion-safe:duration-300 motion-safe:ease-out-back">
             <span role="status" aria-live="polite" className="sr-only">
               {liveSelected.length} selected
             </span>

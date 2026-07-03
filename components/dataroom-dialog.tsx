@@ -260,7 +260,7 @@ export function DataroomDialog({
               <span
                 ref={setIconPill}
                 aria-hidden
-                className="pointer-events-none absolute top-0 left-0 rounded-lg border border-ring bg-folder-bg opacity-0 will-change-transform motion-safe:transition-[transform,width,height] motion-safe:duration-300 motion-safe:ease-out-strong"
+                className="pointer-events-none absolute top-0 left-0 rounded-lg border border-ring bg-folder-bg opacity-0 will-change-transform motion-safe:transition-[transform,width,height] motion-safe:duration-300 motion-safe:ease-out-strong dark:bg-brand/15"
               />
               {ROOM_ICON_KEYS.map((key) => {
                 const Icon = ROOM_ICONS[key];
@@ -303,7 +303,7 @@ export function DataroomDialog({
               <span
                 ref={setColorPill}
                 aria-hidden
-                className="pointer-events-none absolute top-0 left-0 rounded-full ring-2 ring-ring ring-offset-2 ring-offset-popover opacity-0 will-change-transform motion-safe:transition-[transform,width,height] motion-safe:duration-300 motion-safe:ease-out-strong"
+                className="pointer-events-none absolute top-0 left-0 rounded-full ring-2 ring-foreground/70 ring-offset-2 ring-offset-popover opacity-0 will-change-transform motion-safe:transition-[transform,width,height] motion-safe:duration-300 motion-safe:ease-out-strong"
               />
               {ROOM_COLOR_KEYS.map((key) => {
                 const selected = color === key;

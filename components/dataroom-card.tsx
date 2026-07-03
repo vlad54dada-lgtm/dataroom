@@ -94,7 +94,7 @@ export function DataroomCard({
       {/* Zoned footer — the same tinted meta-band the dialogs use: facts
           live on their own quiet register, content stays on the surface. */}
       <div className="mt-auto pt-4">
-        <div className="-mx-4 -mb-4 rounded-b-[calc(var(--radius-card)-1px)] border-t bg-muted/40 px-4 py-2.5">
+        <div className="-mx-4 -mb-4 rounded-b-[calc(var(--radius-card)-1px)] border-t bg-foreground/4 px-4 py-2.5">
           <p className="text-xs text-muted-foreground">
             {itemCount === 1 ? "1 item" : `${itemCount} items`}
             {" · Created "}
