@@ -13,7 +13,10 @@ import { UserMenu } from "@/components/user-menu";
 export function AppHeader({ children }: { children?: React.ReactNode }) {
   return (
     <>
-      <header className="border-b bg-card">
+      {/* Sticky with a frosted blur: content slides under a translucent bar,
+          and the brand mark stays put on long lists. z-30 sits below menus
+          and dialogs (z-50) and the floating trash/selection layer (z-40). */}
+      <header className="sticky top-0 z-30 border-b bg-card supports-backdrop-filter:bg-card/80 supports-backdrop-filter:backdrop-blur-md">
         <div className="mx-auto flex h-14 w-full max-w-6xl items-center gap-4 px-6">
           <Link
             href="/"
