@@ -1,8 +1,9 @@
 /**
- * Decorative "flew into the trash" moment: small file/folder tiles detach
- * from the deleted rows and accelerate into the floating trash button, which
- * pops on landing. Purely cosmetic — capped at 3 tiles, skipped entirely
- * under prefers-reduced-motion, and never blocks the actual mutation.
+ * Decorative "flew into the trash" moment: small file/folder tiles lift off
+ * the deleted rows, sail along an arc into the floating trash button, and
+ * the button pops on landing. Purely cosmetic — capped at 3 tiles, skipped
+ * entirely under prefers-reduced-motion, and never blocks the actual
+ * mutation.
  */
 
 const ICON_PATHS: Record<"file" | "folder", string[]> = {
@@ -56,7 +57,7 @@ export function flyToTrash(sources: FlySource[]): void {
   let landed = 0;
   chips.forEach((s, i) => {
     const el = document.createElement("div");
-    el.className = `pointer-events-none fixed top-0 left-0 z-[90] flex size-8 items-center justify-center rounded-tile shadow-md ${
+    el.className = `pointer-events-none fixed top-0 left-0 z-[90] flex size-8 items-center justify-center rounded-tile shadow-lg ${
       s.kind === "folder" ? "bg-folder-bg text-folder" : "bg-file-bg text-file"
     }`;
     el.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${ICON_PATHS[
@@ -66,19 +67,52 @@ export function flyToTrash(sources: FlySource[]): void {
       .join("")}</svg>`;
     document.body.appendChild(el);
 
+    const sx = s.x - 16;
+    const sy = s.y - 16;
+    const ex = tx - 16;
+    const ey = ty - 16;
+    // Bow the path upward so the chip reads as tossed, not slid; vary the
+    // arc and tumble per chip so a multi-chip volley doesn't look cloned.
+    const lift = Math.min(90, Math.hypot(ex - sx, ey - sy) * 0.18) + i * 12;
+    const mx = (sx + ex) / 2;
+    const my = (sy + ey) / 2 - lift;
+    const tumble = 10 + i * 6;
+
     const anim = el.animate(
       [
-        { transform: `translate(${s.x - 16}px, ${s.y - 16}px) scale(1)`, opacity: 1 },
+        // Pickup: the tile visibly lifts off the row before travelling —
+        // the eye gets a beat to lock onto what is about to fly.
         {
-          transform: `translate(${tx - 16}px, ${ty - 16}px) scale(0.3)`,
-          opacity: 0.4,
+          offset: 0,
+          transform: `translate(${sx}px, ${sy}px) scale(0.6) rotate(0deg)`,
+          opacity: 0,
+          easing: "cubic-bezier(0.34, 1.3, 0.64, 1)",
+        },
+        {
+          offset: 0.22,
+          transform: `translate(${sx}px, ${sy - 10}px) scale(1.08) rotate(${-(4 + i * 2)}deg)`,
+          opacity: 1,
+          easing: "cubic-bezier(0.45, 0.05, 0.55, 0.95)",
+        },
+        // Flight: an even-paced arc with a slow tumble — no end-of-path zip.
+        {
+          offset: 0.6,
+          transform: `translate(${mx}px, ${my}px) scale(0.85) rotate(${tumble * 0.5}deg)`,
+          opacity: 1,
+          easing: "cubic-bezier(0.45, 0.05, 0.55, 0.95)",
+        },
+        // Stay fully visible until the chip is over the bin, then dissolve.
+        { offset: 0.9, opacity: 1 },
+        {
+          offset: 1,
+          transform: `translate(${ex}px, ${ey}px) scale(0.3) rotate(${tumble}deg)`,
+          opacity: 0,
         },
       ],
       {
-        duration: 500,
-        delay: i * 70,
-        // Accelerating ease-in: the tile is "thrown" and gains speed.
-        easing: "cubic-bezier(0.55, -0.1, 0.75, 0.5)",
+        duration: 850,
+        delay: i * 90,
+        easing: "linear", // per-segment easings above do the shaping
         fill: "both",
       },
     );
