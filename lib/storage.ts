@@ -74,10 +74,11 @@ interface NodeRow {
   description: string | null;
   icon: string | null;
   color: string | null;
+  sort_order: number | null;
 }
 
 const NODE_COLUMNS =
-  "id, parent_id, type, name, size, blob_path, created_at, updated_at, description, icon, color";
+  "id, parent_id, type, name, size, blob_path, created_at, updated_at, description, icon, color, sort_order";
 
 function toNode(row: NodeRow): Node {
   return {
@@ -93,6 +94,7 @@ function toNode(row: NodeRow): Node {
     ...(row.description !== null ? { description: row.description } : {}),
     ...(row.icon !== null ? { icon: row.icon } : {}),
     ...(row.color !== null ? { color: row.color } : {}),
+    ...(row.sort_order !== null ? { sortOrder: row.sort_order } : {}),
   };
 }
 
@@ -116,7 +118,8 @@ function isUniqueViolation(error: { code?: string } | null): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Sort contract: folders (and datarooms) before files, then name-asc with
+// Sort contract: folders (and datarooms) before files, then a custom
+// drag-to-reorder position (datarooms only) if set, then name-asc with
 // numeric ordering. Exported so optimistic UI inserts reuse the exact order.
 // ---------------------------------------------------------------------------
 
@@ -129,7 +132,23 @@ export function compareNodes(a: Node, b: Node): number {
   const rankA = a.type === "file" ? 1 : 0;
   const rankB = b.type === "file" ? 1 : 0;
   if (rankA !== rankB) return rankA - rankB;
+  // Reordered rooms carry a position; unpositioned ones (never dragged, or
+  // freshly created) sort after them, then by name.
+  const oa = a.sortOrder;
+  const ob = b.sortOrder;
+  if (oa !== undefined || ob !== undefined) {
+    if (oa === undefined) return 1;
+    if (ob === undefined) return -1;
+    if (oa !== ob) return oa - ob;
+  }
   return collator.compare(a.name, b.name) || a.id.localeCompare(b.id);
+}
+
+/** Persists the drag-reordered order of datarooms (1-based positions). */
+export async function reorderDatarooms(orderedIds: string[]): Promise<void> {
+  if (orderedIds.length === 0) return;
+  const { error } = await supabase.rpc("reorder_nodes", { ids: orderedIds });
+  if (error) throw error;
 }
 
 // ---------------------------------------------------------------------------

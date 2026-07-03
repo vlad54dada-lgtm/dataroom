@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { Node } from "@/types";
-import { RESTORE_MIME, readIds } from "@/lib/dnd";
+import { REORDER_MIME, RESTORE_MIME, readIds } from "@/lib/dnd";
 import { cn, formatDate } from "@/lib/utils";
 import { RoomAvatar, resolveRoomColor } from "@/components/room-avatar";
 import { RowMenu } from "@/components/row-menu";
@@ -19,6 +19,12 @@ interface DataroomCardProps {
   onDelete: (room: Node, trigger: HTMLElement | null) => void;
   /** Items dragged out of the trash stack and dropped here restore into this room. */
   onDropRestore?: (ids: string[], room: Node) => void;
+  /** Drag-to-reorder wiring (the grid owns the live order). */
+  onReorderStart?: (id: string) => void;
+  onReorderEnter?: (id: string) => void;
+  onReorderEnd?: () => void;
+  /** This card is the one currently being dragged — dim it. */
+  isDragSource?: boolean;
   /** Lets the grid stagger card entrances. */
   className?: string;
   style?: React.CSSProperties;
@@ -28,25 +34,49 @@ interface DataroomCardProps {
  * The whole card navigates via a stretched link; the kebab is a separate
  * sibling control layered above it — one primary action, no nested
  * interactive elements. The avatar and optional description give each room
- * its own identity at a glance.
+ * its own identity at a glance. The card is draggable to reorder the grid;
+ * a plain click (no drag) still opens the room.
  */
 export function DataroomCard({
   item,
   onEdit,
   onDelete,
   onDropRestore,
+  onReorderStart,
+  onReorderEnter,
+  onReorderEnd,
+  isDragSource,
   className,
   style,
 }: DataroomCardProps) {
   const { node, itemCount } = item;
   // A trash-stack item is hovering over this card.
   const [dropReady, setDropReady] = useState(false);
+  const reorderable = onReorderStart !== undefined;
   return (
     <div
       style={style}
       data-node-id={node.id}
       data-node-kind="folder"
+      draggable={reorderable}
+      onDragStart={(e) => {
+        if (!reorderable) return;
+        e.dataTransfer.setData(REORDER_MIME, node.id);
+        e.dataTransfer.effectAllowed = "move";
+        onReorderStart?.(node.id);
+      }}
+      onDragEnter={(e) => {
+        if (e.dataTransfer.types.includes(REORDER_MIME)) onReorderEnter?.(node.id);
+      }}
+      onDragEnd={() => onReorderEnd?.()}
       onDragOver={(e) => {
+        // Reorder drags need a valid drop target to avoid the "no-drop"
+        // cursor; restore drags light the card up as a restore zone.
+        if (e.dataTransfer.types.includes(REORDER_MIME)) {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "move";
+          return;
+        }
         if (!onDropRestore || !e.dataTransfer.types.includes(RESTORE_MIME))
           return;
         e.preventDefault();
@@ -63,7 +93,12 @@ export function DataroomCard({
         onDropRestore(ids, node);
       }}
       className={cn(
-        "group relative flex flex-col rounded-card border bg-card p-4 shadow-card transition-[border-color,box-shadow,translate,scale] duration-200 ease-out-strong hover:-translate-y-0.5 hover:border-line-strong hover:shadow-raised has-[a:active]:scale-[0.98] has-[a:active]:shadow-card has-[a:focus-visible]:border-ring has-[a:focus-visible]:ring-3 has-[a:focus-visible]:ring-ring/50 motion-reduce:transition-none motion-reduce:hover:translate-y-0 motion-reduce:has-[a:active]:scale-100",
+        // isolate + the wash's -z-10 keep the wash BEHIND all content: the
+        // stretched link stays clickable across the whole card and the icon
+        // never tints as the wash deepens.
+        "group relative isolate flex flex-col rounded-card border bg-card p-4 shadow-card transition-[border-color,box-shadow,translate,scale,opacity] duration-200 ease-out-strong hover:-translate-y-0.5 hover:border-line-strong hover:shadow-raised has-[a:active]:scale-[0.98] has-[a:active]:shadow-card has-[a:focus-visible]:border-ring has-[a:focus-visible]:ring-3 has-[a:focus-visible]:ring-ring/50 motion-reduce:transition-none motion-reduce:hover:translate-y-0 motion-reduce:has-[a:active]:scale-100",
+        reorderable && "cursor-grab active:cursor-grabbing",
+        isDragSource && "opacity-40",
         dropReady &&
           "border-brand bg-folder-bg/40 outline-2 outline-offset-2 outline-brand outline-dashed",
         className,
@@ -71,13 +106,13 @@ export function DataroomCard({
     >
       {/* Light only: the room's identity color bleeds into the card as a
           top wash; hovering stacks a second identical layer on top, so the
-          color visibly deepens instead of barely shifting. In dark the
-          wash reads as smudge, so the identity lives in the footer band
-          instead (see below). */}
+          color visibly deepens instead of barely shifting. -z-10 keeps it
+          behind content. In dark the wash reads as smudge, so the identity
+          lives in the footer band instead (see below). */}
       <div
         aria-hidden
         className={cn(
-          "pointer-events-none absolute inset-x-0 top-0 h-24 rounded-t-[calc(var(--radius-card)-1px)] bg-gradient-to-b to-transparent dark:hidden",
+          "pointer-events-none absolute inset-x-0 top-0 -z-10 h-24 rounded-t-[calc(var(--radius-card)-1px)] bg-gradient-to-b to-transparent dark:hidden",
           resolveRoomColor(node.color).wash,
         )}
       >
@@ -88,9 +123,7 @@ export function DataroomCard({
           )}
         />
       </div>
-      {/* relative z-10: the avatar and name sit ABOVE the wash so their
-          color never shifts as it deepens — only the empty card tints. */}
-      <div className="relative z-10 flex items-start justify-between gap-2">
+      <div className="flex items-start justify-between gap-2">
         <RoomAvatar
           icon={node.icon}
           color={node.color}
@@ -105,7 +138,10 @@ export function DataroomCard({
       </div>
       <Link
         href={`/room/${node.id}`}
-        className="relative z-10 mt-3 block outline-none after:absolute after:inset-0 after:rounded-card"
+        // draggable=false so dragging the card reorders it instead of the
+        // browser dragging the link's URL.
+        draggable={false}
+        className="mt-3 block outline-none after:absolute after:inset-0 after:rounded-card"
       >
         <span className="block truncate text-sm font-medium" title={node.name}>
           {node.name}

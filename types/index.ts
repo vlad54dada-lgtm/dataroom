@@ -18,6 +18,7 @@ export interface Node {
   description?: string; // datarooms only
   icon?: string; // datarooms only — room avatar icon key
   color?: string; // datarooms only — room avatar palette key
+  sortOrder?: number; // datarooms only — custom drag-to-reorder position
 }
 
 /** Files are created through saveFile(), not createNode(). */

@@ -720,3 +720,27 @@ as $$
   select fv.blob_path from public.file_versions fv
   join subtree s on fv.node_id = s.id;
 $$;
+
+-- ---------------------------------------------------------------------------
+-- 12) dataroom sort order
+-- ---------------------------------------------------------------------------
+
+-- Custom drag-to-reorder order for datarooms on the home grid. Null until a
+-- room is first reordered -- nulls sort last (new rooms append at the end),
+-- so behaviour is unchanged until the user drags.
+alter table public.nodes add column sort_order double precision;
+
+-- Atomic reorder: assign each id its 1-based position from the array. RLS on
+-- nodes restricts the update to the caller's own rows, so no explicit user
+-- filter is needed.
+create or replace function public.reorder_nodes(ids uuid[])
+returns void
+language sql
+security invoker
+set search_path = ''
+as $$
+  update public.nodes n
+  set sort_order = u.ord
+  from unnest(ids) with ordinality as u(id, ord)
+  where n.id = u.id;
+$$;

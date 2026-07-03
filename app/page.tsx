@@ -11,6 +11,7 @@ import {
   isDuplicateNameError,
   listChildCounts,
   listChildren,
+  reorderDatarooms,
   restoreNode,
   searchAllNodes,
   trashNode,
@@ -196,6 +197,22 @@ function HomeView() {
   // Survives close: dialogs read it in onCloseAutoFocus AFTER state resets.
   const [returnTo, setReturnTo] = useState<HTMLElement | null>(null);
   const closeDialog = () => setDialog({ kind: "none" });
+
+  // Drag-to-reorder: reflect the new order immediately (with matching
+  // sort_order values so later create/edit re-sorts agree), then persist.
+  const reorderRooms = (orderedIds: string[]) => {
+    setData((items) => {
+      const byId = new Map(items.map((it) => [it.node.id, it]));
+      return orderedIds.flatMap((id, i) => {
+        const it = byId.get(id);
+        return it ? [{ ...it, node: { ...it.node, sortOrder: i + 1 } }] : [];
+      });
+    });
+    void reorderDatarooms(orderedIds).catch(() => {
+      toast.error("Couldn't save the new order");
+      reload();
+    });
+  };
 
   const createRoom = useMutation(
     (values: DataroomValues) => createNode({ type: "dataroom", ...values }),
@@ -422,6 +439,7 @@ function HomeView() {
                     onDropRestore={(ids, room) =>
                       void handleRestoreDrop(ids, room)
                     }
+                    onReorder={reorderRooms}
                   />
                 ))}
             </>
