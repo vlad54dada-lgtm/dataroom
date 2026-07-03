@@ -14,6 +14,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { isDuplicateNameError } from "@/lib/storage";
+import { shake } from "@/lib/shake";
 import { MAX_NAME_LENGTH, normalizeName, splitExtension } from "@/lib/utils";
 
 type NameDialogMode = "create" | "rename";
@@ -48,8 +49,9 @@ const TITLE: Record<NameDialogMode, Record<NameDialogEntity, string>> = {
 /**
  * The single dialog behind every create/rename flow. Enter submits, Esc
  * closes, the input autofocuses (text pre-selected on rename; base name only
- * for files), the confirm button stays disabled until the name is valid, and
- * duplicate errors render inline while the dialog stays open.
+ * for files). The confirm button is always pressable — submitting an empty
+ * or invalid name answers with a shake + inline error instead of a silently
+ * disabled button, and duplicate errors render the same way.
  *
  * State resets by REMOUNT: the parent passes a `key` derived from the dialog
  * target (e.g. `create` / `rename:<id>`), so each open starts fresh without
@@ -70,13 +72,23 @@ export function NameDialog({
   const inputRef = useRef<HTMLInputElement>(null);
 
   const normalized = normalizeName(value);
-  const canSubmit =
-    normalized.length > 0 && normalized.length <= MAX_NAME_LENGTH && !submitting;
   const showEmptyHint = value.length > 0 && normalized.length === 0;
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!canSubmit) return;
+    if (submitting) return;
+    // Invalid name: the form physically says "no" instead of the button
+    // silently refusing to work.
+    if (normalized.length === 0 || normalized.length > MAX_NAME_LENGTH) {
+      setError(
+        value.length > 0
+          ? "Name can't be only spaces"
+          : `Enter a ${entity} name`,
+      );
+      shake(inputRef.current);
+      inputRef.current?.focus();
+      return;
+    }
     // Renaming to the unchanged name is a no-op: just close, no toast.
     if (mode === "rename" && normalized === initialName) {
       onClose();
@@ -90,6 +102,7 @@ export function NameDialog({
     } catch (err) {
       if (isDuplicateNameError(err)) {
         setError(err.message);
+        shake(inputRef.current);
         inputRef.current?.focus();
         inputRef.current?.select();
       }
@@ -165,7 +178,10 @@ export function NameDialog({
               spellCheck={false}
             />
             {error ? (
-              <p className="text-sm text-danger" role="alert">
+              <p
+                className="text-sm text-danger motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-top-1 motion-safe:duration-200"
+                role="alert"
+              >
                 {error}
               </p>
             ) : showEmptyHint ? (
@@ -183,7 +199,7 @@ export function NameDialog({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={!canSubmit}>
+            <Button type="submit" disabled={submitting}>
               {submitting && <Loader2 className="animate-spin" />}
               {mode === "create" ? TITLE.create[entity] : "Rename"}
             </Button>

@@ -107,7 +107,7 @@ tests/e2e/      Playwright suite (in-memory PDF fixture generator included)
 | Duplicate file name | auto-suffix: `report (1).pdf` |
 | Duplicate folder/dataroom name | inline dialog error, enforced by the DB |
 | Non-PDF or renamed-to-.pdf files | rejected by signature check; toast lists them; valid files still upload |
-| Empty / whitespace / over-long names | confirm disabled with a hint; trimmed on save; 255 max |
+| Empty / whitespace / over-long names | submit answers with a shake + inline error; trimmed on save; 255 max |
 | Refresh mid-anything | data is in Postgres, location and search are in the URL |
 | Long names | ellipsis + tooltip, table layout holds |
 | Empty states | home, empty folder (doubles as a drop target), no search results, empty trash |

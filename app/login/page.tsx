@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, FileText, Loader2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { authErrorMessage } from "@/lib/auth-errors";
+import { shake } from "@/lib/shake";
 import { useDocumentTitle } from "@/lib/hooks/use-document-title";
 import { useSession } from "@/lib/hooks/use-session";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,7 @@ export default function LoginPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const passwordRef = useRef<HTMLInputElement | null>(null);
 
   // Already signed in (or just signed in) → back to where the user was
   // headed (?next= set by the auth guard), or the app root.
@@ -64,6 +66,9 @@ export default function LoginPage() {
       });
       if (err) {
         setError(authErrorMessage(err.message));
+        shake(passwordRef.current);
+        passwordRef.current?.focus();
+        passwordRef.current?.select();
         setSubmitting(false);
       }
       // Success: the session effect above redirects.
@@ -179,6 +184,7 @@ export default function LoginPage() {
               <div className="relative">
                 <Input
                   id="login-password"
+                  ref={passwordRef}
                   type={showPassword ? "text" : "password"}
                   autoComplete={
                     mode === "sign-in" ? "current-password" : "new-password"
@@ -189,6 +195,7 @@ export default function LoginPage() {
                     setPassword(e.target.value);
                     setError(null);
                   }}
+                  aria-invalid={mode === "sign-in" && error ? true : undefined}
                 />
                 <button
                   type="button"
@@ -211,7 +218,10 @@ export default function LoginPage() {
             </div>
             )}
             {error && (
-              <p className="text-sm text-danger" role="alert">
+              <p
+                className="text-sm text-danger motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-top-1 motion-safe:duration-200"
+                role="alert"
+              >
                 {error}
               </p>
             )}

@@ -14,6 +14,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { isDuplicateNameError } from "@/lib/storage";
+import { shake } from "@/lib/shake";
 import { MAX_NAME_LENGTH, cn, normalizeName } from "@/lib/utils";
 import {
   ROOM_COLOR_KEYS,
@@ -135,13 +136,23 @@ export function DataroomDialog({
   const [setColorRow, setColorPill] = useGlideIndicator(color);
 
   const normalized = normalizeName(name);
-  const canSubmit =
-    normalized.length > 0 && normalized.length <= MAX_NAME_LENGTH && !submitting;
   const showEmptyHint = name.length > 0 && normalized.length === 0;
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!canSubmit) return;
+    if (submitting) return;
+    // Invalid name: the form physically says "no" instead of the button
+    // silently refusing to work.
+    if (normalized.length === 0 || normalized.length > MAX_NAME_LENGTH) {
+      setError(
+        name.length > 0
+          ? "Name can't be only spaces"
+          : "Enter a dataroom name",
+      );
+      shake(inputRef.current);
+      inputRef.current?.focus();
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
@@ -155,6 +166,7 @@ export function DataroomDialog({
     } catch (err) {
       if (isDuplicateNameError(err)) {
         setError(err.message);
+        shake(inputRef.current);
         inputRef.current?.focus();
         inputRef.current?.select();
       }
@@ -222,7 +234,10 @@ export function DataroomDialog({
                 spellCheck={false}
               />
               {error ? (
-                <p className="text-sm text-danger" role="alert">
+                <p
+                  className="text-sm text-danger motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-top-1 motion-safe:duration-200"
+                  role="alert"
+                >
                   {error}
                 </p>
               ) : showEmptyHint ? (
@@ -334,7 +349,7 @@ export function DataroomDialog({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={!canSubmit}>
+            <Button type="submit" disabled={submitting}>
               {submitting && <Loader2 className="animate-spin" />}
               {mode === "create" ? "Create dataroom" : "Save changes"}
             </Button>
