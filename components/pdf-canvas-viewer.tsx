@@ -23,6 +23,7 @@ const MAX_ZOOM = 3;
 const ZOOM_STEP = 0.25;
 /** Find-in-document stops counting here — enough for any real query. */
 const MAX_MATCHES = 500;
+const EMPTY_MATCHES: PdfMatch[] = [];
 
 interface PdfMatch {
   page: number;
@@ -89,8 +90,10 @@ export function PdfCanvasViewer({
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchInput, setSearchInput] = useState("");
   const [searchQ, setSearchQ] = useState("");
-  const [matches, setMatches] = useState<PdfMatch[]>([]);
+  const [foundMatches, setFoundMatches] = useState<PdfMatch[]>([]);
   const [current, setCurrent] = useState(0);
+  // Derived, not state: an empty query means no matches without an effect.
+  const matches = searchQ.trim() ? foundMatches : EMPTY_MATCHES;
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const pageTextsRef = useRef<string[] | null>(null);
   const layersRef = useRef(new Map<number, PageTextLayer>());
@@ -104,6 +107,10 @@ export function PdfCanvasViewer({
   useEffect(() => {
     let cancelled = false;
     let destroy: (() => void) | null = null;
+    // Captured now: the maps' identities never change, but the cleanup must
+    // not read refs after the component is gone.
+    const layers = layersRef.current;
+    const markedDivs = markedDivsRef.current;
     void (async () => {
       try {
         const pdfjs = await import("pdfjs-dist");
@@ -133,12 +140,12 @@ export function PdfCanvasViewer({
       setZoom(1);
       setPage(1);
       pageTextsRef.current = null;
-      layersRef.current.clear();
-      markedDivsRef.current.clear();
+      layers.clear();
+      markedDivs.clear();
       setSearchOpen(false);
       setSearchInput("");
       setSearchQ("");
-      setMatches([]);
+      setFoundMatches([]);
       setCurrent(0);
       destroy?.();
     };
@@ -151,14 +158,11 @@ export function PdfCanvasViewer({
   }, [searchInput]);
 
   // Extract every page's text once per document (lazily, on first query),
-  // then index all case-insensitive occurrences.
+  // then index all case-insensitive occurrences. Only the async completion
+  // sets state — the empty-query case is derived above.
   useEffect(() => {
     const q = searchQ.trim().toLowerCase();
-    if (!doc || q.length === 0) {
-      setMatches([]);
-      setCurrent(0);
-      return;
-    }
+    if (!doc || q.length === 0) return;
     let cancelled = false;
     void (async () => {
       try {
@@ -187,7 +191,7 @@ export function PdfCanvasViewer({
           }
         }
         if (!cancelled) {
-          setMatches(found);
+          setFoundMatches(found);
           setCurrent(0);
         }
       } catch {
@@ -276,7 +280,9 @@ export function PdfCanvasViewer({
     }
   };
   const highlightPageRef = useRef(highlightPage);
-  highlightPageRef.current = highlightPage;
+  useEffect(() => {
+    highlightPageRef.current = highlightPage;
+  });
 
   const scrollCurrentMarkIntoView = () => {
     const mark = containerRef.current?.querySelector("mark.pdf-mark-current");
@@ -291,7 +297,9 @@ export function PdfCanvasViewer({
     return true;
   };
   const scrollCurrentMarkRef = useRef(scrollCurrentMarkIntoView);
-  scrollCurrentMarkRef.current = scrollCurrentMarkIntoView;
+  useEffect(() => {
+    scrollCurrentMarkRef.current = scrollCurrentMarkIntoView;
+  });
 
   // Repaint every rendered page when the query or active match changes,
   // then bring the active match into view (or its page, if not rendered
@@ -306,26 +314,28 @@ export function PdfCanvasViewer({
     if (!scrollCurrentMarkRef.current()) scrollToPageRef.current(cur.page);
   }, [matches, current]);
 
-  // Stable identity so the memoized PageCanvas never re-renders because of
-  // the callback; the ref hop reads fresh state.
+  // Mirrors for the stable callback below — it must read fresh match state
+  // without becoming a new function per render (PageCanvas is memoized).
+  const matchesRef = useRef(matches);
+  const currentRef = useRef(current);
+  useEffect(() => {
+    matchesRef.current = matches;
+    currentRef.current = current;
+  });
   const onTextLayer = useCallback((pageNumber: number, layer: PageTextLayer | null) => {
     if (layer) {
       layersRef.current.set(pageNumber, layer);
       markedDivsRef.current.delete(pageNumber);
       highlightPageRef.current(pageNumber);
-      scrollPendingRef.current?.(pageNumber);
+      // A lazily rendered page may host the active match — finish the
+      // scroll the navigation effect could only start.
+      const cur = matchesRef.current[currentRef.current];
+      if (cur && cur.page === pageNumber) scrollCurrentMarkRef.current();
     } else {
       layersRef.current.delete(pageNumber);
       markedDivsRef.current.delete(pageNumber);
     }
   }, []);
-  // When a page renders and it hosts the active match, finish the pending
-  // scroll that the effect above could only start.
-  const scrollPendingRef = useRef<((pageNumber: number) => void) | null>(null);
-  scrollPendingRef.current = (pageNumber: number) => {
-    const cur = matches[current];
-    if (cur && cur.page === pageNumber) scrollCurrentMarkRef.current();
-  };
 
   const openSearch = () => {
     setSearchOpen(true);
@@ -403,7 +413,9 @@ export function PdfCanvasViewer({
       behavior: reduce ? "auto" : "smooth",
     });
   };
-  scrollToPageRef.current = scrollToPage;
+  useEffect(() => {
+    scrollToPageRef.current = scrollToPage;
+  });
 
   if (!doc || !baseSize) {
     return (
@@ -499,7 +511,11 @@ export function PdfCanvasViewer({
                 className="w-14 shrink-0 text-center text-xs tabular-nums text-muted-foreground"
               >
                 {searchQ.trim()
-                  ? `${matches.length ? current + 1 : 0} / ${matches.length}${
+                  ? `${
+                      matches.length
+                        ? Math.min(current + 1, matches.length)
+                        : 0
+                    } / ${matches.length}${
                       matches.length >= MAX_MATCHES ? "+" : ""
                     }`
                   : ""}

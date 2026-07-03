@@ -231,15 +231,20 @@ function RoomView() {
       searching ? searchNodes(roomId, debouncedQuery) : Promise.resolve([]),
     `search:${roomId}:${debouncedQuery}`,
   );
-  // Result refinement chips; reset when the user leaves search so the next
-  // query never starts silently pre-filtered.
+  // Result refinement chips; reset when the user leaves search (adjust-
+  // during-render) so the next query never starts silently pre-filtered.
   const [searchFilter, setSearchFilter] = useState<SearchFilter>(
     DEFAULT_SEARCH_FILTER,
   );
-  useEffect(() => {
+  const [wasSearching, setWasSearching] = useState(searching);
+  if (wasSearching !== searching) {
+    setWasSearching(searching);
     if (!searching) setSearchFilter(DEFAULT_SEARCH_FILTER);
-  }, [searching]);
-  const searchHits = search.state.status === "success" ? search.state.data : [];
+  }
+  const searchHits = useMemo(
+    () => (search.state.status === "success" ? search.state.data : []),
+    [search.state],
+  );
   const filteredHits = useMemo(
     () => applySearchFilter(searchHits, searchFilter),
     [searchHits, searchFilter],

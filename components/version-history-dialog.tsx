@@ -54,10 +54,12 @@ export function VersionHistoryDialog({
   useEffect(() => {
     if (!node || file === null) return;
     let cancelled = false;
-    setError(false);
     void listFileVersions(node)
       .then((list) => {
-        if (!cancelled) setVersions(list);
+        if (!cancelled) {
+          setVersions(list);
+          setError(false);
+        }
       })
       .catch(() => {
         if (!cancelled) setError(true);
@@ -131,6 +133,7 @@ export function VersionHistoryDialog({
               size="sm"
               onClick={() => {
                 setVersions(null);
+                setError(false);
                 setReloadKey((k) => k + 1);
               }}
             >

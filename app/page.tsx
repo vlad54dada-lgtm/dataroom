@@ -121,10 +121,17 @@ function HomeView() {
   const [searchFilter, setSearchFilter] = useState<SearchFilter>(
     DEFAULT_SEARCH_FILTER,
   );
-  useEffect(() => {
+  // Reset filters when leaving search — adjust-during-render, so the next
+  // query never starts silently pre-filtered.
+  const [wasSearching, setWasSearching] = useState(searching);
+  if (wasSearching !== searching) {
+    setWasSearching(searching);
     if (!searching) setSearchFilter(DEFAULT_SEARCH_FILTER);
-  }, [searching]);
-  const globalHits = search.state.status === "success" ? search.state.data : [];
+  }
+  const globalHits = useMemo(
+    () => (search.state.status === "success" ? search.state.data : []),
+    [search.state],
+  );
   const filteredHits = useMemo(
     () => applySearchFilter(globalHits, searchFilter),
     [globalHits, searchFilter],
