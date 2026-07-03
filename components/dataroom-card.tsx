@@ -88,11 +88,13 @@ export function DataroomCard({
           )}
         />
       </div>
-      <div className="flex items-start justify-between gap-2">
+      {/* relative z-10: the avatar and name sit ABOVE the wash so their
+          color never shifts as it deepens — only the empty card tints. */}
+      <div className="relative z-10 flex items-start justify-between gap-2">
         <RoomAvatar
           icon={node.icon}
           color={node.color}
-          className="transition-transform duration-200 ease-out-back group-hover:scale-105 motion-reduce:transition-none motion-reduce:group-hover:scale-100"
+          className="transition-transform duration-200 ease-out-strong group-hover:scale-[1.03] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
         />
         <RowMenu
           className="relative z-10 -mt-1 -mr-1 text-muted-foreground"
@@ -103,7 +105,7 @@ export function DataroomCard({
       </div>
       <Link
         href={`/room/${node.id}`}
-        className="mt-3 block outline-none after:absolute after:inset-0 after:rounded-card"
+        className="relative z-10 mt-3 block outline-none after:absolute after:inset-0 after:rounded-card"
       >
         <span className="block truncate text-sm font-medium" title={node.name}>
           {node.name}
