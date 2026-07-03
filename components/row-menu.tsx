@@ -4,7 +4,9 @@ import { useRef } from "react";
 import {
   Download,
   EllipsisVertical,
+  FileUp,
   FolderInput,
+  History,
   Pencil,
   Trash2,
 } from "lucide-react";
@@ -23,6 +25,10 @@ interface RowMenuProps {
   onDelete: (trigger: HTMLElement | null) => void;
   /** File rows only: single-item download. */
   onDownload?: () => void;
+  /** File rows only: replace content, keep name/id — history preserved. */
+  onUploadVersion?: () => void;
+  /** File rows only: opens the version history dialog. */
+  onVersionHistory?: (trigger: HTMLElement | null) => void;
   /** Opens the Move to… destination picker for this item. */
   onMove?: (trigger: HTMLElement | null) => void;
   /** Dataroom cards say "Edit" (name + description + avatar), rows "Rename". */
@@ -37,6 +43,8 @@ export function RowMenu({
   onRename,
   onDelete,
   onDownload,
+  onUploadVersion,
+  onVersionHistory,
   onMove,
   renameLabel = "Rename",
   subject,
@@ -80,6 +88,25 @@ export function RowMenu({
           <DropdownMenuItem onSelect={() => onDownload()}>
             <Download /> Download
           </DropdownMenuItem>
+        )}
+        {onUploadVersion && (
+          // The OS file picker follows — not a dialog of ours, focus stays.
+          <DropdownMenuItem onSelect={() => onUploadVersion()}>
+            <FileUp /> Upload new version
+          </DropdownMenuItem>
+        )}
+        {onVersionHistory && (
+          <DropdownMenuItem
+            onSelect={() => {
+              actionChosenRef.current = true;
+              onVersionHistory(triggerRef.current);
+            }}
+          >
+            <History /> Version history
+          </DropdownMenuItem>
+        )}
+        {(onDownload || onUploadVersion || onVersionHistory) && (
+          <DropdownMenuSeparator />
         )}
         <DropdownMenuItem
           onSelect={() => {

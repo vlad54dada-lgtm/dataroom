@@ -111,6 +111,9 @@ interface ItemsTableProps {
   /** Single-item actions surfaced in the kebab and context menu. */
   onDownloadNode?: (node: Node) => void;
   onMoveNode?: (node: Node) => void;
+  /** File versioning: replace content / open the history dialog. */
+  onUploadVersion?: (node: Node) => void;
+  onVersionHistory?: (node: Node, trigger: HTMLElement | null) => void;
   /** Warms a folder's contents cache on row hover. */
   onPrefetch?: (id: string) => void;
   /** Direct child counts per folder id — folders show them in Size. */
@@ -140,6 +143,8 @@ export function ItemsTable({
   onDelete,
   onDownloadNode,
   onMoveNode,
+  onUploadVersion,
+  onVersionHistory,
   onPrefetch,
   childCounts,
   onBulkTrash,
@@ -364,6 +369,8 @@ export function ItemsTable({
                 onDelete={onDelete}
                 onDownload={onDownloadNode}
                 onMove={onMoveNode}
+                onUploadVersion={onUploadVersion}
+                onVersionHistory={onVersionHistory}
                 onPrefetch={onPrefetch}
                 childCount={childCounts?.get(node.id)}
                 selected={selectedIds.has(node.id)}

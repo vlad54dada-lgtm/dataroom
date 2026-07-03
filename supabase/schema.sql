@@ -674,3 +674,49 @@ as $$
   order by (l.type = 'file'), (l.parent_id is not null), lower(l.name)
   limit 100;
 $$;
+
+-- ---------------------------------------------------------------------------
+-- 10) file_versions
+-- ---------------------------------------------------------------------------
+
+-- File versioning: every superseded upload of a file is kept as a version.
+-- The nodes row always mirrors the CURRENT version (existing readers keep
+-- working untouched); file_versions is the linear history, including the
+-- current one once a file has been versioned at least once.
+create table public.file_versions (
+  id uuid primary key default gen_random_uuid(),
+  node_id uuid not null references public.nodes(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  version int not null,
+  blob_path text not null,
+  size bigint not null,
+  created_at timestamptz not null default now(),
+  unique (node_id, version)
+);
+
+create index file_versions_node_idx
+  on public.file_versions (node_id, version desc);
+
+alter table public.file_versions enable row level security;
+create policy "file_versions_all_own" on public.file_versions
+  for all using ((select auth.uid()) = user_id)
+  with check ((select auth.uid()) = user_id);
+
+-- Recursive delete must sweep version blobs too, or they leak in Storage.
+create or replace function public.get_subtree_blob_paths(node_id uuid)
+returns setof text
+language sql
+stable
+set search_path = ''
+as $$
+  with recursive subtree as (
+    select id, blob_path from public.nodes where id = node_id
+    union all
+    select n.id, n.blob_path from public.nodes n
+    join subtree s on n.parent_id = s.id
+  )
+  select blob_path from subtree where blob_path is not null
+  union
+  select fv.blob_path from public.file_versions fv
+  join subtree s on fv.node_id = s.id;
+$$;

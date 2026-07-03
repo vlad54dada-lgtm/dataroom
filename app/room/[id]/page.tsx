@@ -20,11 +20,14 @@ import {
   listChildren,
   moveNodes,
   renameNode,
+  restoreFileVersion,
   restoreNode,
   saveFile,
   searchNodes,
   trashNode,
   trashNodes,
+  uploadNewVersion,
+  type FileVersion,
 } from "@/lib/storage";
 import { RESTORE_MIME, readIds } from "@/lib/dnd";
 import { flySourcesFor, flyToTrash } from "@/lib/fly-to-trash";
@@ -65,12 +68,14 @@ import { MoveDialog } from "@/components/move-dialog";
 import { UploadDropzone } from "@/components/upload-dropzone";
 import { UploadPanel, type UploadState } from "@/components/upload-panel";
 import { PdfViewerDialog } from "@/components/pdf-viewer-dialog";
+import { VersionHistoryDialog } from "@/components/version-history-dialog";
 
 type DialogState =
   | { kind: "none" }
   | { kind: "create" }
   | { kind: "rename"; node: Node }
-  | { kind: "move"; nodes: Node[] };
+  | { kind: "move"; nodes: Node[] }
+  | { kind: "versions"; node: Node };
 
 /** The toolbar button is focused by its own click — capture it. */
 const activeTrigger = () =>
@@ -239,6 +244,67 @@ function RoomView() {
     () => applySearchFilter(searchHits, searchFilter),
     [searchHits, searchFilter],
   );
+
+  // File versioning: "Upload new version" goes through a hidden picker so
+  // the row menu action feels native; restore re-extracts text so content
+  // search follows the current version.
+  const versionInputRef = useRef<HTMLInputElement | null>(null);
+  const versionTargetRef = useRef<Node | null>(null);
+  const handleUploadVersion = (node: Node) => {
+    versionTargetRef.current = node;
+    versionInputRef.current?.click();
+  };
+  const handleVersionFile = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const input = e.currentTarget;
+    const picked = input.files?.[0] ?? null;
+    input.value = "";
+    const target = versionTargetRef.current;
+    versionTargetRef.current = null;
+    if (!picked || !target) return;
+    const { valid } = await partitionPdfs([picked]);
+    if (valid.length === 0) {
+      toast.error("Only PDF files can become a new version");
+      return;
+    }
+    const toastId = toast.loading("Uploading new version…", {
+      description: target.name,
+    });
+    try {
+      const text = await extractPdfText(picked).catch(() => null);
+      const updated = await uploadNewVersion(target, picked, text);
+      setData((items) =>
+        items.map((n) => (n.id === updated.id ? updated : n)),
+      );
+      toast.success("New version uploaded", {
+        id: toastId,
+        description: updated.name,
+      });
+    } catch {
+      toast.error("Couldn't upload the new version", {
+        id: toastId,
+        description: target.name,
+      });
+    }
+  };
+  const handleRestoreVersion = async (
+    fileNode: Node,
+    version: FileVersion,
+  ): Promise<Node> => {
+    const blob = await getBlob(version.blobKey);
+    const text = blob
+      ? await extractPdfText(
+          new File([blob], fileNode.name, { type: "application/pdf" }),
+        ).catch(() => null)
+      : null;
+    const updated = await restoreFileVersion(fileNode, version, text);
+    setData((items) => items.map((n) => (n.id === updated.id ? updated : n)));
+    toast.success(`Version ${version.version} is now current`, {
+      description: fileNode.name,
+    });
+    return updated;
+  };
 
   const createFolder = useMutation(
     (name: string) =>
@@ -778,6 +844,11 @@ function RoomView() {
                         onMoveNode={(node) =>
                           openDialog({ kind: "move", nodes: [node] })
                         }
+                        onUploadVersion={handleUploadVersion}
+                        onVersionHistory={(node, trigger) => {
+                          setReturnTo(trigger);
+                          openDialog({ kind: "versions", node });
+                        }}
                         onPrefetch={(id) =>
                           prefetchAsync(id, () => listChildren(id))
                         }
@@ -879,6 +950,23 @@ function RoomView() {
           onDismiss={() => setUpload(null)}
         />
       )}
+      {/* Hidden picker behind "Upload new version" — one PDF, same name/id. */}
+      <input
+        ref={versionInputRef}
+        type="file"
+        accept="application/pdf,.pdf"
+        className="hidden"
+        aria-hidden
+        tabIndex={-1}
+        onChange={(e) => void handleVersionFile(e)}
+      />
+      <VersionHistoryDialog
+        key={`versions-${dialogGen}`}
+        file={dialog.kind === "versions" ? dialog.node : null}
+        onClose={closeDialog}
+        returnFocusTo={returnTo}
+        onRestore={handleRestoreVersion}
+      />
       <MoveDialog
         key={`move-${dialogGen}`}
         currentLocationId={currentFolderId}

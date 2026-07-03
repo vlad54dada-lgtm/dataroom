@@ -409,6 +409,190 @@ export async function getBlob(blobKey: string): Promise<Blob | undefined> {
 }
 
 // ---------------------------------------------------------------------------
+// File versions. The nodes row always mirrors the CURRENT version; the
+// file_versions table is the linear history. Files uploaded before this
+// feature have no rows — their history materializes lazily on the first
+// "Upload new version".
+// ---------------------------------------------------------------------------
+
+export interface FileVersion {
+  id: string;
+  version: number;
+  size: number;
+  createdAt: number;
+  blobKey: string;
+  isCurrent: boolean;
+}
+
+interface FileVersionRow {
+  id: string;
+  version: number;
+  size: number;
+  blob_path: string;
+  created_at: string;
+}
+
+/** History for a file, newest first. Unversioned files report one entry. */
+export async function listFileVersions(node: Node): Promise<FileVersion[]> {
+  const { data, error } = await supabase
+    .from("file_versions")
+    .select("id, version, size, blob_path, created_at")
+    .eq("node_id", node.id)
+    .order("version", { ascending: false });
+  if (error) throw error;
+  const rows = (data ?? []) as FileVersionRow[];
+  if (rows.length === 0) {
+    return [
+      {
+        id: "current",
+        version: 1,
+        size: node.size ?? 0,
+        createdAt: node.updatedAt,
+        blobKey: node.blobKey ?? "",
+        isCurrent: true,
+      },
+    ];
+  }
+  // Restores re-point the node at an older blob, so several rows can share
+  // one blob_path — only the newest matching row is "current".
+  let currentSeen = false;
+  return rows.map((r) => {
+    const isCurrent = !currentSeen && r.blob_path === node.blobKey;
+    if (isCurrent) currentSeen = true;
+    return {
+      id: r.id,
+      version: r.version,
+      size: r.size,
+      createdAt: Date.parse(r.created_at),
+      blobKey: r.blob_path,
+      isCurrent,
+    };
+  });
+}
+
+/** Baseline row for a file that predates versioning: its current state
+    becomes version 1, so history starts with a truthful entry. */
+async function ensureBaselineVersion(node: Node, userId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from("file_versions")
+    .select("id", { count: "exact", head: true })
+    .eq("node_id", node.id);
+  if (error) throw error;
+  if ((count ?? 0) > 0) {
+    const { data, error: maxError } = await supabase
+      .from("file_versions")
+      .select("version")
+      .eq("node_id", node.id)
+      .order("version", { ascending: false })
+      .limit(1)
+      .single<{ version: number }>();
+    if (maxError) throw maxError;
+    return data.version;
+  }
+  const { error: insertError } = await supabase.from("file_versions").insert({
+    node_id: node.id,
+    user_id: userId,
+    version: 1,
+    blob_path: node.blobKey,
+    size: node.size ?? 0,
+    created_at: new Date(node.createdAt).toISOString(),
+  });
+  if (insertError) throw insertError;
+  return 1;
+}
+
+/** Writes/replaces the searchable text for a file (best-effort caller). */
+async function setFileText(
+  nodeId: string,
+  userId: string,
+  content: string | null,
+): Promise<void> {
+  if (content) {
+    await supabase
+      .from("file_texts")
+      .upsert({ node_id: nodeId, user_id: userId, content });
+  } else {
+    await supabase.from("file_texts").delete().eq("node_id", nodeId);
+  }
+}
+
+/**
+ * Uploads `file` as the new current version of `node`. The previous state
+ * is preserved in the history; name and id stay, so links and rows keep
+ * working. Returns the updated node.
+ */
+export async function uploadNewVersion(
+  node: Node,
+  file: File,
+  contentText?: string | null,
+): Promise<Node> {
+  const userId = await currentUserId();
+  const maxVersion = await ensureBaselineVersion(node, userId);
+  const blobPath = `${userId}/${crypto.randomUUID()}.pdf`;
+  const { error: uploadError } = await supabase.storage
+    .from("pdfs")
+    .upload(blobPath, file, { contentType: "application/pdf" });
+  if (uploadError) throw uploadError;
+
+  const { error: versionError } = await supabase.from("file_versions").insert({
+    node_id: node.id,
+    user_id: userId,
+    version: maxVersion + 1,
+    blob_path: blobPath,
+    size: file.size,
+  });
+  if (versionError) {
+    await supabase.storage.from("pdfs").remove([blobPath]);
+    throw versionError;
+  }
+  const { data, error } = await supabase
+    .from("nodes")
+    .update({ blob_path: blobPath, size: file.size })
+    .eq("id", node.id)
+    .select(NODE_COLUMNS)
+    .single<NodeRow>();
+  if (error) throw error;
+  // Content search follows the current version; failure only costs search.
+  await setFileText(node.id, userId, contentText ?? null).catch(
+    () => undefined,
+  );
+  return toNode(data);
+}
+
+/**
+ * Makes an old version current again — as a NEW version pointing at the
+ * same blob (linear history, nothing rewritten), the way Drive does it.
+ * `contentText` re-indexes search for the restored content.
+ */
+export async function restoreFileVersion(
+  node: Node,
+  version: FileVersion,
+  contentText?: string | null,
+): Promise<Node> {
+  const userId = await currentUserId();
+  const maxVersion = await ensureBaselineVersion(node, userId);
+  const { error: versionError } = await supabase.from("file_versions").insert({
+    node_id: node.id,
+    user_id: userId,
+    version: maxVersion + 1,
+    blob_path: version.blobKey,
+    size: version.size,
+  });
+  if (versionError) throw versionError;
+  const { data, error } = await supabase
+    .from("nodes")
+    .update({ blob_path: version.blobKey, size: version.size })
+    .eq("id", node.id)
+    .select(NODE_COLUMNS)
+    .single<NodeRow>();
+  if (error) throw error;
+  await setFileText(node.id, userId, contentText ?? null).catch(
+    () => undefined,
+  );
+  return toNode(data);
+}
+
+// ---------------------------------------------------------------------------
 // Trash (soft delete) and permanent delete
 // ---------------------------------------------------------------------------
 

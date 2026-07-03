@@ -6,9 +6,11 @@ import { useRouter } from "next/navigation";
 import {
   Download,
   FileText,
+  FileUp,
   Folder,
   FolderInput,
   FolderOpen,
+  History,
   Pencil,
   Trash2,
 } from "lucide-react";
@@ -36,6 +38,10 @@ interface ItemRowProps {
   onDelete: (node: Node, trigger: HTMLElement | null) => void;
   /** File rows only: single-item download. */
   onDownload?: (node: Node) => void;
+  /** File rows only: replace content as a new version (keeps name/id). */
+  onUploadVersion?: (node: Node) => void;
+  /** File rows only: opens the version history dialog. */
+  onVersionHistory?: (node: Node, trigger: HTMLElement | null) => void;
   /** Opens the Move to… destination picker for this single item. */
   onMove?: (node: Node) => void;
   /** Warm the folder's contents cache on hover so navigation is instant. */
@@ -68,6 +74,8 @@ export function ItemRow({
   onRename,
   onDelete,
   onDownload,
+  onUploadVersion,
+  onVersionHistory,
   onMove,
   onPrefetch,
   childCount,
@@ -259,6 +267,16 @@ export function ItemRow({
               onDownload={
                 !isFolder && onDownload ? () => onDownload(node) : undefined
               }
+              onUploadVersion={
+                !isFolder && onUploadVersion
+                  ? () => onUploadVersion(node)
+                  : undefined
+              }
+              onVersionHistory={
+                !isFolder && onVersionHistory
+                  ? (trigger) => onVersionHistory(node, trigger)
+                  : undefined
+              }
               onMove={onMove ? () => onMove(node) : undefined}
             />
           </TableCell>
@@ -278,6 +296,16 @@ export function ItemRow({
         {!isFolder && onDownload && (
           <ContextMenuItem onSelect={() => onDownload(node)}>
             <Download /> Download
+          </ContextMenuItem>
+        )}
+        {!isFolder && onUploadVersion && (
+          <ContextMenuItem onSelect={() => onUploadVersion(node)}>
+            <FileUp /> Upload new version
+          </ContextMenuItem>
+        )}
+        {!isFolder && onVersionHistory && (
+          <ContextMenuItem onSelect={() => onVersionHistory(node, null)}>
+            <History /> Version history
           </ContextMenuItem>
         )}
         <ContextMenuItem onSelect={() => onRename(node, null)}>
