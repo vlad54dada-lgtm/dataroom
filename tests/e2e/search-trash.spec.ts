@@ -20,15 +20,18 @@ test.describe("search and trash", () => {
     const search = page.getByRole("textbox", { name: "Search this dataroom" });
 
     // Content search: matched words come back highlighted with a badge.
+    // exact: the "Text matches only" filter chip also contains this text.
     await search.fill("confidential");
     await expect(page.getByText(/1 result/)).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByText("Text match")).toBeVisible();
+    await expect(page.getByText("Text match", { exact: true })).toBeVisible();
     await expect(page.locator("mark", { hasText: "confidential" })).toBeVisible();
 
     // The query lives in the URL and survives a refresh.
     await expect(page).toHaveURL(/q=confidential/);
     await page.reload();
-    await expect(page.getByText("Text match")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText("Text match", { exact: true })).toBeVisible({
+      timeout: 30_000,
+    });
 
     // Jump to the folder that contains the hit.
     await page.getByRole("button", { name: /Open location/ }).click();
