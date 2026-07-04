@@ -8,6 +8,11 @@ import { RoomAvatar } from "@/components/room-avatar";
 
 interface SearchResultsProps {
   results: SearchResult[];
+  /** The active query — the matched substring in names gets a <mark>. */
+  query?: string;
+  /** Indents rows to the items table's icon rail (in-room search, where
+      results visually replace the table). */
+  inset?: boolean;
   onOpenFolder: (node: Node) => void;
   onOpenFile: (node: Node, trigger: HTMLElement | null) => void;
   /** Jump to the folder that CONTAINS the hit (null parent = room root). */
@@ -39,6 +44,23 @@ function Snippet({ text }: { text: string }) {
   return <>&ldquo;…{parts}…&rdquo;</>;
 }
 
+/** First case-insensitive occurrence of the query wears the same <mark>
+    as content snippets — name hits become as explainable as text hits. */
+function HighlightedName({ name, query }: { name: string; query?: string }) {
+  const q = query?.trim();
+  const at = q ? name.toLowerCase().indexOf(q.toLowerCase()) : -1;
+  if (!q || at === -1) return <>{name}</>;
+  return (
+    <>
+      {name.slice(0, at)}
+      <mark className="rounded-[3px] bg-folder-bg px-0.5 font-medium text-brand">
+        {name.slice(at, at + q.length)}
+      </mark>
+      {name.slice(at + q.length)}
+    </>
+  );
+}
+
 /**
  * Flat result list for dataroom search. Each row shows where the match
  * lives; content matches (text inside the PDF, not the name) get a
@@ -47,6 +69,8 @@ function Snippet({ text }: { text: string }) {
  */
 export function SearchResults({
   results,
+  query,
+  inset,
   onOpenFolder,
   onOpenFile,
   onOpenLocation,
@@ -58,7 +82,9 @@ export function SearchResults({
         return (
           <div
             key={node.id}
-            className="group/hit flex h-14 min-w-0 items-center gap-3 pr-3 pl-4 transition-colors duration-150 hover:bg-muted/50"
+            className={`group/hit flex h-14 min-w-0 items-center gap-3 pr-3 transition-colors duration-150 hover:bg-muted/50 ${
+              inset ? "pl-11" : "pl-4"
+            }`}
           >
             <button
               type="button"
@@ -90,7 +116,7 @@ export function SearchResults({
                   className="block truncate text-sm font-medium"
                   title={node.name}
                 >
-                  {node.name}
+                  <HighlightedName name={node.name} query={query} />
                   <span className="sr-only">
                     {node.type === "dataroom"
                       ? ", dataroom"

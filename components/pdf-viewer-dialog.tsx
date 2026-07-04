@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, Download, Loader2 } from "lucide-react";
 import type { Node } from "@/types";
 import { getBlob } from "@/lib/storage";
+import { formatBytes } from "@/lib/utils";
 import { useSession } from "@/lib/hooks/use-session";
 import { Button } from "@/components/ui/button";
 import { PdfCanvasViewer } from "@/components/pdf-canvas-viewer";
@@ -167,6 +168,13 @@ export function PdfViewerDialog({
           >
             {shown?.name}
           </DialogTitle>
+          {/* Document identity in the ledger-caps register — the file is
+              an object with facts, not just a window title. */}
+          {shown?.size != null && (
+            <span className="hidden shrink-0 items-center rounded border bg-muted px-1.5 py-0.5 text-[10px] font-medium tracking-[0.08em] uppercase text-muted-foreground sm:flex">
+              PDF · {formatBytes(shown.size)}
+            </span>
+          )}
           <DialogDescription className="sr-only">
             Document preview with zoom and paging controls.
           </DialogDescription>

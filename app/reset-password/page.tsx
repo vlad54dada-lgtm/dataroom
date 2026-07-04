@@ -46,7 +46,11 @@ export default function ResetPasswordPage() {
   };
 
   return (
-    <main className="relative flex flex-1 items-center justify-center px-6 py-12">
+    <main className="relative isolate flex flex-1 items-center justify-center px-6 py-12">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 -z-10 bg-[linear-gradient(to_bottom,color-mix(in_srgb,var(--brand)_4%,var(--canvas)),var(--canvas)_55%)]"
+      />
       <div className="relative w-full max-w-sm motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200">
         <div className="flex flex-col items-center gap-2">
           <span className="flex size-11 items-center justify-center rounded-lg bg-primary shadow-card">

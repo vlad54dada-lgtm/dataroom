@@ -106,7 +106,14 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="relative flex flex-1 items-center justify-center px-6 py-12">
+    <main className="relative isolate flex flex-1 items-center justify-center px-6 py-12">
+      {/* Ambient stage: a 4% navy field settling into the canvas gives the
+          front door presence — a tonal backdrop, not the retired brand
+          glow. Both themes inherit via tokens. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 -z-10 bg-[linear-gradient(to_bottom,color-mix(in_srgb,var(--brand)_4%,var(--canvas)),var(--canvas)_55%)]"
+      />
       {/* Theme toggle, mirrored top-right — the login screen gets the same
           light/dark control as the rest of the app. */}
       <div className="absolute top-4 right-4">

@@ -364,6 +364,8 @@ export function PdfCanvasViewer({
     setSearchOpen(false);
     setSearchInput("");
     setSearchQ("");
+    // Programmatic refocus — same ring suppression as the doc-load focus.
+    setRingSuppressed(true);
     containerRef.current?.focus({ preventScroll: true });
   };
   const goNext = () =>
@@ -401,8 +403,15 @@ export function PdfCanvasViewer({
 
   // Paging keys work as soon as the document is ready — the scroll region
   // takes focus so PgUp/PgDn/arrows scroll it, and +/-/0 drive the zoom.
+  // Chromium marks this PROGRAMMATIC focus :focus-visible, which framed
+  // the document in a ring on every mouse open — suppress the ring for
+  // script focus; a real Tab re-enters through blur and earns it back.
+  const [ringSuppressed, setRingSuppressed] = useState(false);
   useEffect(() => {
-    if (doc && containerEl) containerEl.focus({ preventScroll: true });
+    if (doc && containerEl) {
+      setRingSuppressed(true);
+      containerEl.focus({ preventScroll: true });
+    }
   }, [doc, containerEl]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -652,6 +661,7 @@ export function PdfCanvasViewer({
           }}
           onScroll={handleScroll}
           onKeyDown={handleKeyDown}
+          onBlur={() => setRingSuppressed(false)}
           tabIndex={0}
           role="document"
           aria-label="Document pages"
@@ -660,7 +670,11 @@ export function PdfCanvasViewer({
           // offsets against it, not the dialog.
           // Full-opacity muted well: at /40 the desk was near-identical to
           // the white page sheet, so the paper never read as paper.
-          className="relative min-h-0 flex-1 overflow-auto rounded-lg border bg-muted outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset dark:bg-canvas"
+          className={cn(
+            "relative min-h-0 flex-1 overflow-auto rounded-lg border bg-muted outline-none dark:bg-canvas",
+            !ringSuppressed &&
+              "focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset",
+          )}
         >
           {/* Keyed by url: a new document never inherits stale canvases. */}
           <div key={url} className="flex flex-col items-center gap-3 p-4">

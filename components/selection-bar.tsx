@@ -4,6 +4,11 @@ import { useEffect, useState } from "react";
 import { Download, FolderInput, Trash2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface SelectionBarProps {
   count: number;
@@ -78,19 +83,30 @@ export function SelectionBar(props: SelectionBarProps) {
         <span className="mx-1.5 h-4 w-px bg-border" aria-hidden />
         {/* Labels collapse to icons below sm so the bar fits a 375px
             viewport; the text stays for screen readers. */}
-        <Button
-          variant="ghost"
-          size="sm"
-          disabled={fileCount === 0}
-          onClick={onDownload}
-        >
-          <Download />
-          <span className="max-sm:sr-only">
-            {fileCount > 0 && count !== fileCount
-              ? `Download ${fileCount} ${fileCount === 1 ? "file" : "files"}`
-              : "Download"}
-          </span>
-        </Button>
+        {/* Disabled buttons swallow pointer events, so the tooltip trigger
+            is a wrapper span; it only speaks when Download is disabled. */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="inline-flex" tabIndex={fileCount === 0 ? 0 : -1}>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={fileCount === 0}
+                onClick={onDownload}
+              >
+                <Download />
+                <span className="max-sm:sr-only">
+                  {fileCount > 0 && count !== fileCount
+                    ? `Download ${fileCount} ${fileCount === 1 ? "file" : "files"}`
+                    : "Download"}
+                </span>
+              </Button>
+            </span>
+          </TooltipTrigger>
+          {fileCount === 0 && (
+            <TooltipContent>Only files can be downloaded</TooltipContent>
+          )}
+        </Tooltip>
         <Button variant="ghost" size="sm" onClick={onMove}>
           <FolderInput /> <span className="max-sm:sr-only">Move to…</span>
         </Button>
