@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { uniq } from "./helpers";
+import { createAndOpenRoom, uniq } from "./helpers";
 
 test.describe("datarooms", () => {
   test("create a dataroom and see it in the grid", async ({ page }) => {
@@ -70,5 +70,35 @@ test.describe("datarooms", () => {
 
     await page.getByRole("button", { name: "Undo" }).last().click();
     await expect(page.getByRole("link", { name })).toBeVisible();
+  });
+
+  test("the room rail switches rooms without going home", async ({
+    page,
+    isMobile,
+  }) => {
+    test.skip(isMobile, "the rail is a desktop (lg+) affordance");
+    const roomA = uniq("Rail A");
+    const roomB = uniq("Rail B");
+    await createAndOpenRoom(page, roomB);
+    await createAndOpenRoom(page, roomA);
+
+    // Inside room A the rail lists both rooms and marks A current.
+    const rail = page.getByRole("navigation", { name: "Datarooms" });
+    await expect(rail.getByRole("link", { name: roomA })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+
+    // One click on B in the rail — no detour through home.
+    await rail.getByRole("link", { name: roomB }).click();
+    await expect(
+      page
+        .getByRole("navigation", { name: "Breadcrumb" })
+        .locator('[aria-current="page"]', { hasText: roomB }),
+    ).toBeVisible();
+    await expect(rail.getByRole("link", { name: roomB })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
   });
 });
