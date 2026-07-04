@@ -19,16 +19,21 @@ export default function RoomLayout({
   return (
     <RequireAuth>
       <AppHeader />
-      {/* max-w-7xl (not 6xl): the rail borrows ~240px on lg+, so the
-          content column keeps its working width. The rail carries its own
-          vertical padding; the column keeps the page's. */}
+      {/* Workspace framing: the rail anchors to the viewport's left edge
+          (like every VDR/workspace app) while the content column centers
+          itself in the REMAINING width — no dead margin stacking up on
+          the left, honest breathing room between rail and table. */}
       <main
         id="main"
         tabIndex={-1}
-        className="mx-auto flex w-full max-w-7xl flex-1 scroll-mt-14 px-6 outline-none motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200"
+        className="flex w-full flex-1 scroll-mt-14 px-6 outline-none motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200"
       >
         <RoomRail />
-        <div className="flex min-w-0 flex-1 flex-col py-8">{children}</div>
+        <div className="flex min-w-0 flex-1 flex-col py-8">
+          <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col">
+            {children}
+          </div>
+        </div>
       </main>
     </RequireAuth>
   );

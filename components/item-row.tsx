@@ -194,7 +194,9 @@ export function ItemRow({
             "group/row h-12 transition-opacity",
             // Selection is a STATE (brand wash); hover stays the gray gesture.
             selected && "bg-selected",
-            dropReady && "bg-folder-bg ring-2 ring-inset ring-brand",
+            // Dashed brand outline — the shared drop-target language.
+            dropReady &&
+              "bg-folder-bg outline-2 outline-dashed -outline-offset-2 outline-brand",
             dragging && "opacity-40",
           )}
           data-state={selected ? "selected" : undefined}

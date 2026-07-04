@@ -106,8 +106,8 @@ function resolveRoomColor(color?: string | null) {
 interface RoomAvatarProps {
   icon?: string | null;
   color?: string | null;
-  /** sm = table/list rows (32px), lg = cards and dialogs (40px). */
-  size?: "sm" | "lg";
+  /** xs = nav rail (28px), sm = table/list rows (32px), lg = cards (40px). */
+  size?: "xs" | "sm" | "lg";
   /**
    * Live-preview mode (the dataroom dialog): tile color tweens and the
    * glyph pops in when the icon prop changes. Off by default so avatars
@@ -130,8 +130,12 @@ export function RoomAvatar({
   return (
     <span
       className={cn(
-        "flex shrink-0 items-center justify-center rounded-tile ring-1 ring-current/10 ring-inset",
-        size === "lg" ? "size-10" : "size-8",
+        "flex shrink-0 items-center justify-center ring-1 ring-current/10 ring-inset",
+        // xs is the nav register: smaller and squarer than content tiles,
+        // so rail rooms never read as table folder rows.
+        size === "xs" ? "size-7 rounded-md" : "rounded-tile",
+        size === "lg" && "size-10",
+        size === "sm" && "size-8",
         palette.tile,
         animateSwaps && "transition-colors duration-300",
         className,
@@ -140,7 +144,7 @@ export function RoomAvatar({
       <Icon
         key={animateSwaps ? iconKey : undefined}
         className={cn(
-          size === "lg" ? "size-5" : "size-4.5",
+          size === "lg" ? "size-5" : size === "sm" ? "size-4.5" : "size-4",
           roomIconFill(iconKey),
           animateSwaps &&
             "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-150 motion-safe:ease-out-strong",

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -53,14 +54,14 @@ export default function ResetPasswordPage() {
       />
       <div className="relative w-full max-w-sm motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200">
         <div className="flex flex-col items-center gap-2">
-          <span className="flex size-11 items-center justify-center rounded-lg bg-primary shadow-card">
-            <span
-              aria-hidden
-              className="font-heading text-xl font-semibold leading-none text-primary-foreground"
-            >
-              A
-            </span>
-          </span>
+          <Image
+            src="/logo.png"
+            alt=""
+            width={48}
+            height={48}
+            priority
+            className="size-12 rounded-xl shadow-card ring-1 ring-foreground/10 ring-inset"
+          />
           <span className="mt-1 font-heading text-2xl font-medium tracking-[-0.005em]">
             Acme Corp.
           </span>

@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { DragHint } from "@/components/drag-hint";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -22,18 +23,17 @@ export function AppHeader({ children }: { children?: React.ReactNode }) {
             aria-label="Acme Corp. home"
             className="flex shrink-0 items-center gap-2.5 rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
           >
-            {/* bg-primary, not bg-brand: dark --brand is a link blue that
-                fails AA under white; --primary is the guaranteed pair.
-                Serif monogram, not a stock glyph — the mark must not share
-                its icon with every PDF row. */}
-            <span className="flex size-7 items-center justify-center rounded-lg bg-primary">
-              <span
-                aria-hidden
-                className="font-heading text-[15px] font-semibold leading-none text-primary-foreground"
-              >
-                A
-              </span>
-            </span>
+            {/* App-icon treatment: the mark keeps its own baked backdrop
+                inside a rounded, hairline-ringed tile — reads as a product
+                icon in both themes. */}
+            <Image
+              src="/logo.png"
+              alt=""
+              width={28}
+              height={28}
+              priority
+              className="size-7 shrink-0 rounded-lg ring-1 ring-foreground/10 ring-inset"
+            />
             <span className="flex items-baseline gap-2">
               <span className="font-heading text-[15px] font-semibold">
                 Acme Corp.

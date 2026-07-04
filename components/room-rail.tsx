@@ -8,7 +8,11 @@ import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import type { Node } from "@/types";
 import { listChildren, moveNodes } from "@/lib/storage";
 import { MOVE_MIME, readIds } from "@/lib/dnd";
-import { revalidateAsync, useAsync } from "@/lib/hooks/use-async";
+import {
+  prefetchAsync,
+  revalidateAsync,
+  useAsync,
+} from "@/lib/hooks/use-async";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -34,10 +38,19 @@ function RailItem({
   onDropNodes?: (ids: string[], target: Node) => void;
 }) {
   const [dropReady, setDropReady] = useState(false);
+  // Warm both caches the room view reads on arrival — the crumbs chain
+  // (we already hold the room node, zero requests) and the root listing —
+  // so a first visit lands without a skeleton.
+  const prefetch = () => {
+    prefetchAsync(`${room.id}:${room.id}`, async () => [room]);
+    prefetchAsync(room.id, () => listChildren(room.id));
+  };
   const link = (
     <Link
       href={`/room/${room.id}`}
       aria-current={active ? "page" : undefined}
+      onPointerEnter={prefetch}
+      onFocus={prefetch}
       onDragOver={(e) => {
         if (!onDropNodes || !e.dataTransfer.types.includes(MOVE_MIME)) return;
         e.preventDefault();
@@ -59,15 +72,16 @@ function RailItem({
         active
           ? "bg-selected font-medium"
           : "text-muted-foreground hover:bg-muted hover:text-foreground",
-        // ring-inset: the list is an overflow container, an outside ring
-        // would be clipped at its edges.
-        dropReady && "bg-folder-bg text-brand ring-2 ring-brand ring-inset",
+        // Dashed brand outline — the one drop-target language everywhere;
+        // negative offset keeps it inside the scroll container's clip.
+        dropReady &&
+          "bg-folder-bg text-brand outline-2 outline-dashed -outline-offset-2 outline-brand",
       )}
     >
       <RoomAvatar
         icon={room.icon}
         color={room.color}
-        size="sm"
+        size="xs"
         className="pointer-events-none shrink-0"
       />
       {!collapsed && (
@@ -195,9 +209,11 @@ export function RoomRail() {
         collapsed ? "w-[72px]" : "w-60",
       )}
     >
+      {/* h-8 mirrors the content column's breadcrumb row so the rail's
+          first line and the page title sit on one baseline. */}
       <div
         className={cn(
-          "flex items-center pb-2",
+          "flex h-8 items-center pb-1",
           collapsed ? "justify-center" : "justify-between pl-2",
         )}
       >
@@ -238,7 +254,7 @@ export function RoomRail() {
         {state.status === "loading" &&
           Array.from({ length: 4 }, (_, i) => (
             <div key={i} className="flex items-center gap-2.5 px-2 py-1.5">
-              <Skeleton className="size-8 shrink-0 rounded-tile" />
+              <Skeleton className="size-7 shrink-0 rounded-md" />
               {!collapsed && <Skeleton className="h-3.5 w-28" />}
             </div>
           ))}

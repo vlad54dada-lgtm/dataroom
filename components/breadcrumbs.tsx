@@ -75,7 +75,9 @@ function CrumbLink({
       }}
       className={cn(
         "relative max-w-40 truncate rounded-md px-1.5 py-1 text-muted-foreground transition-colors duration-150 outline-none hover:text-foreground focus-visible:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
-        dropReady && "bg-folder-bg text-brand ring-2 ring-brand",
+        // Dashed brand outline — the shared drop-target language.
+        dropReady &&
+          "bg-folder-bg text-brand outline-2 outline-dashed -outline-offset-2 outline-brand",
       )}
     >
       {node.name}
