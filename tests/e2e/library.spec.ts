@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import {
   createAndOpenRoom,
   createFolder,
+  makePdf,
   openFolder,
   row,
   uniq,
@@ -45,14 +46,61 @@ test.describe("folders and files", () => {
     await dialog.getByRole("button", { name: "Cancel" }).click();
   });
 
-  test("upload PDFs; a same-named file gets a numbered suffix", async ({
+  test("same-named upload asks: new version keeps one row, keep both suffixes", async ({
     page,
   }) => {
     await createAndOpenRoom(page, uniq("Upload Room"));
     await uploadPdf(page, "report.pdf", "quarterly numbers");
     await expect(row(page, "report.pdf")).toBeVisible();
-    await uploadPdf(page, "report.pdf", "quarterly numbers again");
-    await expect(row(page, "report (1).pdf")).toBeVisible();
+    // Let the first upload panel auto-dismiss so the next "1 file uploaded"
+    // can only come from the batch we're about to start.
+    await expect(page.getByText(/1 file uploaded/)).toBeHidden({
+      timeout: 15_000,
+    });
+
+    // Same name again → the conflict prompt; "new version" keeps ONE row
+    // and lands the file in the document's version history.
+    await page.setInputFiles('input[type="file"]', {
+      name: "report.pdf",
+      mimeType: "application/pdf",
+      buffer: makePdf("quarterly numbers v2"),
+    });
+    const conflict = page.getByRole("alertdialog");
+    await expect(conflict).toContainText(/already exists/);
+    await conflict
+      .getByRole("button", { name: "Upload as new version" })
+      .click();
+    // The version upload runs in the background queue — wait for it to
+    // finish BEFORE opening the history dialog (it fetches once, on open).
+    await expect(page.getByText(/1 file uploaded/)).toBeVisible({
+      timeout: 45_000,
+    });
+    await expect(row(page, "report.pdf")).toHaveCount(1);
+    await row(page, "report.pdf")
+      .getByRole("button", { name: "Actions for report.pdf" })
+      .click();
+    await page.getByRole("menuitem", { name: "Version history" }).click();
+    const history = page.getByRole("dialog");
+    await expect(history.getByText("Version 2")).toBeVisible({
+      timeout: 45_000,
+    });
+    await expect(history.getByText("Current", { exact: true })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(history).toBeHidden();
+
+    // Same name once more → "keep both" falls back to the (1) suffix.
+    await page.setInputFiles('input[type="file"]', {
+      name: "report.pdf",
+      mimeType: "application/pdf",
+      buffer: makePdf("a different report entirely"),
+    });
+    await page
+      .getByRole("alertdialog")
+      .getByRole("button", { name: "Keep both" })
+      .click();
+    await expect(row(page, "report (1).pdf")).toBeVisible({
+      timeout: 45_000,
+    });
   });
 
   test("non-PDF files are rejected with a toast", async ({ page }) => {

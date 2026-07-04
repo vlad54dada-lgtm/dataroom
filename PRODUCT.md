@@ -47,7 +47,7 @@ Deal teams — lawyers, finance people, founders — who need to organize hundre
 
 ## Edge cases — all must work
 
-1. Duplicate **file** name in the same parent → auto-suffix: `report.pdf` → `report (1).pdf`, `report (2).pdf`.
+1. Duplicate **file** name in the same parent → one prompt before the batch starts: **Upload as new version** (default — the file joins the existing document's version history) or **Keep both** (auto-suffix: `report.pdf` → `report (1).pdf`). Uploads never stop mid-queue to ask.
 2. Duplicate **folder/dataroom** name in the same parent → block with an inline error inside the dialog ("A folder with this name already exists").
 3. Non-PDF upload → reject with a toast listing the rejected file names. Validate BOTH extension and MIME type in code (dropzone `accept` alone is not enough — drag&drop can bypass it). Mixed batch: upload the valid PDFs, report the invalid ones.
 4. Empty or whitespace-only name → confirm button disabled + hint. Trim names on save. Max length 255 chars.

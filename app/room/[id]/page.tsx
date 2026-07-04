@@ -31,7 +31,7 @@ import {
 } from "@/lib/storage";
 import { RESTORE_MIME, readIds } from "@/lib/dnd";
 import { flySourcesFor, flyToTrash } from "@/lib/fly-to-trash";
-import { cn } from "@/lib/utils";
+import { cn, normalizeName } from "@/lib/utils";
 import { partitionPdfs } from "@/lib/validate";
 import { extractPdfText } from "@/lib/extract-pdf-text";
 import { prefetchAsync, useAsync } from "@/lib/hooks/use-async";
@@ -65,6 +65,7 @@ import { ListSkeleton } from "@/components/list-skeleton";
 import { NotFoundState } from "@/components/not-found-state";
 import { NameDialog } from "@/components/name-dialog";
 import { MoveDialog } from "@/components/move-dialog";
+import { UploadConflictDialog } from "@/components/upload-conflict-dialog";
 import { UploadDropzone } from "@/components/upload-dropzone";
 import { UploadPanel, type UploadState } from "@/components/upload-panel";
 import { PdfViewerDialog } from "@/components/pdf-viewer-dialog";
@@ -545,7 +546,10 @@ function RoomView() {
   const uploadCancelRef = useRef(false);
   // Drops during an in-flight batch APPEND to it instead of clobbering the
   // panel: one queue, one running loop, indices aligned with panel rows.
-  const uploadQueueRef = useRef<{ file: File; parentId: string }[]>([]);
+  // `versionOf` marks a conflict resolved as "upload as new version".
+  const uploadQueueRef = useRef<
+    { file: File; parentId: string; versionOf?: Node }[]
+  >([]);
   const uploadRunningRef = useRef(false);
   const uploadIndexRef = useRef(0);
   const uploadActive = upload !== null && upload.outcome === null;
@@ -571,6 +575,30 @@ function RoomView() {
     return () => window.removeEventListener("beforeunload", warn);
   }, [uploadActive]);
 
+  // Same-named PDFs already in this folder: the batch pauses BEFORE the
+  // queue starts and asks once. In due diligence a name collision almost
+  // always means a new revision of the same document, so "new version"
+  // leads; "keep both" falls back to the (1) suffix policy.
+  const [conflictPrompt, setConflictPrompt] = useState<{
+    clean: File[];
+    conflicts: { file: File; existing: Node }[];
+    parentId: string;
+  } | null>(null);
+
+  const resolveConflicts = (mode: "version" | "keep-both") => {
+    const prompt = conflictPrompt;
+    if (!prompt) return;
+    setConflictPrompt(null);
+    void enqueueUploads([
+      ...prompt.clean.map((file) => ({ file, parentId: prompt.parentId })),
+      ...prompt.conflicts.map(({ file, existing }) => ({
+        file,
+        parentId: prompt.parentId,
+        ...(mode === "version" ? { versionOf: existing } : {}),
+      })),
+    ]);
+  };
+
   const handleFiles = async (incoming: File[]) => {
     if (incoming.length === 0) return;
     const parentId = currentFolderId;
@@ -578,10 +606,36 @@ function RoomView() {
     if (invalid.length > 0) toast.error(summarizeInvalid(invalid));
     if (valid.length === 0) return;
 
-    uploadQueueRef.current.push(...valid.map((file) => ({ file, parentId })));
+    // Conflict scan against the folder the user is looking at (the listing
+    // is already in memory — zero requests). A stale/loading listing just
+    // skips the prompt and keeps the suffix behavior.
+    const byName = new Map(
+      (state.status === "success" ? state.data : [])
+        .filter((n) => n.type === "file")
+        .map((n) => [n.name.toLowerCase(), n] as const),
+    );
+    const conflicts: { file: File; existing: Node }[] = [];
+    const clean: File[] = [];
+    for (const file of valid) {
+      const existing = byName.get(normalizeName(file.name).toLowerCase());
+      if (existing) conflicts.push({ file, existing });
+      else clean.push(file);
+    }
+    if (conflicts.length > 0) {
+      setConflictPrompt({ clean, conflicts, parentId });
+      return;
+    }
+    await enqueueUploads(valid.map((file) => ({ file, parentId })));
+  };
+
+  const enqueueUploads = async (
+    jobs: { file: File; parentId: string; versionOf?: Node }[],
+  ) => {
+    if (jobs.length === 0) return;
+    uploadQueueRef.current.push(...jobs);
     setUpload((u) => {
-      const fresh = valid.map((f) => ({
-        name: f.name,
+      const fresh = jobs.map((j) => ({
+        name: j.file.name,
         status: "queued" as const,
       }));
       return u && u.outcome === null
@@ -623,16 +677,24 @@ function RoomView() {
           }
           // Extracted text powers content search; scanned PDFs return null.
           const contentText = await extractPdfText(job.file);
-          const node = await saveFile(job.parentId, job.file, contentText);
+          // Conflict resolved as "new version": the file lands in the
+          // existing document's history instead of becoming a sibling.
+          const node = job.versionOf
+            ? await uploadNewVersion(job.versionOf, job.file, contentText)
+            : await saveFile(job.parentId, job.file, contentText);
           setFileStatus(index, "done");
           // The URL is the source of truth for where the user is NOW.
           const hereNow =
             new URLSearchParams(location.search).get("folder") ?? roomId;
           if (hereNow === job.parentId) {
             setData((items) =>
-              items.some((it) => it.id === node.id)
-                ? items
-                : sortNodes([...items, node]),
+              job.versionOf
+                ? sortNodes(
+                    items.map((it) => (it.id === node.id ? node : it)),
+                  )
+                : items.some((it) => it.id === node.id)
+                  ? items
+                  : sortNodes([...items, node]),
             );
           }
         } catch {
@@ -980,6 +1042,14 @@ function RoomView() {
           onDismiss={() => setUpload(null)}
         />
       )}
+      <UploadConflictDialog
+        open={conflictPrompt !== null}
+        count={conflictPrompt?.conflicts.length ?? 0}
+        firstName={conflictPrompt?.conflicts[0]?.file.name ?? ""}
+        onNewVersion={() => resolveConflicts("version")}
+        onKeepBoth={() => resolveConflicts("keep-both")}
+        onCancel={() => setConflictPrompt(null)}
+      />
       {/* Hidden picker behind "Upload new version" — one PDF, same name/id. */}
       <input
         ref={versionInputRef}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSortable } from "@dnd-kit/react/sortable";
 import type { Node } from "@/types";
@@ -53,6 +53,28 @@ export function DataroomCard({
     index,
     disabled: reorderDisabled,
   });
+  // dnd-kit stamps a drag-disabled sortable aria-disabled="true" — but this
+  // element is a LINK, and "reorder is off" doesn't disable it: screen
+  // readers would announce it disabled (and Playwright refuses to click).
+  // dnd-kit re-applies attributes on its own scheduler, so a one-shot
+  // removal loses the race — the observer strips it on every re-stamp.
+  useEffect(() => {
+    const el = document.querySelector(
+      `[data-node-id="${node.id}"][role="link"]`,
+    );
+    if (!el) return;
+    const strip = () => {
+      if (el.getAttribute("aria-disabled") === "true")
+        el.removeAttribute("aria-disabled");
+    };
+    strip();
+    const observer = new MutationObserver(strip);
+    observer.observe(el, {
+      attributes: true,
+      attributeFilter: ["aria-disabled"],
+    });
+    return () => observer.disconnect();
+  }, [node.id]);
   return (
     <div
       ref={ref}
