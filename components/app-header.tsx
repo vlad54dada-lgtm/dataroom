@@ -20,7 +20,7 @@ export function AppHeader({ children }: { children?: React.ReactNode }) {
         {/* Same outer frame as the room layout (soft 1720px max) — the
             brand mark sits on one vertical rhythm with the rail below it;
             home and trash center their own content inside. */}
-        <div className="mx-auto flex h-14 w-full max-w-[1720px] items-center gap-4 px-8">
+        <div className="mx-auto flex h-14 w-full max-w-[1600px] items-center gap-4 px-8">
           <Link
             href="/"
             aria-label="Acme Corp. home"

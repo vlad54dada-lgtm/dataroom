@@ -26,7 +26,7 @@ export default function RoomLayout({
       <main
         id="main"
         tabIndex={-1}
-        className="mx-auto flex w-full max-w-[1720px] flex-1 scroll-mt-14 px-8 outline-none motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200"
+        className="mx-auto flex w-full max-w-[1600px] flex-1 scroll-mt-14 px-8 outline-none motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200"
       >
         <RoomRail />
         <div className="flex min-w-0 flex-1 flex-col py-8">
