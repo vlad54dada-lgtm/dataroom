@@ -110,9 +110,14 @@ export function SelectionBar(props: SelectionBarProps) {
         <Button variant="ghost" size="sm" onClick={onMove}>
           <FolderInput /> <span className="max-sm:sr-only">Move to…</span>
         </Button>
-        {/* Neutral, not red: trashing is reversible (undo toast + restore
-            page). Red is reserved for consequence — permanent deletion. */}
-        <Button variant="ghost" size="sm" onClick={onTrash}>
+        {/* Destructive register, same recipe as the menus' Move-to-trash
+            item: red text, red wash on hover. */}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-destructive hover:bg-destructive/10 hover:text-destructive dark:hover:bg-destructive/15"
+          onClick={onTrash}
+        >
           <Trash2 /> <span className="max-sm:sr-only">Move to trash</span>
         </Button>
         <Button

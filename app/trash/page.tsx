@@ -605,7 +605,7 @@ function TrashView() {
               variant="ghost"
               size="sm"
               disabled={bulkBusy}
-              className="text-destructive hover:text-destructive"
+              className="text-destructive hover:bg-destructive/10 hover:text-destructive dark:hover:bg-destructive/15"
               onClick={() =>
                 openConfirm({
                   kind: "purgeMany",
