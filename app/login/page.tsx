@@ -11,6 +11,7 @@ import { useSession } from "@/lib/hooks/use-session";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 type Mode = "sign-in" | "sign-up" | "forgot";
 
@@ -106,6 +107,11 @@ export default function LoginPage() {
 
   return (
     <main className="relative flex flex-1 items-center justify-center px-6 py-12">
+      {/* Theme toggle, mirrored top-right — the login screen gets the same
+          light/dark control as the rest of the app. */}
+      <div className="absolute top-4 right-4">
+        <ThemeToggle />
+      </div>
       {/* Soft radial brand glow behind the mark — the page gets a focal
           point instead of a uniform tint. */}
       <div

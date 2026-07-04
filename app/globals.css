@@ -181,6 +181,40 @@
 }
 
 /* ---------------------------------------------------------------------------
+   Theme switch — a circle of the NEW theme wipes in from the toggle button
+   (View Transitions API; the toggle sets --theme-x/-y/-r). The default
+   root cross-fade is replaced by clipping the new snapshot with a growing
+   circle, so light↔dark feels like a reveal instead of a hard flip.
+--------------------------------------------------------------------------- */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-new(root) {
+  /* Literal easing, not var(--ease-out-strong): custom properties from
+     @theme don't reliably reach the ::view-transition pseudo tree, and an
+     unresolved easing invalidates the whole `animation` shorthand. */
+  animation: theme-reveal 480ms cubic-bezier(0.23, 1, 0.32, 1) forwards;
+}
+/* The old theme sits underneath, fully visible, while the new circle grows
+   over it — no double-exposure flash. */
+::view-transition-old(root) {
+  z-index: 0;
+}
+::view-transition-new(root) {
+  z-index: 1;
+}
+@keyframes theme-reveal {
+  from {
+    clip-path: circle(0 at var(--theme-x, 50%) var(--theme-y, 0));
+  }
+  to {
+    clip-path: circle(var(--theme-r, 150vmax) at var(--theme-x, 50%) var(--theme-y, 0));
+  }
+}
+
+/* ---------------------------------------------------------------------------
    Dark theme — a navy-tinted slate, not flat gray: elevated surfaces stay
    readable, the brand blue brightens one step for contrast, and the
    folder/file tints become translucent washes of their own hue.
