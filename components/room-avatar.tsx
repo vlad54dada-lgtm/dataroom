@@ -37,61 +37,43 @@ export const ROOM_ICONS: Record<string, LucideIcon> = {
 };
 
 /**
- * `wash` (light only) tints the card's top with the room color; over the
- * near-black dark card the same gradient reads as smudge, so in dark the
- * identity moves to `band` — a colored footer strip instead.
+ * Registrar tones: identity lives in the avatar tile alone (the old card
+ * wash/band layers are gone). Deep ledger swatches, quiet tile tints —
+ * hues stay well-spaced so rooms remain tellable apart at a glance.
+ * Tile glyphs clear the 3:1 non-text bar on both themes with margin.
  */
-export const ROOM_COLORS: Record<
-  string,
-  { tile: string; swatch: string; wash: string; band: string }
-> = {
+export const ROOM_COLORS: Record<string, { tile: string; swatch: string }> = {
   blue: {
-    tile: "bg-blue-100 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400",
-    swatch: "bg-blue-500",
-    wash: "from-blue-500/12",
-    band: "dark:border-blue-400/15 dark:bg-blue-400/10",
+    tile: "bg-blue-100 text-blue-900 dark:bg-blue-400/10 dark:text-blue-300",
+    swatch: "bg-blue-900",
   },
   violet: {
-    tile: "bg-violet-100 text-violet-600 dark:bg-violet-500/15 dark:text-violet-400",
-    swatch: "bg-violet-500",
-    wash: "from-violet-500/12",
-    band: "dark:border-violet-400/15 dark:bg-violet-400/10",
+    tile: "bg-violet-100 text-violet-800 dark:bg-violet-400/10 dark:text-violet-300",
+    swatch: "bg-violet-800",
   },
   emerald: {
-    tile: "bg-emerald-100 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400",
-    swatch: "bg-emerald-500",
-    wash: "from-emerald-500/12",
-    band: "dark:border-emerald-400/15 dark:bg-emerald-400/10",
+    tile: "bg-emerald-100 text-emerald-800 dark:bg-emerald-400/10 dark:text-emerald-300",
+    swatch: "bg-emerald-800",
   },
   amber: {
-    tile: "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400",
-    swatch: "bg-amber-500",
-    wash: "from-amber-500/15",
-    band: "dark:border-amber-400/15 dark:bg-amber-400/10",
+    tile: "bg-amber-100 text-amber-800 dark:bg-amber-400/10 dark:text-amber-300",
+    swatch: "bg-amber-700",
   },
   rose: {
-    tile: "bg-rose-100 text-rose-600 dark:bg-rose-500/15 dark:text-rose-400",
-    swatch: "bg-rose-500",
-    wash: "from-rose-500/12",
-    band: "dark:border-rose-400/15 dark:bg-rose-400/10",
+    tile: "bg-rose-100 text-rose-800 dark:bg-rose-400/10 dark:text-rose-300",
+    swatch: "bg-rose-900",
   },
   cyan: {
-    tile: "bg-cyan-100 text-cyan-600 dark:bg-cyan-500/15 dark:text-cyan-400",
-    swatch: "bg-cyan-500",
-    wash: "from-cyan-500/12",
-    band: "dark:border-cyan-400/15 dark:bg-cyan-400/10",
+    tile: "bg-cyan-100 text-cyan-800 dark:bg-cyan-400/10 dark:text-cyan-300",
+    swatch: "bg-cyan-800",
   },
   orange: {
-    tile: "bg-orange-100 text-orange-700 dark:bg-orange-500/15 dark:text-orange-400",
-    swatch: "bg-orange-500",
-    wash: "from-orange-500/15",
-    band: "dark:border-orange-400/15 dark:bg-orange-400/10",
+    tile: "bg-orange-100 text-orange-800 dark:bg-orange-400/10 dark:text-orange-300",
+    swatch: "bg-orange-800",
   },
   slate: {
-    tile: "bg-slate-200 text-slate-600 dark:bg-slate-500/15 dark:text-slate-400",
-    swatch: "bg-slate-500",
-    wash: "from-slate-500/15",
-    band: "dark:border-slate-400/15 dark:bg-slate-400/10",
+    tile: "bg-slate-100 text-slate-700 dark:bg-slate-400/10 dark:text-slate-300",
+    swatch: "bg-slate-600",
   },
 };
 

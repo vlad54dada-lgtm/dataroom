@@ -47,13 +47,9 @@ export default function ResetPasswordPage() {
 
   return (
     <main className="relative flex flex-1 items-center justify-center px-6 py-12">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-80 bg-[radial-gradient(ellipse_at_top,_color-mix(in_srgb,_var(--brand)_8%,_transparent),_transparent_70%)]"
-      />
-      <div className="relative w-full max-w-sm">
-        <div className="flex flex-col items-center gap-2 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-75 motion-safe:duration-300 motion-safe:ease-out-back">
-          <span className="flex size-11 items-center justify-center rounded-xl bg-primary shadow-lg shadow-primary/25">
+      <div className="relative w-full max-w-sm motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200">
+        <div className="flex flex-col items-center gap-2">
+          <span className="flex size-11 items-center justify-center rounded-lg bg-primary shadow-card">
             <FileText className="size-5 text-primary-foreground" strokeWidth={2} />
           </span>
           <span className="mt-1 font-heading text-2xl font-medium tracking-[-0.005em]">
@@ -63,10 +59,7 @@ export default function ResetPasswordPage() {
             Virtual data room
           </span>
         </div>
-        <div
-          className="mt-7 rounded-card border bg-card p-6 shadow-card motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-300 motion-safe:ease-out-strong motion-safe:fill-mode-backwards"
-          style={{ animationDelay: "80ms" }}
-        >
+        <div className="mt-7 rounded-card border bg-card p-6 shadow-card">
           {session.status === "loading" ? (
             <div className="flex h-32 items-center justify-center text-muted-foreground">
               <Loader2 className="size-5 animate-spin" aria-label="Loading" />

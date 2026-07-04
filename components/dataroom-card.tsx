@@ -6,7 +6,7 @@ import { useSortable } from "@dnd-kit/react/sortable";
 import type { Node } from "@/types";
 import { RESTORE_MIME, readIds } from "@/lib/dnd";
 import { cn, formatDate } from "@/lib/utils";
-import { RoomAvatar, resolveRoomColor } from "@/components/room-avatar";
+import { RoomAvatar } from "@/components/room-avatar";
 import { RowMenu } from "@/components/row-menu";
 
 export interface DataroomListItem {
@@ -103,8 +103,6 @@ export function DataroomCard({
         onDropRestore(ids, node);
       }}
       className={cn(
-        // isolate + the wash's -z-10 keep the wash BEHIND all content so the
-        // icon never tints as the wash deepens.
         // `transform` is in the transition list so the OTHER cards glide
         // when dnd-kit shifts them via transform during a reorder (without
         // it they snap). The actively dragged card is exempt — dnd-kit
@@ -132,25 +130,6 @@ export function DataroomCard({
         className,
       )}
     >
-      {/* Light only: the room's identity color bleeds into the card as a
-          top wash; hovering stacks a second identical layer on top, so the
-          color visibly deepens instead of barely shifting. -z-10 keeps it
-          behind content. In dark the wash reads as smudge, so the identity
-          lives in the footer band instead (see below). */}
-      <div
-        aria-hidden
-        className={cn(
-          "pointer-events-none absolute inset-x-0 top-0 -z-10 h-24 rounded-t-[calc(var(--radius-card)-1px)] bg-gradient-to-b to-transparent dark:hidden",
-          resolveRoomColor(node.color).wash,
-        )}
-      >
-        <div
-          className={cn(
-            "absolute inset-0 rounded-t-[calc(var(--radius-card)-1px)] bg-gradient-to-b to-transparent opacity-0 transition-opacity duration-200 ease-out-strong group-hover:opacity-100 motion-reduce:transition-none",
-            resolveRoomColor(node.color).wash,
-          )}
-        />
-      </div>
       <div className="flex items-start justify-between gap-2">
         <RoomAvatar
           icon={node.icon}
@@ -180,15 +159,10 @@ export function DataroomCard({
       ) : null}
       {/* Zoned footer — the same tinted meta-band the dialogs use: facts
           live on their own quiet register, content stays on the surface.
-          In dark it carries the room's color (the dark counterpart of the
-          light theme's top wash). */}
+          Room identity stays in the avatar tile; the band is neutral in
+          both themes. */}
       <div className="mt-auto pt-4">
-        <div
-          className={cn(
-            "-mx-4 -mb-4 rounded-b-[calc(var(--radius-card)-1px)] border-t bg-foreground/4 px-4 py-2.5",
-            resolveRoomColor(node.color).band,
-          )}
-        >
+        <div className="-mx-4 -mb-4 rounded-b-[calc(var(--radius-card)-1px)] border-t bg-foreground/4 px-4 py-2.5">
           <p className="text-xs text-muted-foreground">
             {itemCount === 1 ? "1 item" : `${itemCount} items`}
             {" · Created "}

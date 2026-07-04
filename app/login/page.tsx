@@ -112,17 +112,11 @@ export default function LoginPage() {
       <div className="absolute top-4 right-4">
         <ThemeToggle />
       </div>
-      {/* Soft radial brand glow behind the mark — the page gets a focal
-          point instead of a uniform tint. */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-80 bg-[radial-gradient(ellipse_at_top,_color-mix(in_srgb,_var(--brand)_8%,_transparent),_transparent_70%)]"
-      />
-      {/* Three-beat entrance: mark pops first, the card follows, the footer
-          link lands last — backwards fill so nothing flashes early. */}
-      <div className="relative w-full max-w-sm">
-        <div className="flex flex-col items-center gap-2 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-75 motion-safe:duration-300 motion-safe:ease-out-back">
-          <span className="flex size-11 items-center justify-center rounded-xl bg-primary shadow-lg shadow-primary/25">
+      {/* One quiet entrance on the whole column — a document is simply
+          there; no three-beat choreography. */}
+      <div className="relative w-full max-w-sm motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200">
+        <div className="flex flex-col items-center gap-2">
+          <span className="flex size-11 items-center justify-center rounded-lg bg-primary shadow-card">
             <FileText className="size-5 text-primary-foreground" strokeWidth={2} />
           </span>
           <span className="mt-1 font-heading text-2xl font-medium tracking-[-0.005em]">
@@ -132,10 +126,7 @@ export default function LoginPage() {
             Virtual data room
           </span>
         </div>
-        <div
-          className="mt-7 rounded-card border bg-card p-6 shadow-card motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-300 motion-safe:ease-out-strong motion-safe:fill-mode-backwards"
-          style={{ animationDelay: "80ms" }}
-        >
+        <div className="mt-7 rounded-card border bg-card p-6 shadow-card">
           {/* Keyed on mode so switching sign-in ⇄ sign-up morphs the copy in
               instead of hard-cutting — the only snap on an animated screen. */}
           <div
@@ -246,10 +237,7 @@ export default function LoginPage() {
             </Button>
           </form>
         </div>
-        <p
-          className="mt-5 text-center text-sm text-muted-foreground motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-300 motion-safe:ease-out-strong motion-safe:fill-mode-backwards"
-          style={{ animationDelay: "160ms" }}
-        >
+        <p className="mt-5 text-center text-sm text-muted-foreground">
           {mode === "sign-in" ? (
             <>
               Don&apos;t have an account?{" "}

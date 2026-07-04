@@ -15,51 +15,53 @@
 
   /* shadcn contract tokens, mapped to our palette */
   --background: #ffffff; /* surface */
-  --foreground: #111827; /* primary text */
+  --foreground: #0f172a; /* primary text — slate ink */
   --card: #ffffff;
-  --card-foreground: #111827;
+  --card-foreground: #0f172a;
   --popover: #ffffff;
-  --popover-foreground: #111827;
-  --primary: #1d4ed8; /* brand actions */
+  --popover-foreground: #0f172a;
+  /* Authority navy, not product blue: white labels measure 10.4:1. */
+  --primary: #1e3a8a; /* brand actions */
   --primary-foreground: #ffffff;
-  --secondary: #f2f4f7; /* subtle surface, tinted toward the brand's blue-gray */
-  --secondary-foreground: #111827;
-  --muted: #f2f4f7; /* muted surface */
-  /* One step darker than the classic gray-500: must hold 4.5:1 not just on
-     white but on the muted and selected washes secondary text sits on. */
-  --muted-foreground: #616b7a;
+  --secondary: #e9eef5; /* subtle surface, tinted toward the brand's blue-gray */
+  --secondary-foreground: #0f172a;
+  --muted: #e9eef5; /* muted surface */
+  /* Must hold 4.5:1 not just on white but on the muted and selected washes
+     secondary text sits on: #5b6472 measures 5.1:1 on #e9eef5. */
+  --muted-foreground: #5b6472;
   /* shadcn "accent" = subtle hover surface, NOT the brand. Mixed relative to
      the popover surface (same pattern as dark) so menu hovers register. */
   --accent: color-mix(in srgb, var(--foreground) 8%, var(--popover));
-  --accent-foreground: #111827;
+  --accent-foreground: #0f172a;
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;
-  --border: #e0e3e8;
-  --input: #e0e3e8;
-  --ring: #1d4ed8; /* focus ring = brand */
+  --border: #d8dde6;
+  --input: #d8dde6;
+  --ring: #1e3a8a; /* focus ring = brand */
 
   /* Our additions (non-colliding names) */
   /* A real step below white so cards/header read as raised surfaces
      (#fafafa vs #ffffff was a 1.04:1 non-event). */
-  --canvas: #f6f7f9;
-  --line-strong: #ccd2db;
+  --canvas: #f2f4f8;
+  --line-strong: #c3ccd8;
   /* Control boundaries (checkboxes): unlike field borders these must clear
      3:1 against their row or the control reads as missing (WCAG 1.4.11). */
   --control: #848d9c;
-  --brand: #1d4ed8;
-  --brand-hover: #1e40af;
+  --brand: #1e3a8a;
+  --brand-hover: #172554;
   --danger: #dc2626;
   --danger-hover: #b91c1c;
-  --folder: #1d4ed8;
-  --folder-bg: #eff6ff;
-  /* Rose, deliberately NOT the danger red: PDF icons are the most common
-     glyph on screen and must not wear the destructive color. */
-  --file: #be123c;
-  --file-bg: #fff1f2;
+  --folder: #1e3a8a;
+  --folder-bg: #eef2fa;
+  /* Graphite document on cool paper — deliberately neither the danger red
+     nor the old consumer rose: PDF icons are the most common glyph on
+     screen and must read institutional. #475569 measures 6.7:1 on the bg. */
+  --file: #475569;
+  --file-bg: #eef1f5;
 
   /* Solid hover for the brand button — translucent hovers muddy over any
-     backdrop. Light: one step deeper. */
-  --primary-hover: #1e40af;
+     backdrop. Light: one step deeper (blue-950). */
+  --primary-hover: #172554;
 
   /* Selected rows are a STATE, not a gesture — brand-washed, not gray.
      8%: 6% measured 1.0995:1 vs white, under the distinguishability bar. */
@@ -67,19 +69,20 @@
 
   /* Elevation scale tied to real layers: resting card, hovered card,
      menu, floating bar, dialog. Shadow hue follows --foreground so depth
-     reads as the surface's own color, not soot. */
-  --elev-card: 0 1px 2px 0 rgb(17 24 39 / 0.04);
-  --elev-raised: 0 1px 2px 0 rgb(17 24 39 / 0.04),
-    0 4px 8px -2px rgb(17 24 39 / 0.05), 0 12px 24px -6px rgb(17 24 39 / 0.07);
-  --elev-popover: 0 1px 2px 0 rgb(17 24 39 / 0.05),
-    0 4px 10px -2px rgb(17 24 39 / 0.07), 0 12px 24px -6px rgb(17 24 39 / 0.09);
-  --elev-float: 0 1px 2px 0 rgb(17 24 39 / 0.05),
-    0 8px 16px -4px rgb(17 24 39 / 0.08), 0 24px 48px -12px rgb(17 24 39 / 0.14);
-  --elev-overlay: 0 2px 4px 0 rgb(17 24 39 / 0.04),
-    0 16px 32px -8px rgb(17 24 39 / 0.12), 0 48px 96px -16px rgb(17 24 39 / 0.18);
+     reads as the surface's own color, not soot. Blurs stay tight — depth
+     is a hint here, not a float. */
+  --elev-card: 0 1px 2px 0 rgb(15 23 42 / 0.04);
+  --elev-raised: 0 1px 2px 0 rgb(15 23 42 / 0.05),
+    0 6px 12px -4px rgb(15 23 42 / 0.08);
+  --elev-popover: 0 1px 2px 0 rgb(15 23 42 / 0.05),
+    0 4px 10px -2px rgb(15 23 42 / 0.07), 0 12px 24px -6px rgb(15 23 42 / 0.09);
+  --elev-float: 0 1px 2px 0 rgb(15 23 42 / 0.06),
+    0 8px 16px -6px rgb(15 23 42 / 0.1);
+  --elev-overlay: 0 2px 4px 0 rgb(15 23 42 / 0.05),
+    0 16px 32px -12px rgb(15 23 42 / 0.14);
   /* PDF "paper": hairline keyline + soft lift, hue from --foreground like
      every other elevation tier. */
-  --elev-paper: 0 0 0 1px rgb(17 24 39 / 0.06), 0 2px 8px rgb(17 24 39 / 0.08);
+  --elev-paper: 0 0 0 1px rgb(15 23 42 / 0.06), 0 2px 8px rgb(15 23 42 / 0.08);
 }
 
 /* ---------------------------------------------------------------------------
@@ -230,25 +233,26 @@
   /* Field borders must survive the elevated popover (#1b2130) too, where
      the old #2c3341 sat at ~1.3:1 and unfocused fields dissolved. */
   --input: #343d4f;
-  --ring: #4e8df6;
+  --ring: #6f97d9;
 
   --canvas: #090b10; /* page background behind surfaces, one step deeper */
   --line-strong: #333b4a;
   --control: #5e6b83;
-  /* Brighter than the old #3b82f6: link text must hold 4.5:1 on the
-     elevated popover too (menus, dialogs), not only on the card. */
-  --brand: #4e8df6;
-  --brand-hover: #60a5fa;
+  /* Steel, not pastel: same hue desaturated toward slate. Link text must
+     hold 4.5:1 on the elevated popover too (menus, dialogs), not only on
+     the card — #6f97d9 measures 5.4:1 on #1b2130 and 6.2:1 on #12151c. */
+  --brand: #6f97d9;
+  --brand-hover: #8db0e4;
   --danger: #f98d8d;
   --danger-hover: #fca5a5; /* dark hovers brighten, they don't deepen */
-  --folder: #7ab3ff;
+  --folder: #8fb0dd;
   /* Opaque equivalents of the old translucent washes (over #12151c):
      slash-opacity modifiers (bg-folder-bg/70 etc.) collapse translucent
      tokens to near-nothing in dark, so the raw values must be solid. */
-  --folder-bg: #19263f;
-  /* Rose (not danger red) — see the light block. */
-  --file: #fda4af;
-  --file-bg: #33191f;
+  --folder-bg: #1c2740;
+  /* Graphite documents (not danger red) — see the light block. */
+  --file: #a9b4c4;
+  --file-bg: #222835;
 
   /* Dark solids DARKEN on hover — anything lighter than #2563eb drops
      white labels under AA. */
@@ -266,10 +270,10 @@
     0 4px 8px -2px rgb(0 0 0 / 0.4), 0 12px 24px -6px rgb(0 0 0 / 0.45);
   --elev-popover: inset 0 1px 0 0 rgb(255 255 255 / 0.05),
     0 4px 12px -2px rgb(0 0 0 / 0.5), 0 12px 24px -6px rgb(0 0 0 / 0.55);
-  --elev-float: inset 0 1px 0 0 rgb(255 255 255 / 0.08),
-    0 8px 16px -4px rgb(0 0 0 / 0.55), 0 24px 48px -12px rgb(0 0 0 / 0.6);
+  --elev-float: inset 0 1px 0 0 rgb(255 255 255 / 0.07),
+    0 8px 16px -6px rgb(0 0 0 / 0.5);
   --elev-overlay: inset 0 1px 0 0 rgb(255 255 255 / 0.06),
-    0 16px 32px -8px rgb(0 0 0 / 0.55), 0 48px 96px -16px rgb(0 0 0 / 0.65);
+    0 16px 32px -12px rgb(0 0 0 / 0.55);
   --elev-paper: 0 0 0 1px rgb(255 255 255 / 0.09), 0 4px 16px rgb(0 0 0 / 0.5);
 }
 
