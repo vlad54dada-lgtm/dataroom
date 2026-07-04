@@ -2,11 +2,11 @@
  * PDF acceptance policy (dropzone `accept` is advisory only — drag&drop
  * bypasses it, so this runs in code for every incoming file):
  * 1. The extension must be `.pdf` (case-insensitive) — always required.
- * 2. A positive MIME (`application/pdf`) passes.
- * 3. A contradicting MIME (e.g. `image/png`) fails outright.
- * 4. An EMPTY/unknown MIME falls back to magic-number sniffing: the first
- *    5 bytes must be the `%PDF-` signature. A `.pdf`-renamed PNG with an
- *    empty MIME fails here.
+ * 2. A contradicting MIME (e.g. `image/png`) fails outright.
+ * 3. The first 5 bytes must be the `%PDF-` signature — ALWAYS sniffed,
+ *    even with a positive MIME: browsers assign `application/pdf` from
+ *    the extension alone, so a renamed `notes.txt → notes.pdf` arrives
+ *    wearing a "correct" MIME and only the magic number catches it.
  */
 
 const PDF_MIME = "application/pdf";
@@ -14,8 +14,7 @@ const PDF_SIGNATURE = [0x25, 0x50, 0x44, 0x46, 0x2d]; // "%PDF-"
 
 export async function isPdf(file: File): Promise<boolean> {
   if (!file.name.toLowerCase().endsWith(".pdf")) return false;
-  if (file.type === PDF_MIME) return true;
-  if (file.type !== "") return false; // MIME present and contradicting
+  if (file.type !== "" && file.type !== PDF_MIME) return false;
   const header = new Uint8Array(
     await file.slice(0, PDF_SIGNATURE.length).arrayBuffer(),
   );
