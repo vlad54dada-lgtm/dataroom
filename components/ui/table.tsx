@@ -8,7 +8,9 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
     <div
       data-slot="table-container"
-      className="relative w-full overflow-x-auto"
+      // Below md the table reflows into a single column by design, so any
+      // residual pixel overflow is clipped instead of growing a scrollbar.
+      className="relative w-full overflow-x-auto max-md:overflow-x-clip"
     >
       <table
         data-slot="table"

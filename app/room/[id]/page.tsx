@@ -144,7 +144,7 @@ function RoomView() {
   const crumbs = useBreadcrumbs(roomId, currentFolderId);
   const currentCrumb = crumbs.crumbs?.[crumbs.crumbs.length - 1] ?? null;
   useDocumentTitle(
-    currentCrumb ? `${currentCrumb.name} — Acme Corp. Data Room` : null,
+    currentCrumb ? `${currentCrumb.name} — Acme Corp. Dataroom` : null,
   );
   const { state, isStale, reload, setData } = useAsync(
     () => listChildren(currentFolderId),
@@ -723,6 +723,14 @@ function RoomView() {
                     aria-label="Search this dataroom"
                     className="w-56 pl-8 pr-8"
                   />
+                  {query.length === 0 && (
+                    <kbd
+                      aria-hidden
+                      className="pointer-events-none absolute top-1/2 right-2 hidden h-5 -translate-y-1/2 items-center rounded border bg-muted px-1.5 font-sans text-[10px] font-medium text-muted-foreground sm:flex pointer-coarse:hidden"
+                    >
+                      /
+                    </kbd>
+                  )}
                   {query.length > 0 && (
                     <button
                       type="button"

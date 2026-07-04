@@ -88,14 +88,14 @@ export function ItemRow({
   const router = useRouter();
   const isFolder = node.type !== "file";
   const size = node.type === "file" ? formatBytes(node.size ?? 0) : null;
-  // Folders show what files show in Size: how much is in there.
+  // Folders show what files show in Size: how much is in there. One count
+  // series (0 items / 1 item / N items) — a word like "Empty" breaks the
+  // ledger column.
   const contents =
     isFolder && childCount !== undefined
-      ? childCount === 0
-        ? "Empty"
-        : childCount === 1
-          ? "1 item"
-          : `${childCount} items`
+      ? childCount === 1
+        ? "1 item"
+        : `${childCount} items`
       : null;
   const modified = formatModified(node.updatedAt);
   // Folder rows light up while a compatible drag hovers over them.
@@ -277,6 +277,7 @@ export function ItemRow({
                   : undefined
               }
               onMove={onMove ? () => onMove(node) : undefined}
+              shortcutHints
             />
           </TableCell>
         </TableRow>
@@ -309,6 +310,9 @@ export function ItemRow({
         )}
         <ContextMenuItem onSelect={() => onRename(node, null)}>
           <Pencil /> Rename
+          <span className="ml-auto text-xs tracking-widest text-muted-foreground">
+            F2
+          </span>
         </ContextMenuItem>
         {onMove && (
           <ContextMenuItem onSelect={() => onMove(node)}>
@@ -321,6 +325,9 @@ export function ItemRow({
           onSelect={() => onDelete(node, null)}
         >
           <Trash2 /> Move to trash
+          <span className="ml-auto text-xs tracking-widest text-muted-foreground">
+            Del
+          </span>
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>

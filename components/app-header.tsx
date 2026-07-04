@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { FileText } from "lucide-react";
 import { DragHint } from "@/components/drag-hint";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { TrashFab } from "@/components/trash-fab";
@@ -24,16 +23,23 @@ export function AppHeader({ children }: { children?: React.ReactNode }) {
             className="flex shrink-0 items-center gap-2.5 rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             {/* bg-primary, not bg-brand: dark --brand is a link blue that
-                fails AA under white; --primary is the guaranteed pair. */}
+                fails AA under white; --primary is the guaranteed pair.
+                Serif monogram, not a stock glyph — the mark must not share
+                its icon with every PDF row. */}
             <span className="flex size-7 items-center justify-center rounded-lg bg-primary">
-              <FileText className="size-4 text-primary-foreground" strokeWidth={2} />
+              <span
+                aria-hidden
+                className="font-heading text-[15px] font-semibold leading-none text-primary-foreground"
+              >
+                A
+              </span>
             </span>
             <span className="flex items-baseline gap-2">
               <span className="font-heading text-[15px] font-semibold">
                 Acme Corp.
               </span>
               <span className="hidden text-xs text-muted-foreground sm:inline">
-                Data room
+                Dataroom
               </span>
             </span>
           </Link>

@@ -56,12 +56,16 @@ function SortableHead({
   sort,
   onSort,
   className,
+  align,
 }: {
   label: string;
   sortKey: SortKey;
   sort: { key: SortKey; dir: SortDir } | null;
   onSort: (key: SortKey) => void;
   className?: string;
+  /** "end": the sort arrow hangs to the LEFT so the label's right edge
+      stays on the column's number rail. */
+  align?: "end";
 }) {
   const active = sort?.key === sortKey;
   return (
@@ -81,6 +85,7 @@ function SortableHead({
           // Negative margins keep the label optically aligned with the
           // column content below while the pill extends around it.
           "-mx-1.5 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-medium tracking-[0.08em] uppercase text-muted-foreground transition-colors duration-150 outline-none select-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
+          align === "end" && "flex-row-reverse",
           active && "bg-muted text-foreground",
         )}
       >
@@ -332,18 +337,23 @@ export function ItemsTable({
                   }
                 />
               </TableHead>
+              {/* No explicit width: in table-fixed the width-less column
+                  absorbs exactly the remainder (w-full + the fixed columns
+                  overflowed the wrapper by 88px — the phantom mobile
+                  scrollbar). */}
               <SortableHead
                 label="Name"
                 sortKey="name"
                 sort={sort}
                 onSort={cycleSort}
-                className="w-full px-1"
+                className="px-1"
               />
               <SortableHead
                 label="Size"
                 sortKey="size"
                 sort={sort}
                 onSort={cycleSort}
+                align="end"
                 className="hidden w-28 px-4 text-right md:table-cell"
               />
               <SortableHead

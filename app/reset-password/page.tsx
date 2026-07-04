@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Eye, EyeOff, FileText, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { authErrorMessage } from "@/lib/auth-errors";
 import { useDocumentTitle } from "@/lib/hooks/use-document-title";
@@ -22,7 +22,7 @@ import { Label } from "@/components/ui/label";
 export default function ResetPasswordPage() {
   const router = useRouter();
   const session = useSession();
-  useDocumentTitle("Reset password — Acme Corp. Data Room");
+  useDocumentTitle("Reset password — Acme Corp. Dataroom");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,13 +50,18 @@ export default function ResetPasswordPage() {
       <div className="relative w-full max-w-sm motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200">
         <div className="flex flex-col items-center gap-2">
           <span className="flex size-11 items-center justify-center rounded-lg bg-primary shadow-card">
-            <FileText className="size-5 text-primary-foreground" strokeWidth={2} />
+            <span
+              aria-hidden
+              className="font-heading text-xl font-semibold leading-none text-primary-foreground"
+            >
+              A
+            </span>
           </span>
           <span className="mt-1 font-heading text-2xl font-medium tracking-[-0.005em]">
             Acme Corp.
           </span>
           <span className="-mt-1.5 text-xs text-muted-foreground">
-            Virtual data room
+            Virtual dataroom
           </span>
         </div>
         <div className="mt-7 rounded-card border bg-card p-6 shadow-card">
@@ -140,6 +145,9 @@ export default function ResetPasswordPage() {
           )}
         </div>
       </div>
+      <p className="pointer-events-none absolute inset-x-0 bottom-6 hidden px-6 text-center text-xs text-muted-foreground/70 sm:block">
+        Authorized users only · Documents in this workspace are confidential
+      </p>
     </main>
   );
 }

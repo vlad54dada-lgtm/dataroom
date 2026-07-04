@@ -180,7 +180,7 @@ export function Breadcrumbs({
             onFocus={(e) => showPill(e.currentTarget)}
             className="relative rounded-md px-1.5 py-1 text-muted-foreground transition-colors duration-150 outline-none hover:text-foreground focus-visible:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
           >
-            Home
+            Datarooms
           </Link>
         </li>
         {head.map((node) => (
@@ -233,9 +233,9 @@ export function Breadcrumbs({
             aria-current="page"
             title={current.name}
             // The room h1 is sr-only, so this crumb is the de facto page
-            // title of the core screen — semibold + full-ink, not one weight
-            // step above its muted ancestors.
-            className="relative max-w-56 truncate px-1.5 py-1 font-semibold text-foreground"
+            // title of the core screen — the same object-name register the
+            // dataroom card uses, one clear step above its muted ancestors.
+            className="relative max-w-56 truncate px-1.5 py-1 text-[15px] font-semibold tracking-[-0.01em] text-foreground"
           >
             {current.name}
           </span>

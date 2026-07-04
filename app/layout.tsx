@@ -21,9 +21,9 @@ const sourceSerif = Source_Serif_4({
 });
 
 export const metadata: Metadata = {
-  title: "Acme Corp. Data Room",
+  title: "Acme Corp. Dataroom",
   description:
-    "Acme Corp.'s virtual data room for organizing and reviewing due-diligence documents.",
+    "Acme Corp.'s virtual dataroom for organizing and reviewing due-diligence documents.",
 };
 
 export default function RootLayout({

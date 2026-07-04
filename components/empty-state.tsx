@@ -51,13 +51,13 @@ export function EmptyState({ variant, query, action }: EmptyStateProps) {
     <div className="flex flex-col items-center justify-center px-6 py-16 text-center motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200">
       {/* When wrapped in a .group drop-target button, the tile answers the
           hover — a quiet cue that this whole area is interactive. */}
-      <span className="flex size-12 items-center justify-center rounded-full bg-muted transition-colors duration-200 group-hover:bg-folder-bg">
+      <span className="flex size-12 items-center justify-center rounded-xl bg-muted transition-colors duration-200 group-hover:bg-folder-bg">
         <Icon
           className="size-6 text-muted-foreground transition-colors duration-200 group-hover:text-brand"
           strokeWidth={1.75}
         />
       </span>
-      <p className="mt-4 font-heading text-base font-medium">
+      <p className="mt-4 font-heading text-lg font-medium">
         {variant === "no-results" && query ? (
           <>No matches for &ldquo;{query}&rdquo;</>
         ) : (

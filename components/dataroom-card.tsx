@@ -145,11 +145,15 @@ export function DataroomCard({
       >
         {node.name}
       </span>
-      {node.description ? (
-        <p className="mt-1 line-clamp-3 text-sm leading-relaxed text-muted-foreground">
-          {node.description}
-        </p>
-      ) : null}
+      {/* Fixed two-line slot whether or not a description exists: the grid
+          stretches cards to the tallest sibling, and a conditional slot left
+          description-less cards with a dead void above the footer. */}
+      <p
+        className="mt-1 h-10 line-clamp-2 text-sm leading-5 text-muted-foreground"
+        title={node.description ?? undefined}
+      >
+        {node.description}
+      </p>
       {/* Zoned footer — the same tinted meta-band the dialogs use: facts
           live on their own quiet register, content stays on the surface.
           Room identity stays in the avatar tile; the band is neutral in

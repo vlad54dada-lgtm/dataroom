@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, FileText, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { authErrorMessage } from "@/lib/auth-errors";
 import { shake } from "@/lib/shake";
@@ -18,7 +18,7 @@ type Mode = "sign-in" | "sign-up" | "forgot";
 export default function LoginPage() {
   const router = useRouter();
   const session = useSession();
-  useDocumentTitle("Sign in — Acme Corp. Data Room");
+  useDocumentTitle("Sign in — Acme Corp. Dataroom");
   const [mode, setMode] = useState<Mode>("sign-in");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -117,13 +117,18 @@ export default function LoginPage() {
       <div className="relative w-full max-w-sm motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200">
         <div className="flex flex-col items-center gap-2">
           <span className="flex size-11 items-center justify-center rounded-lg bg-primary shadow-card">
-            <FileText className="size-5 text-primary-foreground" strokeWidth={2} />
+            <span
+              aria-hidden
+              className="font-heading text-xl font-semibold leading-none text-primary-foreground"
+            >
+              A
+            </span>
           </span>
           <span className="mt-1 font-heading text-2xl font-medium tracking-[-0.005em]">
             Acme Corp.
           </span>
           <span className="-mt-1.5 text-xs text-muted-foreground">
-            Virtual data room
+            Virtual dataroom
           </span>
         </div>
         <div className="mt-7 rounded-card border bg-card p-6 shadow-card">
@@ -274,6 +279,12 @@ export default function LoginPage() {
           )}
         </p>
       </div>
+      {/* Confidentiality footing — the register the viewer's watermark
+          already speaks, starting at the front door. Hidden on short
+          viewports where it would crowd the card. */}
+      <p className="pointer-events-none absolute inset-x-0 bottom-6 hidden px-6 text-center text-xs text-muted-foreground/70 sm:block">
+        Authorized users only · Documents in this workspace are confidential
+      </p>
     </main>
   );
 }

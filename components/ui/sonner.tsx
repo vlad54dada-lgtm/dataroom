@@ -28,12 +28,16 @@ const Toaster = ({ ...props }: ToasterProps) => {
           "--normal-bg": "var(--popover)",
           "--normal-text": "var(--popover-foreground)",
           "--normal-border": "var(--border)",
-          "--border-radius": "var(--radius)",
+          "--border-radius": "var(--radius-card)",
         } as React.CSSProperties
       }
       toastOptions={{
         classNames: {
-          toast: "cn-toast",
+          // `!` beats sonner's inline box-shadow: toasts join the app's
+          // elevation system (dark gets the inset top-highlight + a border
+          // that survives the near-black canvas) instead of the library's
+          // stock 10%-black shadow.
+          toast: "shadow-popover! dark:border-line-strong!",
         },
       }}
       {...props}

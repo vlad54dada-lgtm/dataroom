@@ -39,7 +39,7 @@ export function UploadPanel({ state, onCancel, onDismiss }: UploadPanelProps) {
         : `${done} ${done === 1 ? "file" : "files"} uploaded`;
 
   return (
-    <div className="fixed bottom-6 left-6 z-40 w-80 max-w-[calc(100vw-3rem)] rounded-card border bg-popover p-3 shadow-float motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:duration-200 motion-safe:ease-out-strong">
+    <div className="fixed bottom-6 left-6 z-40 w-80 max-w-[calc(100vw-3rem)] rounded-card border bg-popover p-3 shadow-float dark:border-line-strong motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:duration-200 motion-safe:ease-out-strong">
       <div className="flex items-center justify-between gap-2">
         {/* Live region announces batch progress; the file list stays out
             of it so screen readers aren't spammed per row. */}

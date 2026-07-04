@@ -91,7 +91,7 @@ export default function HomePage() {
 }
 
 function HomeView() {
-  useDocumentTitle("Datarooms — Acme Corp. Data Room");
+  useDocumentTitle("Datarooms — Acme Corp. Dataroom");
   const { state, reload, setData } = useAsync(loadRooms, "datarooms");
 
   // Global search across every dataroom — same URL/debounce contract as the
@@ -326,6 +326,14 @@ function HomeView() {
                 aria-label="Search all datarooms"
                 className="w-56 pl-8 pr-8"
               />
+              {query.length === 0 && (
+                <kbd
+                  aria-hidden
+                  className="pointer-events-none absolute top-1/2 right-2 hidden h-5 -translate-y-1/2 items-center rounded border bg-muted px-1.5 font-sans text-[10px] font-medium text-muted-foreground sm:flex pointer-coarse:hidden"
+                >
+                  /
+                </kbd>
+              )}
               {query.length > 0 && (
                 <button
                   type="button"
@@ -377,7 +385,7 @@ function HomeView() {
                             ? "1 result"
                             : `${search.state.data.length} results`
                           : `${filteredHits.length} of ${search.state.data.length} results`}{" "}
-                        for &ldquo;{debouncedQuery}&rdquo; everywhere
+                        for &ldquo;{debouncedQuery}&rdquo; in all datarooms
                       </p>
                       <SearchFilters
                         value={searchFilter}

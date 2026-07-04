@@ -62,7 +62,7 @@ export function SelectionBar(props: SelectionBarProps) {
     <div className="pointer-events-none fixed inset-x-0 bottom-6 z-40 flex justify-center">
       <div
         className={cn(
-          "pointer-events-auto flex items-center gap-1 rounded-lg border bg-popover py-1.5 pr-1.5 pl-3 shadow-popover dark:border-line-strong",
+          "pointer-events-auto flex items-center gap-1 rounded-card border bg-popover py-1.5 pr-1.5 pl-3 shadow-float dark:border-line-strong",
           open
             ? "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:duration-200 motion-safe:ease-out-strong"
             : "pointer-events-none motion-safe:animate-out motion-safe:fade-out-0 motion-safe:zoom-out-95 motion-safe:slide-out-to-bottom-2 motion-safe:duration-150 motion-safe:fill-mode-forwards",
@@ -94,12 +94,9 @@ export function SelectionBar(props: SelectionBarProps) {
         <Button variant="ghost" size="sm" onClick={onMove}>
           <FolderInput /> <span className="max-sm:sr-only">Move to…</span>
         </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-destructive hover:text-destructive"
-          onClick={onTrash}
-        >
+        {/* Neutral, not red: trashing is reversible (undo toast + restore
+            page). Red is reserved for consequence — permanent deletion. */}
+        <Button variant="ghost" size="sm" onClick={onTrash}>
           <Trash2 /> <span className="max-sm:sr-only">Move to trash</span>
         </Button>
         <Button

@@ -50,13 +50,13 @@ const timeFormat = new Intl.DateTimeFormat("en-US", {
 });
 
 /**
- * Today's activity shows the time ("2:35 PM"), older items the date —
- * otherwise everything touched during a session reads identically.
+ * Today's activity reads "Today, 2:35 PM" (a bare wall-clock time floats
+ * without a date anchor), older items the date.
  */
 export function formatModified(timestamp: number): string {
   const date = new Date(timestamp);
   return date.toDateString() === new Date().toDateString()
-    ? timeFormat.format(date)
+    ? `Today, ${timeFormat.format(date)}`
     : dateFormat.format(date);
 }
 

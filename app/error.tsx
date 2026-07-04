@@ -18,10 +18,10 @@ export default function ErrorPage({
   return (
     <main className="flex min-h-screen flex-col items-center justify-center px-6 py-16 text-center">
       {/* destructive/10, not the PDF file tint — danger has its own hue */}
-      <span className="flex size-12 items-center justify-center rounded-full bg-destructive/10">
+      <span className="flex size-12 items-center justify-center rounded-xl bg-destructive/10">
         <CircleAlert className="size-6 text-danger" strokeWidth={1.75} />
       </span>
-      <h1 className="mt-4 font-heading text-base font-medium">
+      <h1 className="mt-4 font-heading text-lg font-medium">
         Something went wrong
       </h1>
       <p className="mt-1 text-sm text-muted-foreground">

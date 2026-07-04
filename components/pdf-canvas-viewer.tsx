@@ -658,7 +658,9 @@ export function PdfCanvasViewer({
           // `relative` anchors the pages' offsetTop to THIS container — the
           // scroll position math (current-page tracking, page stepper) reads
           // offsets against it, not the dialog.
-          className="relative min-h-0 flex-1 overflow-auto rounded-lg border bg-muted/40 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset dark:bg-canvas"
+          // Full-opacity muted well: at /40 the desk was near-identical to
+          // the white page sheet, so the paper never read as paper.
+          className="relative min-h-0 flex-1 overflow-auto rounded-lg border bg-muted outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset dark:bg-canvas"
         >
           {/* Keyed by url: a new document never inherits stale canvases. */}
           <div key={url} className="flex flex-col items-center gap-3 p-4">

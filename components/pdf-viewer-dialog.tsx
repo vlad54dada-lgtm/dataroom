@@ -131,6 +131,11 @@ export function PdfViewerDialog({
     <Dialog open={file !== null} onOpenChange={(next) => !next && onClose()}>
       <DialogContent
         onCloseAutoFocus={restoreFocus}
+        // Radix would auto-focus the tabIndex={0} scroll container, and
+        // programmatic focus matches :focus-visible — every mouse open
+        // framed the document in a full-perimeter ring. Focus rests on the
+        // dialog; Tab still reaches (and rings) the scroller honestly.
+        onOpenAutoFocus={(e) => e.preventDefault()}
         // While the viewer's find bar is open, Escape closes IT, not the
         // dialog (Radix handles Escape in capture phase, so the bar can't
         // defend itself with stopPropagation).

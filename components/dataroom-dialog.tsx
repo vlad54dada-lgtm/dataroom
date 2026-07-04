@@ -216,35 +216,40 @@ export function DataroomDialog({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex items-start gap-3">
-            <RoomAvatar icon={icon} color={color} className="mt-6" animateSwaps />
-            <div className="flex min-w-0 flex-1 flex-col gap-2">
-              <Label htmlFor="dataroom-name">Name</Label>
-              <Input
-                id="dataroom-name"
-                ref={inputRef}
-                value={name}
-                maxLength={MAX_NAME_LENGTH}
-                onChange={(e) => {
-                  setName(e.target.value);
-                  setError(null);
-                }}
-                aria-invalid={error ? true : undefined}
-                autoComplete="off"
-                spellCheck={false}
-              />
-              {error ? (
-                <p
-                  className="text-sm text-danger motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-top-1 motion-safe:duration-200"
-                  role="alert"
-                >
-                  {error}
-                </p>
-              ) : showEmptyHint ? (
-                <p className="text-sm text-muted-foreground">
-                  Name can&apos;t be only spaces
-                </p>
-              ) : null}
+          {/* Label ABOVE the avatar row so all four field labels share the
+              dialog gutter — the live avatar preview sits beside the input,
+              not in front of the label rail. */}
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="dataroom-name">Name</Label>
+            <div className="flex items-start gap-3">
+              <RoomAvatar icon={icon} color={color} animateSwaps />
+              <div className="flex min-w-0 flex-1 flex-col gap-2">
+                <Input
+                  id="dataroom-name"
+                  ref={inputRef}
+                  value={name}
+                  maxLength={MAX_NAME_LENGTH}
+                  onChange={(e) => {
+                    setName(e.target.value);
+                    setError(null);
+                  }}
+                  aria-invalid={error ? true : undefined}
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+                {error ? (
+                  <p
+                    className="text-sm text-danger motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-top-1 motion-safe:duration-200"
+                    role="alert"
+                  >
+                    {error}
+                  </p>
+                ) : showEmptyHint ? (
+                  <p className="text-sm text-muted-foreground">
+                    Name can&apos;t be only spaces
+                  </p>
+                ) : null}
+              </div>
             </div>
           </div>
 

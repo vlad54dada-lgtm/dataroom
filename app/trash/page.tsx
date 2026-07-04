@@ -74,7 +74,7 @@ export default function TrashPage() {
 
 function TrashView() {
   const router = useRouter();
-  useDocumentTitle("Trash — Acme Corp. Data Room");
+  useDocumentTitle("Trash — Acme Corp. Dataroom");
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   useSearchHotkey(searchInputRef);
   const { state, reload, setData } = useAsync(listTrash, "trash");
@@ -338,6 +338,14 @@ function TrashView() {
                   aria-label="Search the trash"
                   className="w-56 pl-8 pr-8"
                 />
+                {query.length === 0 && (
+                  <kbd
+                    aria-hidden
+                    className="pointer-events-none absolute top-1/2 right-2 hidden h-5 -translate-y-1/2 items-center rounded border bg-muted px-1.5 font-sans text-[10px] font-medium text-muted-foreground sm:flex pointer-coarse:hidden"
+                  >
+                    /
+                  </kbd>
+                )}
                 {query.length > 0 && (
                   <button
                     type="button"
@@ -349,9 +357,12 @@ function TrashView() {
                   </button>
                 )}
               </div>
+              {/* Permanent deletion: red text AND a red-washed hover — the
+                  destructive action hovers destructive, matching the menus'
+                  destructive-item recipe. */}
               <Button
                 variant="outline"
-                className="text-destructive hover:text-destructive"
+                className="text-destructive hover:bg-destructive/10! hover:text-danger-hover dark:hover:bg-destructive/15!"
                 onClick={openEmptyConfirm}
               >
                 <Trash2 /> Empty trash
@@ -556,7 +567,7 @@ function TrashView() {
           the room's SelectionBar. */}
       {selectionActive && (
         <div className="pointer-events-none fixed inset-x-0 bottom-6 z-40 flex justify-center">
-          <div className="pointer-events-auto flex items-center gap-1 rounded-lg border bg-popover py-1.5 pr-1.5 pl-3 shadow-popover dark:border-line-strong motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:duration-200 motion-safe:ease-out-strong">
+          <div className="pointer-events-auto flex items-center gap-1 rounded-card border bg-popover py-1.5 pr-1.5 pl-3 shadow-float dark:border-line-strong motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:duration-200 motion-safe:ease-out-strong">
             <span role="status" aria-live="polite" className="sr-only">
               {liveSelected.length} selected
             </span>
