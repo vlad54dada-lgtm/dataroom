@@ -299,7 +299,7 @@ export function DataroomDialog({
                       className={cn(
                         "size-4.5",
                         selected &&
-                          "motion-safe:animate-in motion-safe:fade-in-50 motion-safe:zoom-in-75 motion-safe:duration-200 motion-safe:ease-out-back",
+                          "motion-safe:animate-in motion-safe:fade-in-50 motion-safe:zoom-in-95 motion-safe:duration-150 motion-safe:ease-out-strong",
                       )}
                       strokeWidth={1.75}
                     />

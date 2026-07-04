@@ -127,7 +127,7 @@ export function RoomAvatar({
         className={cn(
           size === "lg" ? "size-5" : "size-4.5",
           animateSwaps &&
-            "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-50 motion-safe:duration-200 motion-safe:ease-out-back",
+            "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-150 motion-safe:ease-out-strong",
         )}
         strokeWidth={1.75}
       />

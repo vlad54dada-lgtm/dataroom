@@ -171,7 +171,7 @@ export function Breadcrumbs({
         <span
           ref={pillRef}
           aria-hidden
-          className="pointer-events-none absolute top-0 left-0 rounded-md bg-muted opacity-0 transition-[transform,width,height,opacity] duration-200 ease-out-strong will-change-[transform,width] motion-reduce:transition-none"
+          className="pointer-events-none absolute top-0 left-0 rounded-md bg-muted opacity-0 transition-[transform,width,height,opacity] duration-150 ease-out-strong will-change-[transform,width] motion-reduce:transition-none"
         />
         <li className="flex items-center gap-1">
           <Link
@@ -223,11 +223,10 @@ export function Breadcrumbs({
             </DropdownMenu>
           </li>
         )}
-        {/* Keyed by folder: navigating slides the new location in from the
-            trail's direction of travel. */}
+        {/* Keyed by folder: a quiet fade marks each navigation. */}
         <li
           key={current.id}
-          className="flex min-w-0 items-center gap-1 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-left-2 motion-safe:duration-300 motion-safe:ease-out-strong"
+          className="flex min-w-0 items-center gap-1 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-150"
         >
           <Separator />
           <span

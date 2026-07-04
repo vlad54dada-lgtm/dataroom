@@ -9,12 +9,10 @@ export function shake(el: HTMLElement | null): void {
   el.animate(
     [
       { transform: "translateX(0)" },
-      { transform: "translateX(-6px)" },
-      { transform: "translateX(5px)" },
-      { transform: "translateX(-4px)" },
-      { transform: "translateX(3px)" },
+      { transform: "translateX(-3px)" },
+      { transform: "translateX(2px)" },
       { transform: "translateX(0)" },
     ],
-    { duration: 340, easing: "ease-out" },
+    { duration: 180, easing: "ease-out" },
   );
 }

@@ -9,6 +9,7 @@ import {
   type Sensors,
 } from "@dnd-kit/dom";
 import type { Node } from "@/types";
+import { cn } from "@/lib/utils";
 import {
   DataroomCard,
   type DataroomListItem,
@@ -73,7 +74,16 @@ export function DataroomGrid({
         onReorder?.(ids);
       }}
     >
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {/* One quiet fade on first load only (`entered` bookkeeping keeps
+          reorders and optimistic inserts from re-firing it) — no per-card
+          stagger choreography. */}
+      <div
+        className={cn(
+          "grid gap-4 sm:grid-cols-2 lg:grid-cols-3",
+          !entered &&
+            "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200",
+        )}
+      >
         {items.map((item, i) => (
           <DataroomCard
             key={item.node.id}
@@ -83,15 +93,6 @@ export function DataroomGrid({
             onEdit={onEdit}
             onDelete={onDelete}
             onDropRestore={onDropRestore}
-            // Staggered entrance on first load only (capped so late rows
-            // never feel held back); gone afterward so reorders never
-            // re-fire it.
-            className={
-              entered
-                ? undefined
-                : "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:duration-300 motion-safe:ease-out-strong motion-safe:fill-mode-backwards"
-            }
-            style={entered ? undefined : { animationDelay: `${Math.min(i, 8) * 45}ms` }}
           />
         ))}
       </div>

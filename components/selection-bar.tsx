@@ -62,22 +62,17 @@ export function SelectionBar(props: SelectionBarProps) {
     <div className="pointer-events-none fixed inset-x-0 bottom-6 z-40 flex justify-center">
       <div
         className={cn(
-          "pointer-events-auto flex items-center gap-1 rounded-full border bg-popover py-1.5 pr-1.5 pl-4 shadow-float dark:border-line-strong",
+          "pointer-events-auto flex items-center gap-1 rounded-lg border bg-popover py-1.5 pr-1.5 pl-3 shadow-popover dark:border-line-strong",
           open
-            ? "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:slide-in-from-bottom-4 motion-safe:duration-300 motion-safe:ease-out-back"
+            ? "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:duration-200 motion-safe:ease-out-strong"
             : "pointer-events-none motion-safe:animate-out motion-safe:fade-out-0 motion-safe:zoom-out-95 motion-safe:slide-out-to-bottom-2 motion-safe:duration-150 motion-safe:fill-mode-forwards",
         )}
       >
-        {/* The keyed span remounts per count (the tick animation), so a
-            persistent sr-only twin does the live announcing. */}
+        {/* Static count; the sr-only twin does the live announcing. */}
         <span role="status" aria-live="polite" className="sr-only">
           {count} selected
         </span>
-        <span
-          key={count}
-          aria-hidden
-          className="text-sm font-medium tabular-nums motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-200"
-        >
+        <span aria-hidden className="text-sm font-medium tabular-nums">
           {count} selected
         </span>
         <span className="mx-1.5 h-4 w-px bg-border" aria-hidden />

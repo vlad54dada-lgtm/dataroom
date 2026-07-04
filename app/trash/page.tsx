@@ -343,7 +343,7 @@ function TrashView() {
                     type="button"
                     aria-label="Clear search"
                     onClick={() => setQuery("")}
-                    className="absolute top-1/2 right-1.5 flex size-5 -translate-y-1/2 items-center justify-center rounded-sm text-muted-foreground transition-[color,background-color,scale] duration-150 outline-none hover:bg-muted hover:text-foreground active:scale-90 focus-visible:ring-3 focus-visible:ring-ring/50 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-50 motion-safe:duration-150 motion-safe:ease-out-back"
+                    className="absolute top-1/2 right-1.5 flex size-5 -translate-y-1/2 items-center justify-center rounded-sm text-muted-foreground transition-[color,background-color] duration-150 outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-150"
                   >
                     <X className="size-4" />
                   </button>
@@ -443,13 +443,13 @@ function TrashView() {
                             "bg-selected hover:bg-selected dark:hover:bg-selected",
                         )}
                       >
-                        {/* Same zoom+fade reveal wrapper as the room rows. */}
+                        {/* Same opacity-only reveal wrapper as the room rows. */}
                         <span
                           className={cn(
-                            "flex transition-[opacity,scale] duration-150 ease-out motion-reduce:transition-none",
+                            "flex transition-opacity duration-150 motion-reduce:transition-none",
                             selected || selectionActive
-                              ? "scale-100 opacity-100"
-                              : "scale-90 opacity-0 group-hover/trash:scale-100 group-hover/trash:opacity-100 has-[:focus-visible]:scale-100 has-[:focus-visible]:opacity-100 pointer-coarse:scale-100 pointer-coarse:opacity-100",
+                              ? "opacity-100"
+                              : "opacity-0 group-hover/trash:opacity-100 has-[:focus-visible]:opacity-100 pointer-coarse:opacity-100",
                           )}
                         >
                           <Checkbox
@@ -556,15 +556,11 @@ function TrashView() {
           the room's SelectionBar. */}
       {selectionActive && (
         <div className="pointer-events-none fixed inset-x-0 bottom-6 z-40 flex justify-center">
-          <div className="pointer-events-auto flex items-center gap-1 rounded-full border bg-popover py-1.5 pr-1.5 pl-4 shadow-float dark:border-line-strong motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:slide-in-from-bottom-4 motion-safe:duration-300 motion-safe:ease-out-back">
+          <div className="pointer-events-auto flex items-center gap-1 rounded-lg border bg-popover py-1.5 pr-1.5 pl-3 shadow-popover dark:border-line-strong motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:duration-200 motion-safe:ease-out-strong">
             <span role="status" aria-live="polite" className="sr-only">
               {liveSelected.length} selected
             </span>
-            <span
-              key={liveSelected.length}
-              aria-hidden
-              className="text-sm font-medium tabular-nums motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-200"
-            >
+            <span aria-hidden className="text-sm font-medium tabular-nums">
               {liveSelected.length} selected
             </span>
             <span className="mx-1.5 h-4 w-px bg-border" aria-hidden />

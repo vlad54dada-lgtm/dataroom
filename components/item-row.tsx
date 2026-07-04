@@ -201,15 +201,14 @@ export function ItemRow({
           {...dropProps}
         >
           <TableCell className="w-10 px-3 py-0">
-            {/* Reveal on the wrapper (zoom + fade) so it never fights the
-                checkbox's own press-scale transition. Always visible on
-                touch — there is no hover to reveal it. */}
+            {/* Opacity-only reveal — no zoom. Always visible on touch —
+                there is no hover to reveal it. */}
             <span
               className={cn(
-                "flex transition-[opacity,scale] duration-150 ease-out motion-reduce:transition-none",
+                "flex transition-opacity duration-150 motion-reduce:transition-none",
                 selected || selectionActive
-                  ? "scale-100 opacity-100"
-                  : "scale-90 opacity-0 group-hover/row:scale-100 group-hover/row:opacity-100 has-[:focus-visible]:scale-100 has-[:focus-visible]:opacity-100 pointer-coarse:scale-100 pointer-coarse:opacity-100",
+                  ? "opacity-100"
+                  : "opacity-0 group-hover/row:opacity-100 has-[:focus-visible]:opacity-100 pointer-coarse:opacity-100",
               )}
             >
               <Checkbox

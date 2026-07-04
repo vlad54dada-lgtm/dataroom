@@ -5,9 +5,9 @@ import { Button } from "@/components/ui/button";
 
 export function ErrorState({ onRetry }: { onRetry: () => void }) {
   return (
-    <div className="flex flex-col items-center justify-center px-6 py-16 text-center motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-2 motion-safe:duration-300 motion-safe:ease-out-strong">
+    <div className="flex flex-col items-center justify-center px-6 py-16 text-center motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200">
       {/* destructive/10, not the PDF file tint — danger has its own hue */}
-      <span className="flex size-12 items-center justify-center rounded-full bg-destructive/10 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-75 motion-safe:duration-300 motion-safe:ease-out-back">
+      <span className="flex size-12 items-center justify-center rounded-full bg-destructive/10">
         <CircleAlert className="size-6 text-danger" strokeWidth={1.75} />
       </span>
       <p className="mt-4 font-heading text-base font-medium">
