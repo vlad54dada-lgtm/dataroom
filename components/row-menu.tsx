@@ -16,7 +16,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
@@ -34,8 +33,6 @@ interface RowMenuProps {
   onMove?: (trigger: HTMLElement | null) => void;
   /** Dataroom cards say "Edit" (name + description + avatar), rows "Rename". */
   renameLabel?: string;
-  /** Table rows have F2/Del key handlers — show the hints. Cards don't. */
-  shortcutHints?: boolean;
   /** Names the object for assistive tech: "Actions for {subject}". */
   subject?: string;
   className?: string;
@@ -50,7 +47,6 @@ export function RowMenu({
   onVersionHistory,
   onMove,
   renameLabel = "Rename",
-  shortcutHints = false,
   subject,
   className,
 }: RowMenuProps) {
@@ -119,7 +115,6 @@ export function RowMenu({
           }}
         >
           <Pencil /> {renameLabel}
-          {shortcutHints && <DropdownMenuShortcut>F2</DropdownMenuShortcut>}
         </DropdownMenuItem>
         {onMove && (
           <DropdownMenuItem
@@ -140,7 +135,6 @@ export function RowMenu({
           }}
         >
           <Trash2 /> Move to trash
-          {shortcutHints && <DropdownMenuShortcut>Del</DropdownMenuShortcut>}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -277,7 +277,6 @@ export function ItemRow({
                   : undefined
               }
               onMove={onMove ? () => onMove(node) : undefined}
-              shortcutHints
             />
           </TableCell>
         </TableRow>
@@ -310,9 +309,6 @@ export function ItemRow({
         )}
         <ContextMenuItem onSelect={() => onRename(node, null)}>
           <Pencil /> Rename
-          <span className="ml-auto text-xs tracking-widest text-muted-foreground">
-            F2
-          </span>
         </ContextMenuItem>
         {onMove && (
           <ContextMenuItem onSelect={() => onMove(node)}>
@@ -325,9 +321,6 @@ export function ItemRow({
           onSelect={() => onDelete(node, null)}
         >
           <Trash2 /> Move to trash
-          <span className="ml-auto text-xs tracking-widest text-muted-foreground">
-            Del
-          </span>
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
