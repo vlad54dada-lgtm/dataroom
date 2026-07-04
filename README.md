@@ -24,6 +24,7 @@ The brief asks for folder/file CRUD. This ships that, plus what a deal team actu
 ## Feature summary
 
 - Datarooms with icons, colors, and descriptions; folders nest without limit; drag cards to reorder the home grid (persisted)
+- A collapsible dataroom rail inside every room (desktop) — switch rooms in one click, current room highlighted, list scrolls under soft fade masks
 - Multi-file PDF upload by button or drag & drop, with a progress panel: per-file status, cancel, honest failure labels; a second drop mid-batch queues instead of breaking
 - File versioning: upload a new version, browse history, restore any previous one
 - Search scoped to a room or across all rooms, by name and content, with type filters — the query lives in the URL, so refresh and deep links keep it

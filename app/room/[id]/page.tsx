@@ -53,6 +53,7 @@ import {
   type SearchFilter,
 } from "@/components/search-filters";
 import { Breadcrumbs } from "@/components/breadcrumbs";
+import { RoomRail } from "@/components/room-rail";
 import { RoomToolbar } from "@/components/room-toolbar";
 import {
   ItemsTable,
@@ -88,12 +89,16 @@ function RoomShell({ children }: { children: React.ReactNode }) {
   return (
     <>
       <AppHeader />
+      {/* max-w-7xl (not 6xl): the rail borrows ~240px on lg+, so the
+          content column keeps its working width. The rail carries its own
+          vertical padding; the column keeps the page's. */}
       <main
         id="main"
         tabIndex={-1}
-        className="mx-auto flex w-full max-w-6xl flex-1 scroll-mt-14 flex-col px-6 py-8 outline-none motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200"
+        className="mx-auto flex w-full max-w-7xl flex-1 scroll-mt-14 px-6 outline-none motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200"
       >
-        {children}
+        <RoomRail />
+        <div className="flex min-w-0 flex-1 flex-col py-8">{children}</div>
       </main>
     </>
   );
