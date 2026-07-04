@@ -1,6 +1,5 @@
 "use client";
 
-import { useRef } from "react";
 import { flushSync } from "react-dom";
 import { Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
@@ -9,18 +8,16 @@ import { Button } from "@/components/ui/button";
 /**
  * Light/dark toggle. Both icons are always rendered (no hydration flicker);
  * switching cross-rotates them — the sun sets, the moon rises. The theme
- * swap itself wipes in as a circle growing from this button, via the View
- * Transitions API (falls back to an instant swap where it's unsupported or
- * under reduced motion).
+ * swap itself is a gentle full-page cross-fade via the View Transitions API
+ * (falls back to an instant swap where it's unsupported or under reduced
+ * motion).
  */
 export function ThemeToggle() {
   const { resolvedTheme, setTheme } = useTheme();
-  const btnRef = useRef<HTMLButtonElement>(null);
 
   const toggle = () => {
     const next = resolvedTheme === "dark" ? "light" : "dark";
-    const startViewTransition =
-      document.startViewTransition?.bind(document);
+    const startViewTransition = document.startViewTransition?.bind(document);
     const reduce = window.matchMedia(
       "(prefers-reduced-motion: reduce)",
     ).matches;
@@ -29,20 +26,6 @@ export function ThemeToggle() {
       setTheme(next);
       return;
     }
-
-    // Reveal origin = this button's centre; radius = the farthest corner, so
-    // the circle covers the whole viewport by the end.
-    const rect = btnRef.current?.getBoundingClientRect();
-    const x = rect ? rect.left + rect.width / 2 : window.innerWidth;
-    const y = rect ? rect.top + rect.height / 2 : 0;
-    const r = Math.hypot(
-      Math.max(x, window.innerWidth - x),
-      Math.max(y, window.innerHeight - y),
-    );
-    const root = document.documentElement;
-    root.style.setProperty("--theme-x", `${x}px`);
-    root.style.setProperty("--theme-y", `${y}px`);
-    root.style.setProperty("--theme-r", `${r}px`);
 
     // flushSync so next-themes applies the class inside the transition's
     // captured "after" state, not a tick later.
@@ -53,7 +36,6 @@ export function ThemeToggle() {
 
   return (
     <Button
-      ref={btnRef}
       variant="ghost"
       size="icon-sm"
       aria-label="Toggle theme"
