@@ -35,14 +35,17 @@ Quality details that don't fit a bullet list: optimistic updates with rollback o
 
 ## Tests
 
-End-to-end suite (Playwright) covering the flows above against the real backend — sign-up, dataroom/folder/file CRUD, duplicate-name policies, upload validation and suffixing, the viewer, content search with snippets, trash/undo/partial restore, and the keyboard model. Each run registers a fresh throwaway account, so runs are hermetic.
+End-to-end suite (Playwright) covering the flows above against the real backend — sign-up, dataroom/folder/file CRUD, duplicate-name and version-conflict policies, upload validation and suffixing, the viewer, content search with snippets, trash/undo/partial restore, and the keyboard model. Each run registers a fresh throwaway account, so runs are hermetic.
+
+The suite runs in three engines: **Chromium**, **WebKit** (the Safari engine), and **mobile Safari** (iPhone 13 viewport) — layout, fonts, focus behavior, and PDF rendering are all verified outside Chrome too.
 
 ```bash
-npx playwright install chromium   # once
-npm run test:e2e
+npx playwright install chromium webkit   # once
+npm run test:e2e                         # all three projects
+npx playwright test --project=chromium   # or one engine
 ```
 
-15 scenarios, ~1 minute against the dev server (it reuses one if already running).
+15 scenarios per engine, ~1–3 minutes each against the dev server (it reuses one if already running).
 
 ## Run it locally
 

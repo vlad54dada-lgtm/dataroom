@@ -19,8 +19,15 @@ export default defineConfig({
     baseURL: "http://localhost:3000",
     storageState: "playwright/.auth/user.json",
     trace: "on-first-retry",
-    ...devices["Desktop Chrome"],
   },
+  // Chromium + the Safari engine, desktop AND iPhone viewport: the suite
+  // must hold in WebKit too, where fonts, focus behavior, and PDF
+  // rendering all differ from Chrome.
+  projects: [
+    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
+    { name: "webkit", use: { ...devices["Desktop Safari"] } },
+    { name: "mobile-safari", use: { ...devices["iPhone 13"] } },
+  ],
   webServer: {
     command: "npm run dev",
     url: "http://localhost:3000",
