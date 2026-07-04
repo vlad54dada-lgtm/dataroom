@@ -85,6 +85,12 @@ export function useAsync<T>(load: () => Promise<T>, key: string) {
       : null,
   );
   const [tick, setTick] = useState(0);
+  // Bumped by every APPLIED setData patch. A load whose response comes back
+  // after a manual write is stale by definition (its SELECT left before the
+  // write committed) — on a slow network it would clobber the patch: create
+  // a room while the initial list is still in flight and the card vanishes.
+  // key/tick tagging can't catch this; the write generation does.
+  const writeGenRef = useRef(0);
 
   // Keep the latest loader without re-running the effect on identity changes.
   const loadRef = useRef(load);
@@ -94,13 +100,16 @@ export function useAsync<T>(load: () => Promise<T>, key: string) {
 
   useEffect(() => {
     let cancelled = false;
+    const startGen = writeGenRef.current;
     loadRef.current().then(
       (data) => {
+        if (writeGenRef.current !== startGen) return; // stale vs a manual write
         swrCache.set(key, data);
         if (!cancelled)
           setSnapshot({ key, tick, state: { status: "success", data } });
       },
       (error: unknown) => {
+        if (writeGenRef.current !== startGen) return;
         if (!cancelled)
           setSnapshot({ key, tick, state: { status: "error", error } });
       },
@@ -131,6 +140,7 @@ export function useAsync<T>(load: () => Promise<T>, key: string) {
   const setData = useCallback((updater: (prev: T) => T) => {
     setSnapshot((prev) => {
       if (!prev || prev.state.status !== "success") return prev;
+      writeGenRef.current += 1;
       const data = updater(prev.state.data);
       swrCache.set(prev.key, data);
       return { ...prev, state: { status: "success", data } };

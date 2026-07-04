@@ -63,6 +63,9 @@ test.describe("search and trash", () => {
       .click();
     await page.getByRole("menuitem", { name: "Move to trash" }).click();
     await expect(row(page, bundle)).toBeHidden();
+    // The row hides OPTIMISTICALLY — wait for the success toast (server
+    // commit) before fetching the trash, or its SELECT can race the write.
+    await expect(page.getByRole("button", { name: "Undo" }).last()).toBeVisible();
     const roomUrl = page.url();
 
     // Trash page: expand the deleted folder and pull the file out alone.

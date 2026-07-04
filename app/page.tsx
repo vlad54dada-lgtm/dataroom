@@ -220,8 +220,13 @@ function HomeView() {
       successToast: "Dataroom created",
       errorToast: (e) =>
         isDuplicateNameError(e) ? null : "Couldn't create the dataroom",
-      onSuccess: (node) =>
-        setData((items) => sortItems([...items, { node, itemCount: 0 }])),
+      onSuccess: (node) => {
+        setData((items) => sortItems([...items, { node, itemCount: 0 }]));
+        // Belt for the cold path: if the initial list is still loading the
+        // patch above has nothing to apply to — refetch post-commit so the
+        // new card can never be missing.
+        reload();
+      },
     },
   );
 
