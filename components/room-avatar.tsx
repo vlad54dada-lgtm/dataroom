@@ -4,9 +4,9 @@ import {
   Briefcase,
   Building2,
   Folder,
+  Gavel,
   Globe,
   Landmark,
-  Rocket,
   Scale,
   ShieldCheck,
   TrendingUp,
@@ -21,20 +21,32 @@ import { cn } from "@/lib/utils";
  * default folder-on-blue so old rooms and bad data never break.
  */
 
+// One icon per due-diligence workstream: corporate, legal, litigation,
+// regulatory, finance, HR, insurance, cross-border, records. (The old
+// "rocket" read startup, not M&A — stored rocket keys fall back to folder.)
 export const ROOM_ICONS: Record<string, LucideIcon> = {
   folder: Folder,
   briefcase: Briefcase,
   building: Building2,
   scale: Scale,
+  gavel: Gavel,
   landmark: Landmark,
   banknote: Banknote,
   chart: TrendingUp,
   shield: ShieldCheck,
   users: Users,
   globe: Globe,
-  rocket: Rocket,
   archive: Archive,
 };
+
+/**
+ * Duotone: glyphs take a quiet self-fill like the folder/file tiles do.
+ * Open-polyline glyphs (the chart line, the scale's beams) would fill as
+ * solid blobs via SVG's implicit path closing — those stay outline-only.
+ */
+const OUTLINE_ONLY_ICONS = new Set(["chart", "scale"]);
+export const roomIconFill = (key: string) =>
+  OUTLINE_ONLY_ICONS.has(key) ? undefined : "fill-current/10";
 
 /**
  * Registrar tones: identity lives in the avatar tile alone (the old card
@@ -129,6 +141,7 @@ export function RoomAvatar({
         key={animateSwaps ? iconKey : undefined}
         className={cn(
           size === "lg" ? "size-5" : "size-4.5",
+          roomIconFill(iconKey),
           animateSwaps &&
             "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-150 motion-safe:ease-out-strong",
         )}
