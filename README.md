@@ -96,7 +96,7 @@ The design register is a deliberate position: **an institution's ledger, not a c
 - **Typography — "letterhead".** Source Serif 4 is fenced to display moments only: the wordmark (a serif "A" monogram, echoed in the favicon), page titles, dialog titles, empty states. Geist Sans carries every control, label, and row of data. Tables run global tabular numerals under 11px tracked-caps headers; same-day timestamps anchor as "Today, 2:35 PM", folder sizes read as one count series ("0 items", never "Empty").
 - **Color — "ledger ink".** Authority navy `#1E3A8A` on cool paper in light; navy-tinted slate with a steel accent in dark. Documents are graphite, folders navy — the most common glyphs on screen never wear consumer rose or danger red. Red is reserved for destructive actions — moving to trash, deleting forever — and never decorates. Every text/background pair is measured against WCAG AA and the measurements live as comments next to the tokens.
 - **Motion — "still ledger".** Motion conveys state, never decorates: 150–250ms, one strong ease-out curve, no overshoot or elastic easing anywhere, exits faster than enters, `prefers-reduced-motion` respected across the app. The one flourish — the fly-to-trash arc — is functional feedback showing where deleted items went.
-- **Power is visible.** The full keyboard model (arrows, Enter, Space, F2, Delete, Ctrl/Cmd+A, `/`, Ctrl/Cmd+K, shift-range) surfaces as quiet affordances: a `/` chip in every search field, F2/Del hints in the row menus.
+- **Power is visible.** The full keyboard model (arrows, Enter, Space, F2, Delete, Ctrl/Cmd+A, `/`, Ctrl/Cmd+K, shift-range) surfaces as a quiet affordance: a `/` chip in every search field.
 
 A conscious divergence from the obvious reference: Harvey's warm-paper minimalism is the look most candidates will copy. This app takes the Datasite lane instead — cooler, denser, hairline-bordered — because a data room is a working table, not a chat canvas. Both themes are first-class and separately contrast-verified.
 
@@ -120,7 +120,7 @@ A conscious divergence from the obvious reference: Harvey's warm-paper minimalis
 
 | Case | What happens |
 |---|---|
-| Duplicate file name | auto-suffix: `report (1).pdf` |
+| Duplicate file name | one prompt per batch: upload as a new version (default) or keep both — `report (1).pdf` |
 | Duplicate folder/dataroom name | inline dialog error, enforced by the DB |
 | Non-PDF or renamed-to-.pdf files | rejected by signature check; toast lists them; valid files still upload |
 | Empty / whitespace / over-long names | submit answers with a shake + inline error; trimmed on save; 255 max |
