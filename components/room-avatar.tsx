@@ -118,7 +118,7 @@ export function RoomAvatar({
   return (
     <span
       className={cn(
-        "flex shrink-0 items-center justify-center rounded-tile",
+        "flex shrink-0 items-center justify-center rounded-tile ring-1 ring-current/10 ring-inset",
         size === "lg" ? "size-10" : "size-8",
         palette.tile,
         animateSwaps && "transition-colors duration-300",

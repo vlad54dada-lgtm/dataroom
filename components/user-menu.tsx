@@ -30,7 +30,7 @@ export function UserMenu() {
           aria-label="Account"
           className="rounded-full"
         >
-          <span className="flex size-7 items-center justify-center rounded-full bg-folder-bg text-sm font-semibold text-brand">
+          <span className="flex size-7 items-center justify-center rounded-full bg-folder-bg text-sm font-semibold text-brand ring-1 ring-brand/15 ring-inset">
             {initial}
           </span>
         </Button>

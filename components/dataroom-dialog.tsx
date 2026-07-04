@@ -335,7 +335,9 @@ export function DataroomDialog({
                     aria-pressed={selected}
                     onClick={() => setColor(key)}
                     className={cn(
-                      "size-6 rounded-full transition-transform outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+                      // Inset hairline defines the dot's edge on any surface
+                      // (the deep registrar fills read flat without it).
+                      "size-6 rounded-full ring-1 ring-foreground/10 ring-inset transition-transform outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
                       ROOM_COLORS[key].swatch,
                       !selected && "hover:scale-110",
                     )}

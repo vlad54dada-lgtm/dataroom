@@ -500,18 +500,20 @@ function TrashView() {
                           />
                         ) : (
                           <span
-                            className={`flex size-8 shrink-0 items-center justify-center rounded-tile ${
-                              isFolder ? "bg-folder-bg" : "bg-file-bg"
+                            className={`flex size-8 shrink-0 items-center justify-center rounded-tile ring-1 ring-inset ${
+                              isFolder
+                                ? "bg-folder-bg ring-folder/15"
+                                : "bg-file-bg ring-file/15"
                             }`}
                           >
                             {isFolder ? (
                               <Folder
-                                className="size-5 text-folder"
+                                className="size-5 fill-folder/10 text-folder"
                                 strokeWidth={1.75}
                               />
                             ) : (
                               <FileText
-                                className="size-5 text-file"
+                                className="size-5 fill-file/10 text-file"
                                 strokeWidth={1.75}
                               />
                             )}
@@ -863,9 +865,9 @@ function TrashChildRow({
           }`}
         >
           {isFolder ? (
-            <Folder className="size-4 text-folder" strokeWidth={1.75} />
+            <Folder className="size-4 fill-folder/10 text-folder" strokeWidth={1.75} />
           ) : (
-            <FileText className="size-4 text-file" strokeWidth={1.75} />
+            <FileText className="size-4 fill-file/10 text-file" strokeWidth={1.75} />
           )}
         </span>
         <span className="min-w-0 flex-1 truncate text-sm" title={node.name}>
@@ -935,14 +937,14 @@ function TrashSearchHit({
         <RoomAvatar icon={node.icon} color={node.color} size="sm" />
       ) : (
         <span
-          className={`flex size-8 shrink-0 items-center justify-center rounded-tile ${
-            isFolder ? "bg-folder-bg" : "bg-file-bg"
+          className={`flex size-8 shrink-0 items-center justify-center rounded-tile ring-1 ring-inset ${
+            isFolder ? "bg-folder-bg ring-folder/15" : "bg-file-bg ring-file/15"
           }`}
         >
           {isFolder ? (
-            <Folder className="size-5 text-folder" strokeWidth={1.75} />
+            <Folder className="size-5 fill-folder/10 text-folder" strokeWidth={1.75} />
           ) : (
-            <FileText className="size-5 text-file" strokeWidth={1.75} />
+            <FileText className="size-5 fill-file/10 text-file" strokeWidth={1.75} />
           )}
         </span>
       )}

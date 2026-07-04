@@ -208,14 +208,16 @@ export function TrashFab() {
                   />
                 ) : (
                   <span
-                    className={`flex size-7 shrink-0 items-center justify-center rounded-md ${
-                      item.node.type === "folder" ? "bg-folder-bg" : "bg-file-bg"
+                    className={`flex size-7 shrink-0 items-center justify-center rounded-md ring-1 ring-inset ${
+                      item.node.type === "folder"
+                        ? "bg-folder-bg ring-folder/15"
+                        : "bg-file-bg ring-file/15"
                     }`}
                   >
                     {item.node.type === "folder" ? (
-                      <Folder className="size-4 text-folder" strokeWidth={1.75} />
+                      <Folder className="size-4 fill-folder/10 text-folder" strokeWidth={1.75} />
                     ) : (
-                      <FileText className="size-4 text-file" strokeWidth={1.75} />
+                      <FileText className="size-4 fill-file/10 text-file" strokeWidth={1.75} />
                     )}
                   </span>
                 )}

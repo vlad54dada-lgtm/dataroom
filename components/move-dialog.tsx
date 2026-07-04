@@ -218,8 +218,11 @@ function BranchNode({
               className="size-6 rounded-md"
             />
           ) : (
-            <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-folder-bg">
-              <Folder className="size-3.5 text-folder" strokeWidth={1.75} />
+            <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-folder-bg ring-1 ring-folder/15 ring-inset">
+              <Folder
+                className="size-3.5 fill-folder/10 text-folder"
+                strokeWidth={1.75}
+              />
             </span>
           )}
           <span
