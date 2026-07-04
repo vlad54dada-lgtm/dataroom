@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { DragDropProvider } from "@dnd-kit/react";
 import { isSortable } from "@dnd-kit/react/sortable";
 import {
@@ -9,7 +8,6 @@ import {
   type Sensors,
 } from "@dnd-kit/dom";
 import type { Node } from "@/types";
-import { cn } from "@/lib/utils";
 import {
   DataroomCard,
   type DataroomListItem,
@@ -45,18 +43,6 @@ export function DataroomGrid({
 }: DataroomGridProps) {
   const reorderable = onReorder !== undefined && items.length > 1;
 
-  // The staggered entrance animation restarts whenever a card's DOM node is
-  // re-inserted (which React does every time dnd-kit reorders the list) —
-  // that replay is the flicker seen while dragging and on drop. So the
-  // entrance runs ONCE, on the grid's first mount, then is dropped forever:
-  // no class means nothing to replay when cards shuffle.
-  const [entered, setEntered] = useState(false);
-  useEffect(() => {
-    // Longer than the last card's (delay + duration): 8*45 + 300 = 660ms.
-    const t = setTimeout(() => setEntered(true), 800);
-    return () => clearTimeout(t);
-  }, []);
-
   return (
     <DragDropProvider
       sensors={sensors}
@@ -74,16 +60,10 @@ export function DataroomGrid({
         onReorder?.(ids);
       }}
     >
-      {/* One quiet fade on first load only (`entered` bookkeeping keeps
-          reorders and optimistic inserts from re-firing it) — no per-card
-          stagger choreography. */}
-      <div
-        className={cn(
-          "grid gap-4 sm:grid-cols-2 lg:grid-cols-3",
-          !entered &&
-            "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200",
-        )}
-      >
+      {/* One quiet fade on the grid's first mount. The animation lives on
+          this persistent container, so reorders and optimistic inserts
+          can't re-fire it — no per-card stagger, no bookkeeping needed. */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200">
         {items.map((item, i) => (
           <DataroomCard
             key={item.node.id}

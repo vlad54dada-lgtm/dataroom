@@ -86,11 +86,11 @@ export function flyToTrash(sources: FlySource[]): void {
           offset: 0,
           transform: `translate(${sx}px, ${sy}px) scale(0.6) rotate(0deg)`,
           opacity: 0,
-          easing: "cubic-bezier(0.34, 1.3, 0.64, 1)",
+          easing: "cubic-bezier(0.23, 1, 0.32, 1)",
         },
         {
           offset: 0.22,
-          transform: `translate(${sx}px, ${sy - 10}px) scale(1.08) rotate(${-(4 + i * 2)}deg)`,
+          transform: `translate(${sx}px, ${sy - 10}px) scale(1) rotate(${-(4 + i * 2)}deg)`,
           opacity: 1,
           easing: "cubic-bezier(0.45, 0.05, 0.55, 0.95)",
         },
@@ -120,14 +120,16 @@ export function flyToTrash(sources: FlySource[]): void {
       el.remove();
       landed++;
       if (landed === chips.length) {
+        // Arrival feedback, not a bounce: one quiet pulse so the eye
+        // registers where the items went.
         fab.animate(
           [
             { transform: "scale(1)" },
-            { transform: "scale(1.12)" },
+            { transform: "scale(1.05)" },
             { transform: "scale(1)" },
           ],
           {
-            duration: 240,
+            duration: 200,
             easing: "cubic-bezier(0.23, 1, 0.32, 1)",
             composite: "add",
           },

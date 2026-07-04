@@ -40,40 +40,42 @@ export const ROOM_ICONS: Record<string, LucideIcon> = {
  * Registrar tones: identity lives in the avatar tile alone (the old card
  * wash/band layers are gone). Deep ledger swatches, quiet tile tints —
  * hues stay well-spaced so rooms remain tellable apart at a glance.
- * Tile glyphs clear the 3:1 non-text bar on both themes with margin.
+ * Tile glyphs clear the 3:1 non-text bar on both themes with margin;
+ * swatch dots brighten to the 400 register in dark (deep fills vanish
+ * against the dark popover — 1.6-2.2:1 without the flip).
  */
 export const ROOM_COLORS: Record<string, { tile: string; swatch: string }> = {
   blue: {
     tile: "bg-blue-100 text-blue-900 dark:bg-blue-400/10 dark:text-blue-300",
-    swatch: "bg-blue-900",
+    swatch: "bg-blue-900 dark:bg-blue-400",
   },
   violet: {
     tile: "bg-violet-100 text-violet-800 dark:bg-violet-400/10 dark:text-violet-300",
-    swatch: "bg-violet-800",
+    swatch: "bg-violet-800 dark:bg-violet-400",
   },
   emerald: {
     tile: "bg-emerald-100 text-emerald-800 dark:bg-emerald-400/10 dark:text-emerald-300",
-    swatch: "bg-emerald-800",
+    swatch: "bg-emerald-800 dark:bg-emerald-400",
   },
   amber: {
     tile: "bg-amber-100 text-amber-800 dark:bg-amber-400/10 dark:text-amber-300",
-    swatch: "bg-amber-700",
+    swatch: "bg-amber-700 dark:bg-amber-400",
   },
   rose: {
     tile: "bg-rose-100 text-rose-800 dark:bg-rose-400/10 dark:text-rose-300",
-    swatch: "bg-rose-900",
+    swatch: "bg-rose-900 dark:bg-rose-400",
   },
   cyan: {
     tile: "bg-cyan-100 text-cyan-800 dark:bg-cyan-400/10 dark:text-cyan-300",
-    swatch: "bg-cyan-800",
+    swatch: "bg-cyan-800 dark:bg-cyan-400",
   },
   orange: {
     tile: "bg-orange-100 text-orange-800 dark:bg-orange-400/10 dark:text-orange-300",
-    swatch: "bg-orange-800",
+    swatch: "bg-orange-800 dark:bg-orange-400",
   },
   slate: {
     tile: "bg-slate-100 text-slate-700 dark:bg-slate-400/10 dark:text-slate-300",
-    swatch: "bg-slate-600",
+    swatch: "bg-slate-600 dark:bg-slate-400",
   },
 };
 
@@ -84,7 +86,7 @@ const DEFAULT_ICON = "folder";
 const DEFAULT_COLOR = "blue";
 
 /** Palette for a stored color key, with the same fallback the avatar uses. */
-export function resolveRoomColor(color?: string | null) {
+function resolveRoomColor(color?: string | null) {
   return ROOM_COLORS[color ?? DEFAULT_COLOR] ?? ROOM_COLORS[DEFAULT_COLOR];
 }
 

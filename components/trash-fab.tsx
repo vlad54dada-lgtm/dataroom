@@ -294,12 +294,7 @@ export function TrashFab() {
       >
         <Trash2 className="size-5" strokeWidth={1.75} />
         {count > 0 && (
-          // Keyed: every count change pops the badge, so a delete you just
-          // made registers even at the edge of your vision.
-          <span
-            key={count}
-            className="absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-medium text-primary-foreground"
-          >
+          <span className="absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-medium text-primary-foreground">
             {count > 99 ? "99+" : count}
           </span>
         )}

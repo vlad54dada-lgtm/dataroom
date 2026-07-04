@@ -24,9 +24,6 @@ interface DataroomCardProps {
   onDelete: (room: Node, trigger: HTMLElement | null) => void;
   /** Items dragged out of the trash stack and dropped here restore into this room. */
   onDropRestore?: (ids: string[], room: Node) => void;
-  /** Lets the grid stagger card entrances. */
-  className?: string;
-  style?: React.CSSProperties;
 }
 
 /**
@@ -43,8 +40,6 @@ export function DataroomCard({
   onEdit,
   onDelete,
   onDropRestore,
-  className,
-  style,
 }: DataroomCardProps) {
   const { node, itemCount } = item;
   const router = useRouter();
@@ -61,7 +56,6 @@ export function DataroomCard({
   return (
     <div
       ref={ref}
-      style={style}
       data-node-id={node.id}
       data-node-kind="folder"
       role="link"
@@ -127,7 +121,6 @@ export function DataroomCard({
           : "active:scale-[0.99] has-[button:active]:scale-100 motion-reduce:active:scale-100",
         dropReady &&
           "border-brand bg-folder-bg/40 outline-2 outline-offset-2 outline-brand outline-dashed",
-        className,
       )}
     >
       <div className="flex items-start justify-between gap-2">

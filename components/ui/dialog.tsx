@@ -130,7 +130,9 @@ function DialogTitle({
     <DialogPrimitive.Title
       data-slot="dialog-title"
       className={cn(
-        "font-heading text-lg leading-none font-medium",
+        // No leading override: Source Serif 4 descenders need the full
+        // text-lg line box or `truncate` clips them.
+        "font-heading text-lg font-medium",
         className
       )}
       {...props}

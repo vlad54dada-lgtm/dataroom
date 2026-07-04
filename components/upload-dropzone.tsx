@@ -51,8 +51,9 @@ export function UploadDropzone({ onFiles, children }: UploadDropzoneProps) {
           isDragActive && "opacity-100",
         )}
       >
-        {/* dark:brand-hover — plain brand blue reads 4.3:1 on the tinted
-            dark wash, just under AA; the lighter step clears it. */}
+        {/* dark:brand-hover — kept for headroom: plain steel brand
+            (#6f97d9) measures ~5.3:1 on the tinted dark wash (passes AA);
+            the lighter step reads ~7:1. */}
         <div
           className={cn(
             "flex flex-col items-center gap-2 text-brand transition-transform duration-200 ease-out-strong motion-reduce:transition-none dark:text-brand-hover",
