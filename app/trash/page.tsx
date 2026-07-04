@@ -309,7 +309,9 @@ function TrashView() {
               <ArrowLeft className="size-5" />
             </Button>
             <div>
-              <h1 className="text-xl font-semibold">Trash</h1>
+              <h1 className="font-heading text-2xl font-medium tracking-[-0.01em]">
+                Trash
+              </h1>
               <p className="mt-0.5 text-sm text-muted-foreground">
                 Restore items or delete them forever.
               </p>

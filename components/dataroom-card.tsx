@@ -164,8 +164,11 @@ export function DataroomCard({
           onDelete={(trigger) => onDelete(node, trigger)}
         />
       </div>
+      {/* One size + one weight step above a table-row name: with the color
+          washes gone, type carries room identity on the home grid. Stays
+          Geist — object names are data, not display. */}
       <span
-        className="mt-3 block truncate text-sm font-medium"
+        className="mt-3 block truncate text-[15px] font-semibold tracking-[-0.01em]"
         title={node.name}
       >
         {node.name}

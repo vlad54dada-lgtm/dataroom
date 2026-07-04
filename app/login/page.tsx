@@ -125,7 +125,7 @@ export default function LoginPage() {
           <span className="flex size-11 items-center justify-center rounded-xl bg-primary shadow-lg shadow-primary/25">
             <FileText className="size-5 text-primary-foreground" strokeWidth={2} />
           </span>
-          <span className="mt-1 text-lg font-semibold tracking-tight">
+          <span className="mt-1 font-heading text-2xl font-medium tracking-[-0.005em]">
             Acme Corp.
           </span>
           <span className="-mt-1.5 text-xs text-muted-foreground">
@@ -142,7 +142,7 @@ export default function LoginPage() {
             key={mode}
             className="motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-1 motion-safe:duration-200 motion-safe:ease-out-strong"
           >
-            <h1 className="text-base font-semibold">
+            <h1 className="font-heading text-lg font-medium">
               {mode === "sign-in"
                 ? "Sign in"
                 : mode === "sign-up"

@@ -56,7 +56,7 @@ export default function ResetPasswordPage() {
           <span className="flex size-11 items-center justify-center rounded-xl bg-primary shadow-lg shadow-primary/25">
             <FileText className="size-5 text-primary-foreground" strokeWidth={2} />
           </span>
-          <span className="mt-1 text-lg font-semibold tracking-tight">
+          <span className="mt-1 font-heading text-2xl font-medium tracking-[-0.005em]">
             Acme Corp.
           </span>
           <span className="-mt-1.5 text-xs text-muted-foreground">
@@ -73,7 +73,7 @@ export default function ResetPasswordPage() {
             </div>
           ) : session.status === "signed-out" ? (
             <>
-              <h1 className="text-base font-semibold">
+              <h1 className="font-heading text-lg font-medium">
                 This link has expired
               </h1>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -86,7 +86,9 @@ export default function ResetPasswordPage() {
             </>
           ) : (
             <>
-              <h1 className="text-base font-semibold">Set a new password</h1>
+              <h1 className="font-heading text-lg font-medium">
+                Set a new password
+              </h1>
               <p className="mt-1 text-sm text-muted-foreground">
                 {session.user.email
                   ? `Signed in as ${session.user.email}.`

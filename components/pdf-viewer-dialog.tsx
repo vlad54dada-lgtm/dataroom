@@ -155,7 +155,9 @@ export function PdfViewerDialog({
       >
         <DialogHeader className="flex-row items-center gap-3 pr-10">
           <DialogTitle
-            className="min-w-0 flex-1 truncate text-sm"
+            // font-sans: the title here is the FILENAME — data, not a
+            // display moment — so it opts out of the serif heading voice.
+            className="min-w-0 flex-1 truncate font-sans text-sm"
             title={shown?.name}
           >
             {shown?.name}

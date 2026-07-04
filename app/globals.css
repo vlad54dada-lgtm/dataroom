@@ -138,7 +138,9 @@
   --shadow-paper: var(--elev-paper);
 
   --font-sans: var(--font-geist-sans);
-  --font-heading: var(--font-geist-sans);
+  /* Display serif, fenced to brand/display moments (wordmarks, page h1s,
+     dialog titles, empty states). Never buttons, labels, or table data. */
+  --font-heading: var(--font-source-serif), ui-serif, Georgia, serif;
 
   /* Strong ease-out: built-in CSS easings lack punch for UI feedback. */
   --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);

@@ -29,7 +29,7 @@ export function AppHeader({ children }: { children?: React.ReactNode }) {
               <FileText className="size-4 text-primary-foreground" strokeWidth={2} />
             </span>
             <span className="flex items-baseline gap-2">
-              <span className="text-sm font-semibold tracking-tight">
+              <span className="font-heading text-[15px] font-semibold">
                 Acme Corp.
               </span>
               <span className="hidden text-xs text-muted-foreground sm:inline">

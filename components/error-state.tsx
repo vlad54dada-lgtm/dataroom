@@ -10,7 +10,9 @@ export function ErrorState({ onRetry }: { onRetry: () => void }) {
       <span className="flex size-12 items-center justify-center rounded-full bg-destructive/10 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-75 motion-safe:duration-300 motion-safe:ease-out-back">
         <CircleAlert className="size-6 text-danger" strokeWidth={1.75} />
       </span>
-      <p className="mt-4 text-sm font-medium">Couldn&apos;t load this view</p>
+      <p className="mt-4 font-heading text-base font-medium">
+        Couldn&apos;t load this view
+      </p>
       <p className="mt-1 text-sm text-muted-foreground">
         Something interrupted loading the data.
       </p>

@@ -303,7 +303,9 @@ function HomeView() {
         className="mx-auto w-full max-w-6xl flex-1 scroll-mt-14 px-6 py-8 outline-none motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200"
       >
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
-          <h1 className="text-xl font-semibold">Datarooms</h1>
+          <h1 className="font-heading text-2xl font-medium tracking-[-0.01em]">
+            Datarooms
+          </h1>
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative">
               <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />

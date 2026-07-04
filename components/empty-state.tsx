@@ -57,7 +57,7 @@ export function EmptyState({ variant, query, action }: EmptyStateProps) {
           strokeWidth={1.75}
         />
       </span>
-      <p className="mt-4 text-sm font-medium">
+      <p className="mt-4 font-heading text-base font-medium">
         {variant === "no-results" && query ? (
           <>No matches for &ldquo;{query}&rdquo;</>
         ) : (

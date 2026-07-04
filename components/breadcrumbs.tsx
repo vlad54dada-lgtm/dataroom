@@ -233,7 +233,10 @@ export function Breadcrumbs({
           <span
             aria-current="page"
             title={current.name}
-            className="relative max-w-56 truncate px-1.5 py-1 font-medium"
+            // The room h1 is sr-only, so this crumb is the de facto page
+            // title of the core screen — semibold + full-ink, not one weight
+            // step above its muted ancestors.
+            className="relative max-w-56 truncate px-1.5 py-1 font-semibold text-foreground"
           >
             {current.name}
           </span>
