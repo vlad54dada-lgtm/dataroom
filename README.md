@@ -1,5 +1,7 @@
 # DataRoom
 
+[![CI](https://github.com/vlad54dada-lgtm/dataroom/actions/workflows/ci.yml/badge.svg)](https://github.com/vlad54dada-lgtm/dataroom/actions/workflows/ci.yml)
+
 A virtual data room: create datarooms, organize deal documents into nested folders, upload PDFs, and search them — including the text inside the PDFs.
 
 **Live demo:** https://dataroom-self.vercel.app
