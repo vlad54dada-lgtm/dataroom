@@ -1,8 +1,14 @@
 # DataRoom — Product Brief
 
+> Updated 2026-07-04: the product outgrew the original MVP brief (cloud
+> persistence, auth, content search, trash, bulk actions, dark theme) and
+> the design register was elevated to a serious legal platform. This
+> document describes the CURRENT product; the original take-home scope is
+> preserved in git history.
+
 ## What is this
 
-A virtual Data Room MVP — a secure, organized repository for storing and browsing documents during M&A due diligence. Think Google Drive / Dropbox, where each Data Room is a top-level drive containing a folder tree of PDF documents.
+A virtual Data Room — a secure, organized repository for storing and browsing documents during M&A due diligence. Think Google Drive / Dropbox, where each Data Room is a top-level drive containing a folder tree of PDF documents.
 
 **Context:** frontend take-home assignment. Explicit evaluation priority, in this order:
 
@@ -18,10 +24,14 @@ Deal teams — lawyers, finance people, founders — who need to organize hundre
 
 ## Core features
 
-1. **Datarooms** (note: plural — the brief says "create Datarooms"). Home screen is a list of dataroom cards. Users can create, rename, and delete datarooms.
+1. **Datarooms** (note: plural — the brief says "create Datarooms"). Home screen is a grid of dataroom cards with an icon/color identity per room, drag-to-reorder, create/edit/delete via dialogs.
 2. **Folders** — create inside a dataroom or inside another folder (unlimited nesting), view contents, rename, delete (cascade: deletes all nested folders and files).
-3. **Files** — upload PDF files only (multi-file, button + drag&drop), view the PDF inside the app, rename, delete.
-4. **Search** (stretch goal only) — find files/folders by name within the current dataroom.
+3. **Files** — upload PDF files only (multi-file, button + drag&drop), view the PDF inside the app in a custom viewer (paging, zoom, in-document search, CONFIDENTIAL watermark), rename, delete, download.
+4. **Search** — global and per-room: file/folder names AND PDF content (Postgres full-text over text extracted at upload), with All/Files/Folders filters and result locations.
+5. **Auth & cloud persistence** — email/password accounts (Supabase Auth); nodes in Postgres under RLS, PDF blobs in private Storage. Each user sees only their own datarooms.
+6. **Trash** — deleted items land in a trash (floating access bottom-right) and can be restored to their original location, restored into a picked folder, or purged; bulk select/restore/purge; drag out of the trash stack onto a room card to restore.
+7. **Bulk actions** — row checkboxes with shift-range select; selection bar with Download / Move to / Move to trash.
+8. **Theme** — light and dark, toggle on every screen including login; gentle cross-fade on switch.
 
 ## Screens & flows
 
@@ -41,7 +51,7 @@ Deal teams — lawyers, finance people, founders — who need to organize hundre
 2. Duplicate **folder/dataroom** name in the same parent → block with an inline error inside the dialog ("A folder with this name already exists").
 3. Non-PDF upload → reject with a toast listing the rejected file names. Validate BOTH extension and MIME type in code (dropzone `accept` alone is not enough — drag&drop can bypass it). Mixed batch: upload the valid PDFs, report the invalid ones.
 4. Empty or whitespace-only name → confirm button disabled + hint. Trim names on save. Max length 255 chars.
-5. Page refresh anywhere → all data intact (persisted in IndexedDB), current folder restored from the URL.
+5. Page refresh anywhere → all data intact (persisted in Supabase), current folder restored from the URL.
 6. Long names → CSS ellipsis + `title` tooltip. Never break the table layout.
 7. Empty states everywhere: no datarooms yet, empty folder ("Drop PDF files here or create a folder"), no search results.
 8. Rename to the same unchanged name → treat as a no-op, just close the dialog.
@@ -51,19 +61,19 @@ Deal teams — lawyers, finance people, founders — who need to organize hundre
 
 ## Design direction
 
-A professional legal/finance tool, NOT a flashy landing page. Trust and clarity.
+A serious legal/finance platform — the register of an institution handling a multi-billion-dollar deal, not a consumer SaaS. Trust, restraint, clarity.
 
-- Light theme. Background `#FAFAFA`, white surfaces, borders `#E5E7EB`, primary text `#111827`, secondary `#6B7280`. Accent: deep blue `#1D4ED8` for actions, links, active states. Danger `#DC2626` for destructive actions only.
-- Typography: Geist Sans (bundled with Next.js). Sentence case everywhere. 14px base in table rows, generous row height (~48px), subtle row hover.
-- Icons: lucide — `Folder` (blue-tinted), `FileText` (red-tinted for PDF), consistent 20px in tables.
+- **Typography — "letterhead".** Source Serif 4 is fenced to display moments only: wordmarks, page titles, dialog titles, empty/error states. Geist Sans carries ALL UI controls, labels, table data, and body. Global tabular numerals; 11px tracked-uppercase ledger caps for table headers. Sentence case everywhere.
+- **Color — "ledger ink".** Light: white surfaces on a cool canvas, slate ink `#0F172A`, authority navy `#1E3A8A` for actions/links/focus (white on navy ≥10:1). Dark: navy-tinted slate surfaces with a steel accent `#6F97D9`. Documents are graphite, folders navy — no consumer rose/red on the most common glyphs. Danger `#DC2626` family for destructive actions only. Room identity lives in the avatar tile alone (muted registrar tones, eight stored keys); no color washes on surfaces.
+- **Material.** Hairline borders, tight elevation (depth is a hint, not a float), solid header, no frosted glass, no glow shadows. Radii stay modest (cards 12px).
+- **Motion — "still ledger".** Motion conveys state, never decorates: 150–250ms, strong ease-out only (no overshoot/bounce anywhere), quiet fades over choreography, exits faster than enters, `prefers-reduced-motion` respected everywhere.
 - Microcopy: buttons say exactly what they do ("Create folder", not "Submit"). Action names stay consistent through a flow: a "Delete" button produces a "Deleted" toast. Errors are specific and never apologize. Empty states invite action.
-- Motion: minimal. One polished moment only — the drag&drop overlay (border highlight + short fade). No scattered animations.
 - Every action gives instant feedback: optimistic UI update, toast where appropriate.
 - Responsive down to ~768px is enough (desktop-first tool), but nothing should visibly break on mobile.
 
 ## Out of scope
 
-Authentication, real backend/blob storage, sharing and permissions, non-PDF file types, full-text content search, dark mode. Do not build any UI for these.
+Sharing and permissions (multi-user rooms, roles, view-only), audit logs, non-PDF file types, document versioning UI beyond upload replace, Q&A workflows. Do not build any UI for these.
 
 ## Success criteria
 
