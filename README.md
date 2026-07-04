@@ -135,7 +135,7 @@ A conscious divergence from the obvious reference: Harvey's warm-paper minimalis
 
 ## What I'd do next
 
-Realtime sync between open windows (Supabase Realtime — the plumbing is one subscription away). Password reset flow. Sharing — invite by email with viewer/editor roles (RLS makes this a policies problem, not a rewrite). Zip download for folders. Virtualized rows for thousand-file folders.
+Realtime sync between open windows (Supabase Realtime — the plumbing is one subscription away). Sharing — invite by email with viewer/editor roles (RLS makes this a policies problem, not a rewrite). Zip download for folders. Virtualized rows for thousand-file folders. Language-aware content search — the tsvector is English-stemmed today, so documents in other languages match literally rather than by word forms.
 
 ## Time spent
 
