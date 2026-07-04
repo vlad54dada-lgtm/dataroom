@@ -2,141 +2,100 @@
 
 [![CI](https://github.com/vlad54dada-lgtm/dataroom/actions/workflows/ci.yml/badge.svg)](https://github.com/vlad54dada-lgtm/dataroom/actions/workflows/ci.yml)
 
-A virtual data room: create datarooms, organize deal documents into nested folders, upload PDFs, and search them — including the text inside the PDFs.
+A virtual data room for M&A due diligence: datarooms, nested folders, PDF documents, and search that looks inside the documents.
 
 **Live demo:** https://dataroom-self.vercel.app
-Sign-up is one step (no email confirmation), or use the demo account: `dataroom.demo.reviewer@gmail.com` / `Demo-DataRoom-2026`
+Demo account: `dataroom.demo.reviewer@gmail.com` / `Demo-DataRoom-2026` — or sign up in one step, no email confirmation.
 
-Next.js 16 (App Router) · React 19 · TypeScript strict · Tailwind 4 · shadcn/ui · Supabase (Postgres + Storage + Auth) · pdf.js · Playwright
+Next.js 16 · React 19 · TypeScript strict · Tailwind 4 · shadcn/ui · Supabase (Postgres + Storage + Auth) · pdf.js · Playwright
 
-## What it does
+## Beyond the brief
 
-Core:
+The brief asks for folder/file CRUD. This ships that, plus what a deal team actually needs in the first hour:
 
-- Datarooms with names, descriptions and avatars; folders nest without limit; grab any card and drag to reorder the home grid — it lifts as you carry it (dnd-kit, persisted)
-- PDF upload — button or drag & drop anywhere, multi-file, with a progress panel (per-file status, cancel, honest failure labels); a second drop mid-batch queues up instead of breaking
-- Built-in PDF viewer on pdf.js: continuous scroll, fit-width zoom, "Page X of N", lazy page rendering that releases memory on long documents, keyboard zoom — with a graceful iframe fallback per file
-- Search within a dataroom by name **and by PDF content** — hits show a highlighted snippet of the matched text, a "Text match" badge, and a jump-to-containing-folder button; the query lives in the URL so refresh keeps it
-- Sortable columns (name / size / modified — asc / desc / default), folders always grouped on top
+- **Search inside documents.** Text is extracted from each PDF at upload; Postgres full-text search answers queries with a highlighted snippet showing *why* a document matched.
+- **Name collisions resolved like a data room, not a file dump.** Uploading a same-named PDF asks once: *new version* (joins the document's history, restorable) or *keep both* (`report (1).pdf`).
+- **A real document viewer.** Canvas rendering, page thumbnails, in-document find, zoom, keyboard paging, and a per-user CONFIDENTIAL watermark on every page.
+- **Trash + Undo instead of confirmation dialogs.** Deletes are instant and reversible; a single file can be pulled out of a deleted folder.
+- **Drive-grade interactions.** Full keyboard model, right-click menus, shift-range selection, drag & drop for move, delete, restore, and reorder.
+- **Security enforced by the database, not the UI.** Row-level security isolates every user's tree in Postgres; PDFs live in a private bucket; the browser only ever holds the publishable key.
+- **CI you can click.** The badge above runs lint, the production build, and 45 end-to-end scenarios in three engines — Chromium, WebKit, and mobile Safari — against the real backend on every push.
 
-It behaves like the file managers people already know:
+## Feature summary
 
-- **Full keyboard model**: arrows walk rows, Enter opens, Space selects, F2 renames, Delete trashes, Ctrl/Cmd+A selects all, Esc clears, `/` or Ctrl/Cmd+K focuses search
-- **Right-click context menu** on rows (Open / Download / Rename / Move to… / Move to trash), mirrored in the kebab menu
-- Click a row to select it, shift+click for a range, click empty canvas to clear
-- Drag & drop everywhere: rows onto folders or breadcrumbs to move, onto the trash button to delete, out of the trash stack to restore — with drop-target highlights and a floating hint naming the valid targets
-- Deletes are reversible: everything goes to a **trash** with Undo on every toast (moves have Undo too); deleted folders expand in the trash so single files can be pulled out; permanent deletion is hold-to-confirm or an explicit dialog with real recursive counts
-
-All three extra-credit items from the brief:
-
-- deployed on Vercel — PDFs in Supabase Storage (private bucket), metadata in Postgres with per-user row-level security
-- email/password auth (one-step sign-up, deep links restored after sign-in)
-- search by file name and by document content
-
-Quality details that don't fit a bullet list: optimistic updates with rollback on every mutation, data revalidation when the tab regains focus, folder contents prefetched on hover so navigation feels instant, a route-level error boundary, per-route document titles, live regions and consistent focus rings for assistive tech, light/dark themes, and a shared motion system (one easing vocabulary, enter/exit pairs, reduced-motion guards).
+- Datarooms with icons, colors, and descriptions; folders nest without limit; drag cards to reorder the home grid (persisted)
+- Multi-file PDF upload by button or drag & drop, with a progress panel: per-file status, cancel, honest failure labels; a second drop mid-batch queues instead of breaking
+- File versioning: upload a new version, browse history, restore any previous one
+- Search scoped to a room or across all rooms, by name and content, with type filters — the query lives in the URL, so refresh and deep links keep it
+- Sortable columns; optimistic updates with rollback on every mutation; data revalidates when the tab regains focus; folder contents prefetch on hover
+- Light and dark themes, `prefers-reduced-motion` support, live regions and visible focus for assistive tech
 
 ## Tests
 
-End-to-end suite (Playwright) covering the flows above against the real backend — sign-up, dataroom/folder/file CRUD, duplicate-name and version-conflict policies, upload validation and suffixing, the viewer, content search with snippets, trash/undo/partial restore, and the keyboard model. Each run registers a fresh throwaway account, so runs are hermetic.
-
-The suite runs in three engines: **Chromium**, **WebKit** (the Safari engine), and **mobile Safari** (iPhone 13 viewport) — layout, fonts, focus behavior, and PDF rendering are all verified outside Chrome too.
+Playwright end-to-end suite against the real backend: CRUD, duplicate and version policies, upload validation, the viewer, content search, trash and partial restore, the keyboard model. Each run registers a fresh throwaway account, so runs are hermetic. The same 15 scenarios run in **Chromium, WebKit (Safari), and mobile Safari (iPhone viewport)**.
 
 ```bash
 npx playwright install chromium webkit   # once
-npm run test:e2e                         # all three projects
-npx playwright test --project=chromium   # or one engine
+npm run test:e2e
 ```
-
-15 scenarios per engine, ~1–3 minutes each against the dev server (it reuses one if already running).
 
 ## Run it locally
 
 ```bash
 git clone https://github.com/vlad54dada-lgtm/dataroom.git
 cd dataroom && npm install
-npm run dev
 ```
 
-The backend is a free Supabase project (takes ~2 minutes):
+Backend is a free Supabase project (~2 minutes): create one at [supabase.com](https://supabase.com), run [`supabase/schema.sql`](supabase/schema.sql) in the SQL Editor (tables, search functions, bucket, RLS policies — everything), copy `.env.example` to `.env.local`, fill in the URL and anon key. Then `npm run dev`.
 
-1. Create a project at [supabase.com](https://supabase.com)
-2. Open the SQL Editor, paste [`supabase/schema.sql`](supabase/schema.sql), run it — this creates the tables, search functions, storage bucket, and all RLS policies
-3. Copy `.env.example` to `.env.local`, fill in the Project URL and anon key (Project Settings → API)
+## Architecture
 
-Then `npm run dev` and open http://localhost:3000. Only the publishable anon key is used client-side; authorization is enforced by RLS in Postgres, not by the app.
-
-## How it's built
-
-Client-only SPA — no API routes, no server actions. The browser talks to Supabase through `supabase-js`.
-
-The whole tree is one table:
+Client-only SPA — no API routes, no server actions. The browser talks to Supabase through one seam:
 
 ```
-nodes: id, parent_id, type ('dataroom' | 'folder' | 'file'),
-       name, size, blob_path, deleted_at, description, icon, color, timestamps
-```
-
-- `parent_id = null` means dataroom; everything else hangs off a parent (adjacency list)
-- a self-referencing FK with `on delete cascade` makes recursive delete a single `DELETE`
-- extracted PDF text lives in a separate `file_texts` table with a GIN index, so tree queries never drag megabytes of document text around
-- the few genuinely recursive reads are small SQL functions: subtree counts (for delete confirms), subtree blob paths (storage cleanup after cascade), live-tree search with `ts_headline` snippets, trash search and listing
-
-```
-app/            home, room/[id], trash, login, error boundary
-components/     granular UI on shadcn/ui — table, row, dialogs, viewer, …
+app/            home, room/[id], trash, login
+components/     granular UI on shadcn/ui
 lib/storage.ts  the ONLY module that touches data
-lib/            pdf text extraction, upload validation, dnd helpers, hooks
-tests/e2e/      Playwright suite (in-memory PDF fixture generator included)
+tests/e2e/      Playwright suite
 ```
+
+The whole tree is one table — `nodes (id, parent_id, type, name, size, blob_path, deleted_at, …)`. A dataroom is a node with `parent_id = null`; a self-referencing FK with `on delete cascade` makes recursive delete a single `DELETE`. Extracted PDF text lives in a separate GIN-indexed table so tree queries stay light. The few recursive reads (subtree counts, search with snippets) are small SQL functions.
+
+**Why the seam matters:** the app started on IndexedDB, as the brief suggests. Moving to a real backend was one commit that rewrote `lib/storage.ts` — no component changed. Sharing and roles would follow the same path: new RLS policies behind the same seam.
 
 ## Design
 
-The design register is a deliberate position: **an institution's ledger, not a consumer file manager**. Deal teams reviewing a multi-billion-dollar acquisition read trust in restraint, so every layer commits to it:
+The register is deliberate: **an institution's ledger, not a consumer app**. Deal teams read trust in restraint.
 
-- **Typography — "letterhead".** Source Serif 4 is fenced to display moments only: the wordmark (a serif "A" monogram, echoed in the favicon), page titles, dialog titles, empty states. Geist Sans carries every control, label, and row of data. Tables run global tabular numerals under 11px tracked-caps headers; same-day timestamps anchor as "Today, 2:35 PM", folder sizes read as one count series ("0 items", never "Empty").
-- **Color — "ledger ink".** Authority navy `#1E3A8A` on cool paper in light; navy-tinted slate with a steel accent in dark. Documents are graphite, folders navy — the most common glyphs on screen never wear consumer rose or danger red. Red is reserved for destructive actions — moving to trash, deleting forever — and never decorates. Every text/background pair is measured against WCAG AA and the measurements live as comments next to the tokens.
-- **Motion — "still ledger".** Motion conveys state, never decorates: 150–250ms, one strong ease-out curve, no overshoot or elastic easing anywhere, exits faster than enters, `prefers-reduced-motion` respected across the app. The one flourish — the fly-to-trash arc — is functional feedback showing where deleted items went.
-- **Power is visible.** The full keyboard model (arrows, Enter, Space, F2, Delete, Ctrl/Cmd+A, `/`, Ctrl/Cmd+K, shift-range) surfaces as a quiet affordance: a `/` chip in every search field.
+- **Type:** a serif (Source Serif 4) only for display moments — wordmark, page and dialog titles; a neutral sans for every control and row of data; tabular numerals throughout.
+- **Color:** authority navy on cool paper; documents graphite, folders navy. Red appears only on destructive actions. Every text/background pair is WCAG-AA measured, and the measurements live as comments next to the tokens.
+- **Motion:** conveys state, never decorates — 150–250ms, one ease-out curve, no bounce, exits faster than enters.
 
-A conscious divergence from the obvious reference: Harvey's warm-paper minimalism is the look most candidates will copy. This app takes the Datasite lane instead — cooler, denser, hairline-bordered — because a data room is a working table, not a chat canvas. Both themes are first-class and separately contrast-verified.
+A data room is a working table, so the design goes denser and cooler than the fashionable warm-minimal look: hairline borders, ledger-caps table headers, quiet chiseled icon tiles. Both themes are first-class and contrast-verified separately.
 
 ## Engineering decisions
 
-**One storage seam.** Every read and write goes through `lib/storage.ts`; components never query Supabase. The app started on IndexedDB (the brief suggested mocking persistence) — when I went for the extra credit, swapping IndexedDB for a real backend was one commit (`40d2a0b`) that rewrote the adapter and deleted the Dexie setup. Not a single component changed. This is the decision I'd defend hardest.
-
-**Duplicate names, two policies.** Uploading `report.pdf` into a folder that already has one asks ONCE, before the queue starts: "Upload as new version" (the default — in due diligence a name collision almost always means a new revision, and the file joins the document's version history) or "Keep both" (`report (1).pdf`). Mid-queue, uploads never stop to ask questions. Duplicate folder/dataroom names are blocked with an inline error in the dialog, enforced by a case-insensitive unique index in Postgres — so it holds across tabs and race conditions, not just in UI state.
-
-**Trash + Undo instead of confirmations.** Confirmations don't prevent mistakes; undo fixes them. Delete is instant with an Undo toast, and the trash holds everything until emptied. Soft delete marks only the subtree root — restore brings the whole branch back, single files can be pulled out of a deleted folder individually, and live-tree queries simply never walk through a trashed node.
-
-**The URL is the state.** The current folder is `?folder=<id>`, the search query is `?q=`. Refresh, back/forward, and deep links just work — and signing in returns you to the page you were heading to.
-
-**Uploads are paranoid and sequential.** Extension and MIME type can both lie (drag & drop bypasses the file picker's `accept`), so files are checked by magic number. Files process one at a time through a single queue: name suffixing stays deterministic, one broken file never sinks the batch, and closing the tab mid-upload warns first.
-
-**Search cost is paid once, at upload.** pdf.js extracts the text layer when a file is uploaded; Postgres full-text search handles queries after that, returning `ts_headline` fragments so every hit is explainable. Scanned PDFs without a text layer quietly fall back to name-only matching.
-
-**No state library.** React hooks plus the adapter cover it, with a small stale-while-revalidate cache that also powers hover prefetching and focus revalidation.
+- **Duplicate names, two policies.** Files prompt for version-vs-copy once per batch, before the queue starts — uploads never stop mid-flight to ask. Folder and dataroom duplicates are blocked by a case-insensitive unique index *in Postgres*, so the rule survives tabs and races, not just UI state.
+- **Uploads are paranoid.** Extension and MIME can both lie, so every file is verified by its `%PDF-` signature. Files process sequentially: one broken file never sinks the batch; closing the tab mid-upload warns first.
+- **Search cost is paid once, at upload.** Extraction happens client-side on the way in; queries are pure Postgres afterwards. Scanned PDFs without a text layer quietly fall back to name matching.
+- **The URL is the state.** Current folder and search query live in query params — refresh, back/forward, and deep links just work, and sign-in returns you to where you were headed.
+- **No state library.** React hooks, the storage seam, and a small stale-while-revalidate cache with a write-generation guard so a slow in-flight fetch can never overwrite an optimistic update.
 
 ## Edge cases
 
 | Case | What happens |
 |---|---|
-| Duplicate file name | one prompt per batch: upload as a new version (default) or keep both — `report (1).pdf` |
+| Duplicate file name | one prompt per batch: new version (default) or keep both |
 | Duplicate folder/dataroom name | inline dialog error, enforced by the DB |
-| Non-PDF or renamed-to-.pdf files | rejected by signature check; toast lists them; valid files still upload |
-| Empty / whitespace / over-long names | submit answers with a shake + inline error; trimmed on save; 255 max |
+| Non-PDF or renamed-to-.pdf file | rejected by signature check; valid files in the batch still upload |
+| Empty / whitespace / over-long name | shake + inline error; trimmed on save; 255 max |
 | Refresh mid-anything | data is in Postgres, location and search are in the URL |
-| Long names | ellipsis + tooltip, table layout holds |
-| Empty states | home, empty folder (doubles as a drop target), no search results, empty trash |
-| Rename to the unchanged name | treated as a no-op, closes quietly |
-| PDF won't render | per-file iframe fallback; Download is always visible |
+| Long names | ellipsis + tooltip; the table never breaks |
+| PDF won't render | per-file iframe fallback; Download always visible |
 | Deleted or unknown id in the URL | friendly not-found with a way back |
-| Zero-byte / huge files | real size shown; sequential queue keeps the UI alive |
+| Zero-byte / huge files | real size shown; the sequential queue keeps the UI alive |
 | Render error anywhere | error boundary with retry, not a white screen |
 
-## What I'd do next
+## What's next
 
-Realtime sync between open windows (Supabase Realtime — the plumbing is one subscription away). Sharing — invite by email with viewer/editor roles (RLS makes this a policies problem, not a rewrite). Zip download for folders. Virtualized rows for thousand-file folders. Language-aware content search — the tsvector is English-stemmed today, so documents in other languages match literally rather than by word forms.
-
-## Time spent
-
-The core MVP fit roughly in the suggested timebox; the extra credit (Supabase migration, auth, content search), the interaction-polish passes (keyboard model, drag & drop, viewer), and the e2e suite grew it to about three days total across ~75 commits.
+**Roles and sharing** — invite by email with viewer/editor roles; RLS makes this a policies problem behind the existing storage seam, not a rewrite. **Audit log** — who opened which document, when; core value in real due diligence. Realtime sync between open windows. Zip download for folders. Virtualized rows for thousand-file folders. Language-aware search stemming.
