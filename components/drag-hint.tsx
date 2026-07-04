@@ -63,7 +63,7 @@ export function DragHint() {
         ) : (
           <>
             <FolderInput className="size-3.5" aria-hidden />
-            Drop on a folder or breadcrumb to move
+            Drop on a folder, breadcrumb, or dataroom to move
             <span className="mx-0.5 opacity-50" aria-hidden>
               ·
             </span>

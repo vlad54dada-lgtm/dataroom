@@ -43,8 +43,6 @@ import { useSearchHotkey } from "@/lib/hooks/use-search-hotkey";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AppHeader } from "@/components/app-header";
-import { RequireAuth } from "@/components/require-auth";
 import { SearchResults } from "@/components/search-results";
 import {
   DEFAULT_SEARCH_FILTER,
@@ -53,7 +51,6 @@ import {
   type SearchFilter,
 } from "@/components/search-filters";
 import { Breadcrumbs } from "@/components/breadcrumbs";
-import { RoomRail } from "@/components/room-rail";
 import { RoomToolbar } from "@/components/room-toolbar";
 import {
   ItemsTable,
@@ -85,51 +82,33 @@ const activeTrigger = () =>
     ? document.activeElement
     : null;
 
-function RoomShell({ children }: { children: React.ReactNode }) {
-  return (
-    <>
-      <AppHeader />
-      {/* max-w-7xl (not 6xl): the rail borrows ~240px on lg+, so the
-          content column keeps its working width. The rail carries its own
-          vertical padding; the column keeps the page's. */}
-      <main
-        id="main"
-        tabIndex={-1}
-        className="mx-auto flex w-full max-w-7xl flex-1 scroll-mt-14 px-6 outline-none motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200"
-      >
-        <RoomRail />
-        <div className="flex min-w-0 flex-1 flex-col py-8">{children}</div>
-      </main>
-    </>
-  );
-}
-
-/** Room-shaped skeleton — used as the Suspense fallback AND on first load. */
+/**
+ * Content-column skeleton — the shell (header + rail) lives in the /room
+ * layout and persists across navigations; this fills only the column.
+ */
 function RoomFallback() {
   return (
-    <RoomShell>
+    <>
       <div className="flex h-8 items-center">
         <Skeleton className="h-4 w-64" />
       </div>
       <div className="mt-4">
         <ListSkeleton variant="rows" count={4} />
       </div>
-    </RoomShell>
+    </>
   );
 }
 
 /**
  * useSearchParams (inside useCurrentFolder) requires a Suspense boundary in
- * production builds — the fallback is room-shaped so a deep-folder refresh
- * never flashes a blank frame.
+ * production builds — the fallback is column-shaped so a deep-folder
+ * refresh never flashes a blank frame. Auth is guarded by the layout.
  */
 export default function RoomPage() {
   return (
-    <RequireAuth fallback={<RoomFallback />}>
-      <Suspense fallback={<RoomFallback />}>
-        <RoomView />
-      </Suspense>
-    </RequireAuth>
+    <Suspense fallback={<RoomFallback />}>
+      <RoomView />
+    </Suspense>
   );
 }
 
@@ -156,6 +135,16 @@ function RoomView() {
     () => listChildren(currentFolderId),
     currentFolderId,
   );
+  // Stale-while-revalidate is great WITHIN a room (folder hops feel
+  // instant) but across rooms the held snapshot belongs to the previous
+  // room — it must never flash under this room's breadcrumb. Track the
+  // last room whose data actually settled (adjust-during-render, same
+  // pattern as the frozen dialogs); foreign stale renders as loading.
+  const [settledRoom, setSettledRoom] = useState<string | null>(null);
+  if (state.status === "success" && !isStale && settledRoom !== roomId) {
+    setSettledRoom(roomId);
+  }
+  const crossRoomStale = isStale && settledRoom !== roomId;
   const [dialog, setDialog] = useState<DialogState>({ kind: "none" });
   // Frozen copy of the last real dialog: content renders from it while the
   // close animation plays (`open` flips off `dialog` immediately). The gen
@@ -716,24 +705,15 @@ function RoomView() {
     );
   };
 
-  if (crumbs.error) {
-    return (
-      <RoomShell>
-        <ErrorState onRetry={crumbs.reload} />
-      </RoomShell>
-    );
-  }
-  if (crumbs.notFound) {
-    return (
-      <RoomShell>
-        <NotFoundState kind={isRoot ? "room" : "folder"} />
-      </RoomShell>
-    );
-  }
+  // The shell (header + rail) lives in the /room layout and persists;
+  // every state here fills only the content column.
+  if (crumbs.error) return <ErrorState onRetry={crumbs.reload} />;
+  if (crumbs.notFound)
+    return <NotFoundState kind={isRoot ? "room" : "folder"} />;
   if (crumbs.loading || !crumbs.crumbs) return <RoomFallback />;
 
   return (
-    <RoomShell>
+    <>
       {/* The visible location lives in the breadcrumbs; this names the
           page for screen readers and heading navigation. */}
       {currentCrumb && <h1 className="sr-only">{currentCrumb.name}</h1>}
@@ -912,11 +892,12 @@ function RoomView() {
                 </>
               ) : (
                 <>
-                  {state.status === "loading" && (
+                  {(state.status === "loading" || crossRoomStale) && (
                     <ListSkeleton variant="rows" count={4} />
                   )}
                   {state.status === "error" && <ErrorState onRetry={reload} />}
                   {state.status === "success" &&
+                    !crossRoomStale &&
                     (state.data.length === 0 ? (
                       // The dashed frame IS the drop target: it lights up on
                       // hover and a click opens the file picker.
@@ -1099,6 +1080,6 @@ function RoomView() {
         }}
         onClose={closeDialog}
       />
-    </RoomShell>
+    </>
   );
 }

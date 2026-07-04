@@ -25,6 +25,15 @@ export function clearAsyncCache(): void {
 }
 
 /**
+ * Re-run every mounted loader immediately (no focus-throttle) — for
+ * cross-surface mutations, e.g. the room rail moving rows the current
+ * page's list still shows.
+ */
+export function revalidateAsync(): void {
+  reloaders.forEach((reload) => reload());
+}
+
+/**
  * Fill the SWR cache ahead of navigation (e.g. on folder-row hover) so the
  * next useAsync mount renders instantly. In-flight keys are deduped.
  */

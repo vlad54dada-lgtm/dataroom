@@ -2,11 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
+import { toast } from "sonner";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import type { Node } from "@/types";
-import { listChildren } from "@/lib/storage";
-import { useAsync } from "@/lib/hooks/use-async";
+import { listChildren, moveNodes } from "@/lib/storage";
+import { MOVE_MIME, readIds } from "@/lib/dnd";
+import { revalidateAsync, useAsync } from "@/lib/hooks/use-async";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -19,18 +21,123 @@ import { RoomAvatar } from "@/components/room-avatar";
 
 const COLLAPSE_KEY = "room-rail-collapsed";
 
+/** One rail room: a nav link that doubles as a move-drop target. */
+function RailItem({
+  room,
+  active,
+  collapsed,
+  onDropNodes,
+}: {
+  room: Node;
+  active: boolean;
+  collapsed: boolean;
+  onDropNodes?: (ids: string[], target: Node) => void;
+}) {
+  const [dropReady, setDropReady] = useState(false);
+  const link = (
+    <Link
+      href={`/room/${room.id}`}
+      aria-current={active ? "page" : undefined}
+      onDragOver={(e) => {
+        if (!onDropNodes || !e.dataTransfer.types.includes(MOVE_MIME)) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        setDropReady(true);
+      }}
+      onDragLeave={() => setDropReady(false)}
+      onDrop={(e) => {
+        setDropReady(false);
+        if (!onDropNodes) return;
+        const ids = readIds(e.dataTransfer, MOVE_MIME);
+        if (ids.length === 0) return;
+        e.preventDefault();
+        onDropNodes(ids, room);
+      }}
+      className={cn(
+        "flex items-center gap-2.5 rounded-lg px-2 py-1.5 outline-none transition-colors duration-150 focus-visible:ring-3 focus-visible:ring-ring/50",
+        collapsed && "justify-center px-0",
+        active
+          ? "bg-selected font-medium"
+          : "text-muted-foreground hover:bg-muted hover:text-foreground",
+        // ring-inset: the list is an overflow container, an outside ring
+        // would be clipped at its edges.
+        dropReady && "bg-folder-bg text-brand ring-2 ring-brand ring-inset",
+      )}
+    >
+      <RoomAvatar
+        icon={room.icon}
+        color={room.color}
+        size="sm"
+        className="pointer-events-none shrink-0"
+      />
+      {!collapsed && (
+        <span
+          className="pointer-events-none min-w-0 truncate text-sm"
+          title={room.name}
+        >
+          {room.name}
+        </span>
+      )}
+    </Link>
+  );
+  // Collapsed strip: the name lives in a tooltip instead.
+  return collapsed ? (
+    <Tooltip>
+      <TooltipTrigger asChild>{link}</TooltipTrigger>
+      <TooltipContent side="right">{room.name}</TooltipContent>
+    </Tooltip>
+  ) : (
+    link
+  );
+}
+
 /**
  * Persistent dataroom rail in the room view (lg+ screens): every room one
- * click away without a detour through home. Collapses to an icon strip
- * (choice remembered per browser); the list scrolls under soft fade masks
- * when it outgrows the viewport. Hidden below lg — the mobile flow is
- * untouched.
+ * click away without a detour through home, and a drop target — table rows
+ * dragged onto a rail room move to that room's root. Collapses to an icon
+ * strip (remembered per browser); the list scrolls under soft fade masks.
+ * Hidden below lg — the mobile flow is untouched.
  */
 export function RoomRail() {
   const { id: currentId } = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
   // Distinct cache key from home's "datarooms" (different data shape).
   const { state } = useAsync(() => listChildren(null), "rail:datarooms");
   const rooms: Node[] = state.status === "success" ? state.data : [];
+
+  // The rail lives in the layout (it persists across room switches), so it
+  // owns its drop handling: move, toast with Undo, then revalidate every
+  // mounted list so the page the rows came from updates too.
+  const onDropNodes = async (ids: string[], target: Node) => {
+    const sourceId = searchParams.get("folder") ?? currentId;
+    if (target.id === sourceId) return;
+    try {
+      const moved = await moveNodes(ids, target.id);
+      if (moved === 0) return;
+      revalidateAsync();
+      toast.success(
+        moved === 1
+          ? `Moved to ${target.name}`
+          : `${moved} items moved to ${target.name}`,
+        {
+          action: {
+            label: "Undo",
+            onClick: () => {
+              void moveNodes(ids, sourceId)
+                .then(() => revalidateAsync())
+                .catch(() => toast.error("Couldn't undo the move"));
+            },
+          },
+        },
+      );
+    } catch (err) {
+      toast.error(
+        err instanceof Error && /own subfolders/.test(err.message)
+          ? err.message
+          : "Couldn't move the items",
+      );
+    }
+  };
 
   // Expanded on the server render; the stored preference applies on mount
   // (avoids a hydration mismatch — worst case a one-frame expanded flash).
@@ -84,8 +191,8 @@ export function RoomRail() {
       className={cn(
         // Sticky under the 56px header; its own scroll region so the rail
         // never scrolls away with the table.
-        "sticky top-14 hidden max-h-[calc(100dvh-3.5rem)] shrink-0 flex-col self-start overflow-hidden py-8 pr-6 transition-[width] duration-200 ease-out-strong motion-reduce:transition-none lg:flex",
-        collapsed ? "w-[60px]" : "w-60",
+        "sticky top-14 hidden max-h-[calc(100dvh-3.5rem)] shrink-0 flex-col self-start overflow-hidden py-8 pr-5 transition-[width] duration-200 ease-out-strong motion-reduce:transition-none lg:flex",
+        collapsed ? "w-[72px]" : "w-60",
       )}
     >
       <div
@@ -105,7 +212,9 @@ export function RoomRail() {
             <Button
               variant="ghost"
               size="icon-sm"
-              aria-label={collapsed ? "Expand dataroom list" : "Collapse dataroom list"}
+              aria-label={
+                collapsed ? "Expand dataroom list" : "Collapse dataroom list"
+              }
               aria-expanded={!collapsed}
               className="text-muted-foreground"
               onClick={toggle}
@@ -118,10 +227,12 @@ export function RoomRail() {
           </TooltipContent>
         </Tooltip>
       </div>
+      {/* scrollbar-gutter keeps the thin scrollbar in its own reserved
+          column instead of overlapping the tiles when the list overflows. */}
       <div
         ref={listRef}
         onScroll={measure}
-        className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto"
+        className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto pr-1 [scrollbar-gutter:stable]"
         style={{ maskImage, WebkitMaskImage: maskImage }}
       >
         {state.status === "loading" &&
@@ -131,44 +242,15 @@ export function RoomRail() {
               {!collapsed && <Skeleton className="h-3.5 w-28" />}
             </div>
           ))}
-        {rooms.map((room) => {
-          const active = room.id === currentId;
-          const item = (
-            <Link
-              key={room.id}
-              href={`/room/${room.id}`}
-              aria-current={active ? "page" : undefined}
-              className={cn(
-                "flex items-center gap-2.5 rounded-lg px-2 py-1.5 outline-none transition-colors duration-150 focus-visible:ring-3 focus-visible:ring-ring/50",
-                collapsed && "justify-center px-0",
-                active
-                  ? "bg-selected font-medium"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
-              )}
-            >
-              <RoomAvatar
-                icon={room.icon}
-                color={room.color}
-                size="sm"
-                className="shrink-0"
-              />
-              {!collapsed && (
-                <span className="min-w-0 truncate text-sm" title={room.name}>
-                  {room.name}
-                </span>
-              )}
-            </Link>
-          );
-          // Collapsed strip: the name lives in a tooltip instead.
-          return collapsed ? (
-            <Tooltip key={room.id}>
-              <TooltipTrigger asChild>{item}</TooltipTrigger>
-              <TooltipContent side="right">{room.name}</TooltipContent>
-            </Tooltip>
-          ) : (
-            item
-          );
-        })}
+        {rooms.map((room) => (
+          <RailItem
+            key={room.id}
+            room={room}
+            active={room.id === currentId}
+            collapsed={collapsed}
+            onDropNodes={(ids, target) => void onDropNodes(ids, target)}
+          />
+        ))}
       </div>
     </nav>
   );
