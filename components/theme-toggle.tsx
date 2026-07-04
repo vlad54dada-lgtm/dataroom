@@ -29,9 +29,15 @@ export function ThemeToggle() {
 
     // flushSync so next-themes applies the class inside the transition's
     // captured "after" state, not a tick later.
-    startViewTransition(() => {
+    const transition = startViewTransition(() => {
       flushSync(() => setTheme(next));
     });
+    // An aborted transition (rapid re-toggle, tab hidden mid-swap) rejects
+    // these promises with InvalidStateError; the theme still applies, so
+    // swallow the rejections instead of surfacing a runtime error.
+    transition.ready.catch(() => {});
+    transition.finished.catch(() => {});
+    transition.updateCallbackDone.catch(() => {});
   };
 
   return (

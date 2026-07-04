@@ -116,10 +116,17 @@ export function DataroomCard({
         // CSS `scale`/`rotate` properties, which compose with dnd-kit's
         // transform-based translate) + the deepest elevation shadow, raised
         // above the grid. Kept subtle so the un-lift on drop doesn't snap.
-        // Press feedback only when NOT being dragged.
+        // Press feedback only when NOT being dragged — and only when the
+        // press lands on the card itself. Pressing the kebab makes the card
+        // `:active` too (CSS :active bubbles to ancestors), so without the
+        // `has-[button:active]` reset the card would jerk down on a kebab
+        // click. The reset out-specifies the `active:` rules, so it wins.
+        // The press itself is a whisper (1% settle, shadow untouched):
+        // scale 0.98 + a simultaneous shadow swap read as a bounce, wrong
+        // register for a deal room.
         isDragSource
           ? "z-50 scale-[1.02] rotate-1 cursor-grabbing border-line-strong shadow-overlay"
-          : "active:scale-[0.98] active:shadow-card motion-reduce:active:scale-100",
+          : "active:scale-[0.99] has-[button:active]:scale-100 motion-reduce:active:scale-100",
         dropReady &&
           "border-brand bg-folder-bg/40 outline-2 outline-offset-2 outline-brand outline-dashed",
         className,
