@@ -19,14 +19,14 @@ export default function RoomLayout({
   return (
     <RequireAuth>
       <AppHeader />
-      {/* Workspace framing: the rail anchors to the viewport's left edge
-          (like every VDR/workspace app) while the content column centers
-          itself in the REMAINING width — no dead margin stacking up on
-          the left, honest breathing room between rail and table. */}
+      {/* Workspace framing: the rail sits left, the content column centers
+          in the remaining width. The soft outer max-width keeps the rail
+          from gluing to the screen edge on very wide monitors while never
+          re-creating the old dead-margin stack. */}
       <main
         id="main"
         tabIndex={-1}
-        className="flex w-full flex-1 scroll-mt-14 px-6 outline-none motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200"
+        className="mx-auto flex w-full max-w-[1720px] flex-1 scroll-mt-14 px-8 outline-none motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200"
       >
         <RoomRail />
         <div className="flex min-w-0 flex-1 flex-col py-8">

@@ -17,7 +17,10 @@ export function AppHeader({ children }: { children?: React.ReactNode }) {
           translucency in this register. z-30 sits below menus and dialogs
           (z-50) and the floating trash/selection layer (z-40). */}
       <header className="sticky top-0 z-30 border-b bg-card">
-        <div className="mx-auto flex h-14 w-full max-w-6xl items-center gap-4 px-6">
+        {/* Same outer frame as the room layout (soft 1720px max) — the
+            brand mark sits on one vertical rhythm with the rail below it;
+            home and trash center their own content inside. */}
+        <div className="mx-auto flex h-14 w-full max-w-[1720px] items-center gap-4 px-8">
           <Link
             href="/"
             aria-label="Acme Corp. home"
@@ -29,10 +32,10 @@ export function AppHeader({ children }: { children?: React.ReactNode }) {
             <Image
               src="/logo.png"
               alt=""
-              width={28}
-              height={28}
+              width={36}
+              height={36}
               priority
-              className="size-7 shrink-0 rounded-lg ring-1 ring-foreground/10 ring-inset"
+              className="size-9 shrink-0 rounded-lg ring-1 ring-foreground/10 ring-inset"
             />
             <span className="flex items-baseline gap-2">
               <span className="font-heading text-[15px] font-semibold">
