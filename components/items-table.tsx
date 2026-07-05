@@ -84,7 +84,7 @@ function SortableHead({
           // breadcrumbs; the ACTIVE sort keeps it — state stays visible.
           // Negative margins keep the label optically aligned with the
           // column content below while the pill extends around it.
-          "-mx-1.5 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-medium tracking-[0.08em] uppercase text-muted-foreground transition-colors duration-150 outline-none select-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
+          "-mx-1.5 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-medium tracking-[0.08em] uppercase text-muted-foreground transition-colors duration-150 outline-none select-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/70",
           align === "end" && "flex-row-reverse",
           active && "bg-muted text-foreground",
         )}

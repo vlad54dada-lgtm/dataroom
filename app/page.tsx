@@ -344,7 +344,7 @@ function HomeView() {
                   type="button"
                   aria-label="Clear search"
                   onClick={() => setQuery("")}
-                  className="absolute top-1/2 right-1 flex size-6 -translate-y-1/2 items-center justify-center rounded-sm text-muted-foreground transition-[color,background-color] duration-150 outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-150"
+                  className="absolute top-1/2 right-1 flex size-6 -translate-y-1/2 items-center justify-center rounded-sm text-muted-foreground transition-[color,background-color] duration-150 outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/70 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-150"
                 >
                   <X className="size-4" />
                 </button>

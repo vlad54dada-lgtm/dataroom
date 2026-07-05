@@ -123,7 +123,7 @@ export function DataroomCard({
         // when dnd-kit shifts them via transform during a reorder (without
         // it they snap). The actively dragged card is exempt — dnd-kit
         // overrides its transition so it tracks the cursor 1:1.
-        "group relative isolate flex cursor-pointer flex-col rounded-card border bg-card p-4 shadow-card outline-none transition-[border-color,box-shadow,transform,translate,scale,rotate] duration-200 ease-out-strong hover:-translate-y-0.5 hover:border-line-strong hover:shadow-raised focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none motion-reduce:hover:translate-y-0",
+        "group relative isolate flex cursor-pointer flex-col rounded-card border bg-card p-4 shadow-card outline-none transition-[border-color,box-shadow,transform,translate,scale,rotate] duration-200 ease-out-strong hover:-translate-y-0.5 hover:border-line-strong hover:shadow-raised focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/70 motion-reduce:transition-none motion-reduce:hover:translate-y-0",
         // Grab cursor only once a real drag begins (isDragSource, after the
         // 8px threshold) — never a flash on a plain click.
         // 3D lift while carried: a gentle scale + tilt (Tailwind v4 sets the

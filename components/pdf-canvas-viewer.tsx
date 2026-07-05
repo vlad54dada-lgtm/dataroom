@@ -628,7 +628,7 @@ export function PdfCanvasViewer({
                 aria-label={`Go to page ${i + 1}`}
                 aria-current={page === i + 1 ? "page" : undefined}
                 className={cn(
-                  "flex shrink-0 flex-col items-center gap-0.5 rounded-md p-1.5 outline-none transition-colors duration-150 focus-visible:ring-3 focus-visible:ring-ring/50",
+                  "flex shrink-0 flex-col items-center gap-0.5 rounded-md p-1.5 outline-none transition-colors duration-150 focus-visible:ring-3 focus-visible:ring-ring/70",
                   page === i + 1 ? "bg-folder-bg" : "hover:bg-muted",
                 )}
               >
@@ -673,7 +673,7 @@ export function PdfCanvasViewer({
           className={cn(
             "relative min-h-0 flex-1 overflow-auto rounded-lg border bg-muted outline-none dark:bg-canvas",
             !ringSuppressed &&
-              "focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset",
+              "focus-visible:ring-3 focus-visible:ring-ring/70 focus-visible:ring-inset",
           )}
         >
           {/* Keyed by url: a new document never inherits stale canvases. */}
