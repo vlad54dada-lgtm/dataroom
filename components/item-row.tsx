@@ -7,13 +7,13 @@ import {
   Download,
   FileText,
   FileUp,
-  Folder,
   FolderInput,
   FolderOpen,
   History,
   Pencil,
   Trash2,
 } from "lucide-react";
+import { FileGlyph, FolderGlyph } from "@/components/glyphs";
 import type { Node } from "@/types";
 import { MOVE_MIME, readIds, startDragGhost } from "@/lib/dnd";
 import { cn, formatBytes, formatDateTime, formatModified } from "@/lib/utils";
@@ -130,9 +130,9 @@ export function ItemRow({
         }`}
       >
         {isFolder ? (
-          <Folder className="size-5 fill-folder/10 text-folder" strokeWidth={1.75} />
+          <FolderGlyph className="size-5 text-folder" />
         ) : (
-          <FileText className="size-5 fill-file/10 text-file" strokeWidth={1.75} />
+          <FileGlyph className="size-5 text-file" />
         )}
       </span>
       <span className="min-w-0 flex-1">
@@ -235,7 +235,7 @@ export function ItemRow({
                 data-row-primary
                 onPointerEnter={() => onPrefetch?.(node.id)}
                 onFocus={() => onPrefetch?.(node.id)}
-                className="flex h-12 w-full min-w-0 items-center gap-3 rounded-sm text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                className="flex h-12 w-full min-w-0 items-center gap-3 rounded-sm text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/70"
               >
                 {nameContent}
               </Link>
@@ -244,7 +244,7 @@ export function ItemRow({
                 type="button"
                 data-row-primary
                 onClick={(e) => onOpenFile(node, e.currentTarget)}
-                className="flex h-12 w-full min-w-0 items-center gap-3 rounded-sm text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                className="flex h-12 w-full min-w-0 items-center gap-3 rounded-sm text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/70"
               >
                 {nameContent}
               </button>

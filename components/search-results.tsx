@@ -1,6 +1,7 @@
 "use client";
 
-import { FileText, Folder, FolderOpen, TextSearch } from "lucide-react";
+import { FolderOpen, TextSearch } from "lucide-react";
+import { FileGlyph, FolderGlyph } from "@/components/glyphs";
 import type { Node } from "@/types";
 import type { SearchResult } from "@/lib/storage";
 import { Button } from "@/components/ui/button";
@@ -93,7 +94,7 @@ export function SearchResults({
                   ? onOpenFolder(node)
                   : onOpenFile(node, e.currentTarget)
               }
-              className="flex h-full min-w-0 flex-1 items-center gap-3 rounded-sm text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+              className="flex h-full min-w-0 flex-1 items-center gap-3 rounded-sm text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/70"
             >
               {node.type === "dataroom" ? (
                 // Global search: dataroom hits wear their real identity.
@@ -105,9 +106,9 @@ export function SearchResults({
                   }`}
                 >
                   {isFolder ? (
-                    <Folder className="size-5 fill-folder/10 text-folder" strokeWidth={1.75} />
+                    <FolderGlyph className="size-5 text-folder" />
                   ) : (
-                    <FileText className="size-5 fill-file/10 text-file" strokeWidth={1.75} />
+                    <FileGlyph className="size-5 text-file" />
                   )}
                 </span>
               )}
@@ -144,7 +145,7 @@ export function SearchResults({
                 type="button"
                 onClick={(e) => onOpenFile(node, e.currentTarget)}
                 title="Open and jump to the match"
-                className="flex shrink-0 items-center gap-1 rounded-full bg-folder-bg px-2 py-0.5 text-xs font-medium text-brand ring-1 ring-brand/15 outline-none ring-inset transition-colors duration-150 hover:bg-brand/15 focus-visible:ring-3 focus-visible:ring-ring/50"
+                className="flex shrink-0 items-center gap-1 rounded-full bg-folder-bg px-2 py-0.5 text-xs font-medium text-brand ring-1 ring-brand/15 outline-none ring-inset transition-colors duration-150 hover:bg-brand/15 focus-visible:ring-3 focus-visible:ring-ring/70"
               >
                 <TextSearch className="size-3.5" strokeWidth={2} />
                 Text match

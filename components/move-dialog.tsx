@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronRight, CornerDownRight, Folder, Loader2 } from "lucide-react";
+import { ChevronRight, CornerDownRight, Loader2 } from "lucide-react";
+import { FolderGlyph } from "@/components/glyphs";
 import type { Node } from "@/types";
 import { listChildren } from "@/lib/storage";
 import { cn } from "@/lib/utils";
@@ -194,7 +195,7 @@ function BranchNode({
           type="button"
           aria-label={expanded ? `Collapse ${node.name}` : `Expand ${node.name}`}
           onClick={() => setExpanded((e) => !e)}
-          className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+          className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/70"
         >
           <ChevronRight
             className={cn(
@@ -208,7 +209,7 @@ function BranchNode({
           disabled={disabled}
           aria-pressed={selected}
           onClick={() => onSelect(node)}
-          className="flex h-full min-w-0 flex-1 items-center gap-2 rounded-md text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed"
+          className="flex h-full min-w-0 flex-1 items-center gap-2 rounded-md text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/70 disabled:cursor-not-allowed"
         >
           {node.type === "dataroom" ? (
             <RoomAvatar
@@ -219,10 +220,7 @@ function BranchNode({
             />
           ) : (
             <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-folder-bg ring-1 ring-folder/15 ring-inset">
-              <Folder
-                className="size-3.5 fill-folder/10 text-folder"
-                strokeWidth={1.75}
-              />
+              <FolderGlyph className="size-3.5 text-folder" />
             </span>
           )}
           <span

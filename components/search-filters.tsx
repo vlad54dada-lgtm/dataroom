@@ -1,6 +1,7 @@
 "use client";
 
-import { FileText, Folder, TextSearch } from "lucide-react";
+import { TextSearch } from "lucide-react";
+import { FileGlyph, FolderGlyph } from "@/components/glyphs";
 import type { SearchResult } from "@/lib/storage";
 import { cn } from "@/lib/utils";
 
@@ -44,7 +45,7 @@ function Chip({
       aria-pressed={active}
       onClick={onClick}
       className={cn(
-        "flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors duration-150 outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+        "flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors duration-150 outline-none focus-visible:ring-3 focus-visible:ring-ring/70",
         active
           ? "border-brand/30 bg-folder-bg text-brand"
           : "text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -77,8 +78,8 @@ export function SearchFilters({
 }: SearchFiltersProps) {
   const types = [
     { key: "all", label: "All", icon: null },
-    { key: "files", label: "Files", icon: FileText },
-    { key: "folders", label: "Folders", icon: Folder },
+    { key: "files", label: "Files", icon: FileGlyph },
+    { key: "folders", label: "Folders", icon: FolderGlyph },
   ] as const;
   return (
     <div
@@ -92,7 +93,7 @@ export function SearchFilters({
           active={value.type === key}
           onClick={() => onChange({ ...value, type: key })}
         >
-          {Icon && <Icon className="size-3.5" strokeWidth={2} />}
+          {Icon && <Icon className="size-3.5" />}
           {label}
         </Chip>
       ))}

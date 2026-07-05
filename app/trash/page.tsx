@@ -6,8 +6,6 @@ import { toast } from "sonner";
 import {
   ArrowLeft,
   ChevronRight,
-  FileText,
-  Folder,
   FolderInput,
   Loader2,
   RotateCcw,
@@ -15,6 +13,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import { FileGlyph, FolderGlyph } from "@/components/glyphs";
 import type { DeleteCounts, Node } from "@/types";
 import {
   emptyTrash,
@@ -351,7 +350,7 @@ function TrashView() {
                     type="button"
                     aria-label="Clear search"
                     onClick={() => setQuery("")}
-                    className="absolute top-1/2 right-1 flex size-6 -translate-y-1/2 items-center justify-center rounded-sm text-muted-foreground transition-[color,background-color] duration-150 outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-150"
+                    className="absolute top-1/2 right-1 flex size-6 -translate-y-1/2 items-center justify-center rounded-sm text-muted-foreground transition-[color,background-color] duration-150 outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/70 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-150"
                   >
                     <X className="size-4" />
                   </button>
@@ -507,15 +506,9 @@ function TrashView() {
                             }`}
                           >
                             {isFolder ? (
-                              <Folder
-                                className="size-5 fill-folder/10 text-folder"
-                                strokeWidth={1.75}
-                              />
+                              <FolderGlyph className="size-5 text-folder" />
                             ) : (
-                              <FileText
-                                className="size-5 fill-file/10 text-file"
-                                strokeWidth={1.75}
-                              />
+                              <FileGlyph className="size-5 text-file" />
                             )}
                           </span>
                         )}
@@ -865,9 +858,9 @@ function TrashChildRow({
           }`}
         >
           {isFolder ? (
-            <Folder className="size-4 fill-folder/10 text-folder" strokeWidth={1.75} />
+            <FolderGlyph className="size-4 text-folder" />
           ) : (
-            <FileText className="size-4 fill-file/10 text-file" strokeWidth={1.75} />
+            <FileGlyph className="size-4 text-file" />
           )}
         </span>
         <span className="min-w-0 flex-1 truncate text-sm" title={node.name}>
@@ -942,9 +935,9 @@ function TrashSearchHit({
           }`}
         >
           {isFolder ? (
-            <Folder className="size-5 fill-folder/10 text-folder" strokeWidth={1.75} />
+            <FolderGlyph className="size-5 text-folder" />
           ) : (
-            <FileText className="size-5 fill-file/10 text-file" strokeWidth={1.75} />
+            <FileGlyph className="size-5 text-file" />
           )}
         </span>
       )}

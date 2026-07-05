@@ -17,12 +17,12 @@ import { isDuplicateNameError } from "@/lib/storage";
 import { shake } from "@/lib/shake";
 import { MAX_NAME_LENGTH, cn, normalizeName } from "@/lib/utils";
 import {
+  ICON_LABELS,
   ROOM_COLOR_KEYS,
   ROOM_COLORS,
   ROOM_ICONS,
   ROOM_ICON_KEYS,
   RoomAvatar,
-  roomIconFill,
 } from "@/components/room-avatar";
 
 const MAX_DESCRIPTION_LENGTH = 500;
@@ -268,14 +268,16 @@ export function DataroomDialog({
               onChange={(e) => setDescription(e.target.value)}
               rows={2}
               placeholder="What lives in this room, e.g. legal contracts for the Acme acquisition"
-              className="w-full resize-none rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              className="w-full resize-none rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/70"
             />
           </div>
 
           <div className="flex flex-col gap-2">
-            <Label>Icon</Label>
+            <Label id="dataroom-icon-label">Icon</Label>
             <div
               ref={setIconGrid}
+              role="group"
+              aria-labelledby="dataroom-icon-label"
               className="relative grid grid-cols-6 gap-1.5"
             >
               <span
@@ -290,11 +292,11 @@ export function DataroomDialog({
                   <button
                     key={key}
                     type="button"
-                    aria-label={`${key} icon`}
+                    aria-label={`${ICON_LABELS[key] ?? key} icon`}
                     aria-pressed={selected}
                     onClick={() => setIcon(key)}
                     className={cn(
-                      "relative flex h-9 items-center justify-center rounded-lg border border-transparent transition-colors duration-200 outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+                      "relative flex h-9 items-center justify-center rounded-lg border border-transparent transition-colors duration-200 outline-none focus-visible:ring-3 focus-visible:ring-ring/70",
                       selected
                         ? "text-brand"
                         : "text-muted-foreground hover:bg-accent hover:text-foreground",
@@ -303,12 +305,10 @@ export function DataroomDialog({
                     <Icon
                       key={String(selected)}
                       className={cn(
-                        "size-4.5",
-                        roomIconFill(key),
+                        "size-5",
                         selected &&
                           "motion-safe:animate-in motion-safe:fade-in-50 motion-safe:zoom-in-95 motion-safe:duration-150 motion-safe:ease-out-strong",
                       )}
-                      strokeWidth={1.75}
                     />
                   </button>
                 );
@@ -317,9 +317,11 @@ export function DataroomDialog({
           </div>
 
           <div className="flex flex-col gap-2">
-            <Label>Color</Label>
+            <Label id="dataroom-color-label">Color</Label>
             <div
               ref={setColorRow}
+              role="group"
+              aria-labelledby="dataroom-color-label"
               className="relative flex flex-wrap gap-2"
             >
               <span
@@ -339,7 +341,7 @@ export function DataroomDialog({
                     className={cn(
                       // Inset hairline defines the dot's edge on any surface
                       // (the deep registrar fills read flat without it).
-                      "size-6 rounded-full ring-1 ring-foreground/10 ring-inset transition-transform outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+                      "size-6 rounded-full ring-1 ring-foreground/10 ring-inset transition-transform outline-none focus-visible:ring-3 focus-visible:ring-ring/70",
                       ROOM_COLORS[key].swatch,
                       !selected && "hover:scale-110",
                     )}

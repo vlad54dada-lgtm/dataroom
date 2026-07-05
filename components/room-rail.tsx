@@ -21,7 +21,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { RoomAvatar } from "@/components/room-avatar";
+import { RoomGlyph, roomInk } from "@/components/room-avatar";
 
 const COLLAPSE_KEY = "room-rail-collapsed";
 
@@ -30,11 +30,14 @@ function RailItem({
   room,
   active,
   collapsed,
+  sourceId,
   onDropNodes,
 }: {
   room: Node;
   active: boolean;
   collapsed: boolean;
+  /** Where a drag would come FROM — this room refuses its own drops. */
+  sourceId: string;
   onDropNodes?: (ids: string[], target: Node) => void;
 }) {
   const [dropReady, setDropReady] = useState(false);
@@ -48,11 +51,19 @@ function RailItem({
   const link = (
     <Link
       href={`/room/${room.id}`}
+      // The name must survive the collapsed strip, where the label span is
+      // gone and the glyph is aria-hidden — without this the link has no
+      // accessible name at all (WCAG 4.1.2). It equals the visible label,
+      // so the expanded state stays label-in-name safe.
+      aria-label={room.name}
       aria-current={active ? "page" : undefined}
       onPointerEnter={prefetch}
       onFocus={prefetch}
       onDragOver={(e) => {
         if (!onDropNodes || !e.dataTransfer.types.includes(MOVE_MIME)) return;
+        // Dropping into the room the rows came from is a no-op — don't
+        // paint the invitation for a drop that would do nothing.
+        if (room.id === sourceId) return;
         e.preventDefault();
         e.dataTransfer.dropEffect = "move";
         setDropReady(true);
@@ -67,10 +78,15 @@ function RailItem({
         onDropNodes(ids, room);
       }}
       className={cn(
-        "flex items-center gap-2.5 rounded-lg px-2 py-1.5 outline-none transition-colors duration-150 focus-visible:ring-3 focus-visible:ring-ring/50",
-        collapsed && "justify-center px-0",
+        // Nav register: a hue-inked glyph + label, no tile — identity
+        // tiles stay on cards and tables, so rail rooms never read as
+        // folder rows stacked in a column.
+        "flex h-8 items-center gap-2.5 rounded-md outline-none transition-colors duration-150 focus-visible:ring-3 focus-visible:ring-ring/70",
+        // Collapsed rows stay full-width (drop/hover target spans the
+        // strip) and just center their glyph.
+        collapsed ? "justify-center px-0" : "px-2.5",
         active
-          ? "bg-selected font-medium"
+          ? "bg-selected font-medium text-foreground"
           : "text-muted-foreground hover:bg-muted hover:text-foreground",
         // Dashed brand outline — the one drop-target language everywhere;
         // negative offset keeps it inside the scroll container's clip.
@@ -78,11 +94,12 @@ function RailItem({
           "bg-folder-bg text-brand outline-2 outline-dashed -outline-offset-2 outline-brand",
       )}
     >
-      <RoomAvatar
+      <RoomGlyph
         icon={room.icon}
-        color={room.color}
-        size="xs"
-        className="pointer-events-none shrink-0"
+        className={cn(
+          "pointer-events-none size-4 shrink-0",
+          roomInk(room.color),
+        )}
       />
       {!collapsed && (
         <span
@@ -118,12 +135,13 @@ export function RoomRail() {
   // Distinct cache key from home's "datarooms" (different data shape).
   const { state } = useAsync(() => listChildren(null), "rail:datarooms");
   const rooms: Node[] = state.status === "success" ? state.data : [];
+  // Where dragged rows come from: the current folder, or the room root.
+  const sourceId = searchParams.get("folder") ?? currentId;
 
   // The rail lives in the layout (it persists across room switches), so it
   // owns its drop handling: move, toast with Undo, then revalidate every
   // mounted list so the page the rows came from updates too.
   const onDropNodes = async (ids: string[], target: Node) => {
-    const sourceId = searchParams.get("folder") ?? currentId;
     if (target.id === sourceId) return;
     try {
       const moved = await moveNodes(ids, target.id);
@@ -205,8 +223,11 @@ export function RoomRail() {
       className={cn(
         // Sticky under the 56px header; its own scroll region so the rail
         // never scrolls away with the table.
-        "sticky top-14 hidden max-h-[calc(100dvh-3.5rem)] shrink-0 flex-col self-start overflow-hidden py-8 pr-5 transition-[width] duration-200 ease-out-strong motion-reduce:transition-none lg:flex",
-        collapsed ? "w-[72px]" : "w-60",
+        "sticky top-14 hidden max-h-[calc(100dvh-3.5rem)] shrink-0 flex-col self-start overflow-hidden py-8 transition-[width] duration-200 ease-out-strong motion-reduce:transition-none lg:flex",
+        // Collapsed drops the right gutter so header and rows share one
+        // symmetric 64px box — with it, the icon column sat ~7px off the
+        // toggle's axis.
+        collapsed ? "w-16" : "w-60 pr-5",
       )}
     >
       {/* h-8 mirrors the content column's breadcrumb row so the rail's
@@ -214,7 +235,7 @@ export function RoomRail() {
       <div
         className={cn(
           "flex h-8 items-center pb-1",
-          collapsed ? "justify-center" : "justify-between pl-2",
+          collapsed ? "justify-center" : "justify-between pl-2.5",
         )}
       >
         {/* The ledger register, same as table headers. */}
@@ -248,13 +269,26 @@ export function RoomRail() {
       <div
         ref={listRef}
         onScroll={measure}
-        className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto pr-1 [scrollbar-gutter:stable]"
+        className={cn(
+          "flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto",
+          // Symmetric gutters while collapsed keep rows on the toggle's
+          // center axis; expanded keeps the single right-side gutter.
+          collapsed
+            ? "[scrollbar-gutter:stable_both-edges]"
+            : "pr-1 [scrollbar-gutter:stable]",
+        )}
         style={{ maskImage, WebkitMaskImage: maskImage }}
       >
         {state.status === "loading" &&
           Array.from({ length: 4 }, (_, i) => (
-            <div key={i} className="flex items-center gap-2.5 px-2 py-1.5">
-              <Skeleton className="size-7 shrink-0 rounded-md" />
+            <div
+              key={i}
+              className={cn(
+                "flex h-8 items-center gap-2.5",
+                collapsed ? "justify-center" : "px-2.5",
+              )}
+            >
+              <Skeleton className="size-4 shrink-0 rounded-sm" />
               {!collapsed && <Skeleton className="h-3.5 w-28" />}
             </div>
           ))}
@@ -264,6 +298,7 @@ export function RoomRail() {
             room={room}
             active={room.id === currentId}
             collapsed={collapsed}
+            sourceId={sourceId}
             onDropNodes={(ids, target) => void onDropNodes(ids, target)}
           />
         ))}

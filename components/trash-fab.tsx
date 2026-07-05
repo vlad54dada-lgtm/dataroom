@@ -5,7 +5,8 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { toast } from "sonner";
-import { FileText, Folder, Trash2, X } from "lucide-react";
+import { Trash2, X } from "lucide-react";
+import { FileGlyph, FolderGlyph } from "@/components/glyphs";
 import { countTrash, listTrash, purgeNode } from "@/lib/storage";
 import { MOVE_MIME, RESTORE_MIME, readIds, startDragGhost } from "@/lib/dnd";
 import { useAsync } from "@/lib/hooks/use-async";
@@ -215,9 +216,9 @@ export function TrashFab() {
                     }`}
                   >
                     {item.node.type === "folder" ? (
-                      <Folder className="size-4 fill-folder/10 text-folder" strokeWidth={1.75} />
+                      <FolderGlyph className="size-4 text-folder" />
                     ) : (
-                      <FileText className="size-4 fill-file/10 text-file" strokeWidth={1.75} />
+                      <FileGlyph className="size-4 text-file" />
                     )}
                   </span>
                 )}
@@ -289,7 +290,7 @@ export function TrashFab() {
           );
         }}
         className={cn(
-          "relative flex size-12 items-center justify-center rounded-full border bg-popover text-muted-foreground shadow-float transition-[box-shadow,translate,scale,color] duration-200 ease-out-strong outline-none hover:-translate-y-0.5 hover:text-foreground hover:shadow-overlay active:scale-95 focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:border-line-strong",
+          "relative flex size-12 items-center justify-center rounded-full border bg-popover text-muted-foreground shadow-float transition-[box-shadow,translate,scale,color] duration-200 ease-out-strong outline-none hover:-translate-y-0.5 hover:text-foreground hover:shadow-overlay active:scale-95 focus-visible:ring-3 focus-visible:ring-ring/70 motion-reduce:transition-none motion-reduce:hover:translate-y-0 dark:border-line-strong",
           dropReady &&
             "scale-110 text-brand outline-2 outline-offset-2 outline-brand outline-dashed",
         )}
