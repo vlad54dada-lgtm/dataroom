@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import {
   ArrowLeft,
   ChevronRight,
+  FileText,
+  Folder,
   FolderInput,
   Loader2,
   RotateCcw,
@@ -13,7 +15,6 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { FileGlyph, FolderGlyph } from "@/components/glyphs";
 import type { DeleteCounts, Node } from "@/types";
 import {
   emptyTrash,
@@ -506,9 +507,15 @@ function TrashView() {
                             }`}
                           >
                             {isFolder ? (
-                              <FolderGlyph className="size-5 text-folder" />
+                              <Folder
+                                className="size-5 fill-folder/10 text-folder"
+                                strokeWidth={1.75}
+                              />
                             ) : (
-                              <FileGlyph className="size-5 text-file" />
+                              <FileText
+                                className="size-5 fill-file/10 text-file"
+                                strokeWidth={1.75}
+                              />
                             )}
                           </span>
                         )}
@@ -858,9 +865,9 @@ function TrashChildRow({
           }`}
         >
           {isFolder ? (
-            <FolderGlyph className="size-4 text-folder" />
+            <Folder className="size-4 fill-folder/10 text-folder" strokeWidth={1.75} />
           ) : (
-            <FileGlyph className="size-4 text-file" />
+            <FileText className="size-4 fill-file/10 text-file" strokeWidth={1.75} />
           )}
         </span>
         <span className="min-w-0 flex-1 truncate text-sm" title={node.name}>
@@ -935,9 +942,9 @@ function TrashSearchHit({
           }`}
         >
           {isFolder ? (
-            <FolderGlyph className="size-5 text-folder" />
+            <Folder className="size-5 fill-folder/10 text-folder" strokeWidth={1.75} />
           ) : (
-            <FileGlyph className="size-5 text-file" />
+            <FileText className="size-5 fill-file/10 text-file" strokeWidth={1.75} />
           )}
         </span>
       )}

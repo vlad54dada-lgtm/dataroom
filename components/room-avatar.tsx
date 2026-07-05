@@ -1,49 +1,47 @@
 import {
-  ArchiveGlyph,
-  BanknoteGlyph,
-  BriefcaseGlyph,
-  BuildingGlyph,
-  CabinetGlyph,
-  ChartGlyph,
-  GavelGlyph,
-  GlobeGlyph,
-  LandmarkGlyph,
-  ScaleGlyph,
-  ShieldGlyph,
-  UsersGlyph,
-  type Glyph,
-} from "@/components/glyphs";
+  Archive,
+  Banknote,
+  Briefcase,
+  Building2,
+  Folder,
+  Gavel,
+  Globe,
+  Landmark,
+  Scale,
+  ShieldCheck,
+  TrendingUp,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
- * Dataroom avatar system: a curated glyph set × a soft color palette.
+ * Dataroom avatar system: a curated icon set × a soft color palette.
  * Icon/color keys are stored on the node; unknown keys fall back to the
- * default cabinet-on-blue so old rooms and bad data never break.
+ * default folder-on-blue so old rooms and bad data never break.
  */
 
-// One glyph per due-diligence workstream: corporate, legal, litigation,
-// regulatory, finance, HR, insurance, cross-border, records. The stored
-// "folder" key deliberately renders a registry CABINET, not a folder —
-// a room is a container of folders, and the old folder-on-blue default
-// was indistinguishable from folder rows in the table.
-export const ROOM_ICONS: Record<string, Glyph> = {
-  folder: CabinetGlyph,
-  briefcase: BriefcaseGlyph,
-  building: BuildingGlyph,
-  scale: ScaleGlyph,
-  gavel: GavelGlyph,
-  landmark: LandmarkGlyph,
-  banknote: BanknoteGlyph,
-  chart: ChartGlyph,
-  shield: ShieldGlyph,
-  users: UsersGlyph,
-  globe: GlobeGlyph,
-  archive: ArchiveGlyph,
+// One icon per due-diligence workstream: corporate, legal, litigation,
+// regulatory, finance, HR, insurance, cross-border, records. (The old
+// "rocket" read startup, not M&A — stored rocket keys fall back to folder.)
+export const ROOM_ICONS: Record<string, LucideIcon> = {
+  folder: Folder,
+  briefcase: Briefcase,
+  building: Building2,
+  scale: Scale,
+  gavel: Gavel,
+  landmark: Landmark,
+  banknote: Banknote,
+  chart: TrendingUp,
+  shield: ShieldCheck,
+  users: Users,
+  globe: Globe,
+  archive: Archive,
 };
 
-/** Human names for the picker (the stored keys are legacy). */
+/** Human names for the picker's aria-labels. */
 export const ICON_LABELS: Record<string, string> = {
-  folder: "Cabinet",
+  folder: "Folder",
   briefcase: "Briefcase",
   building: "Building",
   scale: "Scale",
@@ -56,6 +54,15 @@ export const ICON_LABELS: Record<string, string> = {
   globe: "Globe",
   archive: "Archive",
 };
+
+/**
+ * Duotone: glyphs take a quiet self-fill like the folder/file tiles do.
+ * Open-polyline glyphs (the chart line, the scale's beams) would fill as
+ * solid blobs via SVG's implicit path closing — those stay outline-only.
+ */
+const OUTLINE_ONLY_ICONS = new Set(["chart", "scale"]);
+export const roomIconFill = (key: string) =>
+  OUTLINE_ONLY_ICONS.has(key) ? undefined : "fill-current/10";
 
 /**
  * Registrar tones: identity lives in the avatar tile alone. Quiet tile
@@ -129,7 +136,8 @@ export function roomInk(color?: string | null) {
   return resolveRoomColor(color).ink;
 }
 
-/** Resolved glyph for a stored icon key, with the avatar's fallback. */
+/** Resolved icon for a stored key, with the avatar's fallback — the rail's
+ * tileless render (duotone self-fill, same stroke as the tiles). */
 export function RoomGlyph({
   icon,
   className,
@@ -139,7 +147,9 @@ export function RoomGlyph({
 }) {
   const key = ROOM_ICONS[icon ?? DEFAULT_ICON] ? (icon ?? DEFAULT_ICON) : DEFAULT_ICON;
   const Icon = ROOM_ICONS[key];
-  return <Icon className={className} />;
+  return (
+    <Icon className={cn(roomIconFill(key), className)} strokeWidth={1.75} />
+  );
 }
 
 interface RoomAvatarProps {
@@ -179,12 +189,12 @@ export function RoomAvatar({
       <Icon
         key={animateSwaps ? iconKey : undefined}
         className={cn(
-          // Both sizes ship at proven renders (20px); 18px sub-pixels the
-          // 1.5 stroke and goes soft on 1x displays.
-          "size-5",
+          size === "lg" ? "size-5" : "size-4.5",
+          roomIconFill(iconKey),
           animateSwaps &&
             "motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-150 motion-safe:ease-out-strong",
         )}
+        strokeWidth={1.75}
       />
     </span>
   );

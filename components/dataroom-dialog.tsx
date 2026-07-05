@@ -23,6 +23,7 @@ import {
   ROOM_ICONS,
   ROOM_ICON_KEYS,
   RoomAvatar,
+  roomIconFill,
 } from "@/components/room-avatar";
 
 const MAX_DESCRIPTION_LENGTH = 500;
@@ -305,10 +306,12 @@ export function DataroomDialog({
                     <Icon
                       key={String(selected)}
                       className={cn(
-                        "size-5",
+                        "size-4.5",
+                        roomIconFill(key),
                         selected &&
                           "motion-safe:animate-in motion-safe:fade-in-50 motion-safe:zoom-in-95 motion-safe:duration-150 motion-safe:ease-out-strong",
                       )}
+                      strokeWidth={1.75}
                     />
                   </button>
                 );

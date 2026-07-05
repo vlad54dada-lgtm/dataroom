@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronRight, CornerDownRight, Loader2 } from "lucide-react";
-import { FolderGlyph } from "@/components/glyphs";
+import { ChevronRight, CornerDownRight, Folder, Loader2 } from "lucide-react";
 import type { Node } from "@/types";
 import { listChildren } from "@/lib/storage";
 import { cn } from "@/lib/utils";
@@ -220,7 +219,10 @@ function BranchNode({
             />
           ) : (
             <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-folder-bg ring-1 ring-folder/15 ring-inset">
-              <FolderGlyph className="size-3.5 text-folder" />
+              <Folder
+                className="size-3.5 fill-folder/10 text-folder"
+                strokeWidth={1.75}
+              />
             </span>
           )}
           <span

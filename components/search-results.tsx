@@ -1,7 +1,6 @@
 "use client";
 
-import { FolderOpen, TextSearch } from "lucide-react";
-import { FileGlyph, FolderGlyph } from "@/components/glyphs";
+import { FileText, Folder, FolderOpen, TextSearch } from "lucide-react";
 import type { Node } from "@/types";
 import type { SearchResult } from "@/lib/storage";
 import { Button } from "@/components/ui/button";
@@ -106,9 +105,9 @@ export function SearchResults({
                   }`}
                 >
                   {isFolder ? (
-                    <FolderGlyph className="size-5 text-folder" />
+                    <Folder className="size-5 fill-folder/10 text-folder" strokeWidth={1.75} />
                   ) : (
-                    <FileGlyph className="size-5 text-file" />
+                    <FileText className="size-5 fill-file/10 text-file" strokeWidth={1.75} />
                   )}
                 </span>
               )}

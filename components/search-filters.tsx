@@ -1,7 +1,6 @@
 "use client";
 
-import { TextSearch } from "lucide-react";
-import { FileGlyph, FolderGlyph } from "@/components/glyphs";
+import { FileText, Folder, TextSearch } from "lucide-react";
 import type { SearchResult } from "@/lib/storage";
 import { cn } from "@/lib/utils";
 
@@ -78,8 +77,8 @@ export function SearchFilters({
 }: SearchFiltersProps) {
   const types = [
     { key: "all", label: "All", icon: null },
-    { key: "files", label: "Files", icon: FileGlyph },
-    { key: "folders", label: "Folders", icon: FolderGlyph },
+    { key: "files", label: "Files", icon: FileText },
+    { key: "folders", label: "Folders", icon: Folder },
   ] as const;
   return (
     <div
@@ -93,7 +92,7 @@ export function SearchFilters({
           active={value.type === key}
           onClick={() => onChange({ ...value, type: key })}
         >
-          {Icon && <Icon className="size-3.5" />}
+          {Icon && <Icon className="size-3.5" strokeWidth={2} />}
           {label}
         </Chip>
       ))}

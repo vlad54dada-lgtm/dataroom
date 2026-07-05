@@ -7,13 +7,13 @@ import {
   Download,
   FileText,
   FileUp,
+  Folder,
   FolderInput,
   FolderOpen,
   History,
   Pencil,
   Trash2,
 } from "lucide-react";
-import { FileGlyph, FolderGlyph } from "@/components/glyphs";
 import type { Node } from "@/types";
 import { MOVE_MIME, readIds, startDragGhost } from "@/lib/dnd";
 import { cn, formatBytes, formatDateTime, formatModified } from "@/lib/utils";
@@ -130,9 +130,9 @@ export function ItemRow({
         }`}
       >
         {isFolder ? (
-          <FolderGlyph className="size-5 text-folder" />
+          <Folder className="size-5 fill-folder/10 text-folder" strokeWidth={1.75} />
         ) : (
-          <FileGlyph className="size-5 text-file" />
+          <FileText className="size-5 fill-file/10 text-file" strokeWidth={1.75} />
         )}
       </span>
       <span className="min-w-0 flex-1">

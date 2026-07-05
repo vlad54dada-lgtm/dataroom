@@ -5,8 +5,7 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { toast } from "sonner";
-import { Trash2, X } from "lucide-react";
-import { FileGlyph, FolderGlyph } from "@/components/glyphs";
+import { FileText, Folder, Trash2, X } from "lucide-react";
 import { countTrash, listTrash, purgeNode } from "@/lib/storage";
 import { MOVE_MIME, RESTORE_MIME, readIds, startDragGhost } from "@/lib/dnd";
 import { useAsync } from "@/lib/hooks/use-async";
@@ -216,9 +215,9 @@ export function TrashFab() {
                     }`}
                   >
                     {item.node.type === "folder" ? (
-                      <FolderGlyph className="size-4 text-folder" />
+                      <Folder className="size-4 fill-folder/10 text-folder" strokeWidth={1.75} />
                     ) : (
-                      <FileGlyph className="size-4 text-file" />
+                      <FileText className="size-4 fill-file/10 text-file" strokeWidth={1.75} />
                     )}
                   </span>
                 )}
