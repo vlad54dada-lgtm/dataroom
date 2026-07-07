@@ -11,6 +11,7 @@ import {
   FolderInput,
   FolderOpen,
   History,
+  Link2,
   Pencil,
   Trash2,
 } from "lucide-react";
@@ -42,6 +43,8 @@ interface ItemRowProps {
   onUploadVersion?: (node: Node) => void;
   /** File rows only: opens the version history dialog. */
   onVersionHistory?: (node: Node, trigger: HTMLElement | null) => void;
+  /** File rows only: opens the share settings dialog. */
+  onShare?: (node: Node, trigger: HTMLElement | null) => void;
   /** Opens the Move to… destination picker for this single item. */
   onMove?: (node: Node) => void;
   /** Warm the folder's contents cache on hover so navigation is instant. */
@@ -76,6 +79,7 @@ export function ItemRow({
   onDownload,
   onUploadVersion,
   onVersionHistory,
+  onShare,
   onMove,
   onPrefetch,
   childCount,
@@ -278,6 +282,11 @@ export function ItemRow({
                   ? (trigger) => onVersionHistory(node, trigger)
                   : undefined
               }
+              onShare={
+                !isFolder && onShare
+                  ? (trigger) => onShare(node, trigger)
+                  : undefined
+              }
               onMove={onMove ? () => onMove(node) : undefined}
             />
           </TableCell>
@@ -307,6 +316,11 @@ export function ItemRow({
         {!isFolder && onVersionHistory && (
           <ContextMenuItem onSelect={() => onVersionHistory(node, null)}>
             <History /> Version history
+          </ContextMenuItem>
+        )}
+        {!isFolder && onShare && (
+          <ContextMenuItem onSelect={() => onShare(node, null)}>
+            <Link2 /> Share
           </ContextMenuItem>
         )}
         <ContextMenuItem onSelect={() => onRename(node, null)}>

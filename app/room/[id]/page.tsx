@@ -68,13 +68,15 @@ import { UploadDropzone } from "@/components/upload-dropzone";
 import { UploadPanel, type UploadState } from "@/components/upload-panel";
 import { PdfViewerDialog } from "@/components/pdf-viewer-dialog";
 import { VersionHistoryDialog } from "@/components/version-history-dialog";
+import { ShareDialog } from "@/components/share-dialog";
 
 type DialogState =
   | { kind: "none" }
   | { kind: "create" }
   | { kind: "rename"; node: Node }
   | { kind: "move"; nodes: Node[] }
-  | { kind: "versions"; node: Node };
+  | { kind: "versions"; node: Node }
+  | { kind: "share"; node: Node };
 
 /** The toolbar button is focused by its own click — capture it. */
 const activeTrigger = () =>
@@ -926,6 +928,10 @@ function RoomView() {
                           setReturnTo(trigger);
                           openDialog({ kind: "versions", node });
                         }}
+                        onShare={(node, trigger) => {
+                          setReturnTo(trigger);
+                          openDialog({ kind: "share", node });
+                        }}
                         onPrefetch={(id) =>
                           prefetchAsync(id, () => listChildren(id))
                         }
@@ -1052,6 +1058,12 @@ function RoomView() {
         onClose={closeDialog}
         returnFocusTo={returnTo}
         onRestore={handleRestoreVersion}
+      />
+      <ShareDialog
+        key={`share-${dialogGen}`}
+        file={dialog.kind === "share" ? dialog.node : null}
+        onClose={closeDialog}
+        returnFocusTo={returnTo}
       />
       <MoveDialog
         key={`move-${dialogGen}`}

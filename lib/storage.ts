@@ -428,6 +428,111 @@ export async function getBlob(blobKey: string): Promise<Blob | undefined> {
 }
 
 // ---------------------------------------------------------------------------
+// File sharing — public per-file links. A file carries at most one active
+// link; the unguessable token IS the capability. The owner mints/reads/revokes
+// it here; anyone holding the link resolves it through getSharedFile, which
+// needs no session (SECURITY DEFINER RPC + an anon storage-read policy scoped
+// to shared objects — see the file_sharing migration).
+// ---------------------------------------------------------------------------
+
+export interface ShareInfo {
+  token: string;
+  createdAt: number;
+}
+
+interface ShareRow {
+  token: string;
+  created_at: string;
+}
+
+/** The active share link for a file, or null when it isn't shared. */
+export async function getShare(nodeId: string): Promise<ShareInfo | null> {
+  const { data, error } = await supabase
+    .from("file_shares")
+    .select("token, created_at")
+    .eq("node_id", nodeId)
+    .maybeSingle<ShareRow>();
+  if (error) throw error;
+  return data
+    ? { token: data.token, createdAt: Date.parse(data.created_at) }
+    : null;
+}
+
+/**
+ * Turns sharing ON: returns the existing link if the file already has one,
+ * otherwise mints a fresh token. Idempotent — the unique(node_id) index folds
+ * a concurrent-create race back to the single row.
+ */
+export async function createShare(nodeId: string): Promise<ShareInfo> {
+  const existing = await getShare(nodeId);
+  if (existing) return existing;
+  const userId = await currentUserId();
+  const { data, error } = await supabase
+    .from("file_shares")
+    .insert({ node_id: nodeId, user_id: userId })
+    .select("token, created_at")
+    .single<ShareRow>();
+  if (error) {
+    // Lost the race to a concurrent create — the row exists now, return it.
+    if (isUniqueViolation(error)) {
+      const now = await getShare(nodeId);
+      if (now) return now;
+    }
+    throw error;
+  }
+  return { token: data.token, createdAt: Date.parse(data.created_at) };
+}
+
+/** Turns sharing OFF: deletes the row so the old link stops resolving. */
+export async function revokeShare(nodeId: string): Promise<void> {
+  const { error } = await supabase
+    .from("file_shares")
+    .delete()
+    .eq("node_id", nodeId);
+  if (error) throw error;
+}
+
+export interface SharedFile {
+  nodeId: string;
+  name: string;
+  size: number;
+  blobPath: string;
+}
+
+interface SharedFileRow {
+  node_id: string;
+  name: string;
+  size: number;
+  blob_path: string;
+}
+
+/**
+ * Resolves a share token to its file — works WITHOUT a session (anon). Returns
+ * null for an unknown, expired, or trashed link. The blob itself is fetched
+ * with getBlob(blobPath), which the anon storage policy permits for shared
+ * objects only.
+ */
+export async function getSharedFile(token: string): Promise<SharedFile | null> {
+  const { data, error } = await supabase.rpc("get_shared_file", {
+    share_token: token,
+  });
+  if (error) {
+    // A malformed token isn't a uuid — read as "no such share".
+    if (error.code === "22P02") return null;
+    throw error;
+  }
+  const row = ((data ?? []) as SharedFileRow[])[0];
+  return row
+    ? {
+        nodeId: row.node_id,
+        name: row.name,
+        size: row.size,
+        blobPath: row.blob_path,
+      }
+    : null;
+}
+
+// ---------------------------------------------------------------------------
 // File versions. The nodes row always mirrors the CURRENT version; the
 // file_versions table is the linear history. Files uploaded before this
 // feature have no rows — their history materializes lazily on the first

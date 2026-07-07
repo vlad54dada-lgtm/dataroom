@@ -7,6 +7,7 @@ import {
   FileUp,
   FolderInput,
   History,
+  Link2,
   Pencil,
   Trash2,
 } from "lucide-react";
@@ -29,6 +30,8 @@ interface RowMenuProps {
   onUploadVersion?: () => void;
   /** File rows only: opens the version history dialog. */
   onVersionHistory?: (trigger: HTMLElement | null) => void;
+  /** File rows only: opens the share settings dialog. */
+  onShare?: (trigger: HTMLElement | null) => void;
   /** Opens the Move to… destination picker for this item. */
   onMove?: (trigger: HTMLElement | null) => void;
   /** Dataroom cards say "Edit" (name + description + avatar), rows "Rename". */
@@ -45,6 +48,7 @@ export function RowMenu({
   onDownload,
   onUploadVersion,
   onVersionHistory,
+  onShare,
   onMove,
   renameLabel = "Rename",
   subject,
@@ -105,7 +109,17 @@ export function RowMenu({
             <History /> Version history
           </DropdownMenuItem>
         )}
-        {(onDownload || onUploadVersion || onVersionHistory) && (
+        {onShare && (
+          <DropdownMenuItem
+            onSelect={() => {
+              actionChosenRef.current = true;
+              onShare(triggerRef.current);
+            }}
+          >
+            <Link2 /> Share
+          </DropdownMenuItem>
+        )}
+        {(onDownload || onUploadVersion || onVersionHistory || onShare) && (
           <DropdownMenuSeparator />
         )}
         <DropdownMenuItem

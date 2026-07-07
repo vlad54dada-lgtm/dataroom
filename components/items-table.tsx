@@ -119,6 +119,8 @@ interface ItemsTableProps {
   /** File versioning: replace content / open the history dialog. */
   onUploadVersion?: (node: Node) => void;
   onVersionHistory?: (node: Node, trigger: HTMLElement | null) => void;
+  /** Opens the share settings dialog for a file. */
+  onShare?: (node: Node, trigger: HTMLElement | null) => void;
   /** Warms a folder's contents cache on row hover. */
   onPrefetch?: (id: string) => void;
   /** Direct child counts per folder id — folders show them in Size. */
@@ -150,6 +152,7 @@ export function ItemsTable({
   onMoveNode,
   onUploadVersion,
   onVersionHistory,
+  onShare,
   onPrefetch,
   childCounts,
   onBulkTrash,
@@ -381,6 +384,7 @@ export function ItemsTable({
                 onMove={onMoveNode}
                 onUploadVersion={onUploadVersion}
                 onVersionHistory={onVersionHistory}
+                onShare={onShare}
                 onPrefetch={onPrefetch}
                 childCount={childCounts?.get(node.id)}
                 selected={selectedIds.has(node.id)}

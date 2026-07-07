@@ -744,3 +744,85 @@ as $$
   from unnest(ids) with ordinality as u(id, ord)
   where n.id = u.id;
 $$;
+
+-- ---------------------------------------------------------------------------
+-- 13) file_sharing
+-- ---------------------------------------------------------------------------
+--
+-- Public per-file share links. A file carries at most one active link
+-- (unique node_id). The token is an unguessable uuid; anyone holding the
+-- link views the file with NO sign-in ("anyone with the link"). Revoking
+-- deletes the row, so the old link dies immediately and re-sharing mints a
+-- fresh token. expires_at is reserved for a future expiry control (null =
+-- never); the validity predicate already honours it.
+
+create table public.file_shares (
+  token uuid primary key default gen_random_uuid(),
+  node_id uuid not null references public.nodes(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  expires_at timestamptz,
+  -- one active link per file
+  unique (node_id)
+);
+
+create index file_shares_node_idx on public.file_shares (node_id);
+
+-- Owner-only management: create / read / revoke your own share rows.
+alter table public.file_shares enable row level security;
+
+create policy "file_shares_select_own" on public.file_shares
+  for select using ((select auth.uid()) = user_id);
+create policy "file_shares_insert_own" on public.file_shares
+  for insert with check ((select auth.uid()) = user_id);
+create policy "file_shares_delete_own" on public.file_shares
+  for delete using ((select auth.uid()) = user_id);
+
+-- Token -> shared file, for ANONYMOUS visitors. SECURITY DEFINER so it can
+-- read past the owner-only RLS on nodes/file_shares, but it returns ONLY the
+-- single file a valid, live token points at — nothing else is reachable.
+create or replace function public.get_shared_file(share_token uuid)
+returns table (node_id uuid, name text, size bigint, blob_path text)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select n.id, n.name, n.size, n.blob_path
+  from public.file_shares s
+  join public.nodes n on n.id = s.node_id
+  where s.token = share_token
+    and (s.expires_at is null or s.expires_at > now())
+    and n.deleted_at is null
+    and n.type = 'file';
+$$;
+
+-- Is this storage object the CURRENT blob of a validly-shared file? Used by
+-- the anon storage-read policy below. SECURITY DEFINER so the lookup isn't
+-- itself blocked by nodes/file_shares RLS when evaluated as the anon role.
+create or replace function public.is_object_shared(object_name text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1
+    from public.file_shares s
+    join public.nodes n on n.id = s.node_id
+    where n.blob_path = object_name
+      and (s.expires_at is null or s.expires_at > now())
+      and n.deleted_at is null
+  );
+$$;
+
+grant execute on function public.get_shared_file(uuid) to anon, authenticated;
+grant execute on function public.is_object_shared(text) to anon, authenticated;
+
+-- Anon (and any signed-in user) may DOWNLOAD a pdf object only while it is
+-- the live blob of a shared file. Policies are OR'd with pdfs_select_own, so
+-- owners keep full access to their own bucket folder unchanged.
+create policy "pdfs_select_shared" on storage.objects
+  for select to anon, authenticated
+  using (bucket_id = 'pdfs' and public.is_object_shared(name));
