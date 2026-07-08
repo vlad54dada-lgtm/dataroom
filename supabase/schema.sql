@@ -542,6 +542,9 @@ $$;
 -- Search v4: content hits also return a short highlighted fragment
 -- (ts_headline) so results can show WHY a document matched. Highlight
 -- markers [[ ]] are parsed client-side into <mark>.
+-- The root_id PARAMETER is referenced fully qualified
+-- (search_nodes.root_id): section 14 adds a root_id COLUMN to nodes,
+-- which would otherwise make the bare reference ambiguous at runtime.
 drop function if exists public.search_nodes(uuid, text);
 
 create function public.search_nodes(root_id uuid, query text)
@@ -563,7 +566,8 @@ stable
 set search_path = ''
 as $$
   with recursive subtree as (
-    select n.* from public.nodes n where n.id = root_id and n.deleted_at is null
+    select n.* from public.nodes n
+    where n.id = search_nodes.root_id and n.deleted_at is null
     union all
     select n.* from public.nodes n
     join subtree s on n.parent_id = s.id
@@ -587,7 +591,7 @@ as $$
        and ft.fts @@ websearch_to_tsquery('simple', query)) as snippet
   from subtree n
   join public.nodes p on p.id = n.parent_id
-  where n.id <> root_id
+  where n.id <> search_nodes.root_id
     and length(trim(query)) > 0
     and (
       n.name ilike '%' || query || '%'

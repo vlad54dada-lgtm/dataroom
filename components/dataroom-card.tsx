@@ -181,7 +181,6 @@ export function DataroomCard({
         </div>
         <RowMenu
           className="relative z-10 -mt-1 -mr-1 shrink-0 text-muted-foreground"
-          subject={node.name}
           renameLabel="Edit"
           onRename={onEdit ? (trigger) => onEdit(node, trigger) : undefined}
           onDelete={onDelete ? (trigger) => onDelete(node, trigger) : undefined}
