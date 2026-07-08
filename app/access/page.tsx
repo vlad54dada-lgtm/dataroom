@@ -28,7 +28,7 @@ import {
   type RoomListEntry,
   type RoomMembersGroup,
 } from "@/lib/storage";
-import { formatDate, formatModified } from "@/lib/utils";
+import { formatDate, formatModified, siteOrigin } from "@/lib/utils";
 import { useAsync } from "@/lib/hooks/use-async";
 import { useDocumentTitle } from "@/lib/hooks/use-document-title";
 import { Button } from "@/components/ui/button";
@@ -96,7 +96,7 @@ function AccessView() {
   const copyLink = async (link: MyShareLink) => {
     try {
       await navigator.clipboard.writeText(
-        `${window.location.origin}/share/${link.token}`,
+        `${siteOrigin()}/share/${link.token}`,
       );
       setCopiedToken(link.token);
       setTimeout(() => setCopiedToken(null), 2000);

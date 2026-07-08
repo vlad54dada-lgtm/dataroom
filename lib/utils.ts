@@ -5,6 +5,20 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/**
+ * Canonical origin for user-facing links — share links, invites, the password-
+ * reset redirect. Defaults to the current host, but a deployment pins it via
+ * NEXT_PUBLIC_SITE_URL so a link minted while viewing a preview/branch URL
+ * still points at the public production domain. (Vercel gates preview
+ * deployments behind "Log in to Vercel", which would trap an anonymous share
+ * visitor; the production domain is public.)
+ */
+export function siteOrigin(): string {
+  const configured = process.env.NEXT_PUBLIC_SITE_URL;
+  if (configured) return configured.replace(/\/+$/, "");
+  return typeof window !== "undefined" ? window.location.origin : "";
+}
+
 export const MAX_NAME_LENGTH = 255;
 
 /** "1.5 MB", "12 KB", "0 B" — real size, no artificial floor. */

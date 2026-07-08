@@ -22,7 +22,7 @@ import {
   type RoomMember,
 } from "@/lib/storage";
 import { shake } from "@/lib/shake";
-import { cn } from "@/lib/utils";
+import { cn, siteOrigin } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -186,7 +186,7 @@ export function MembersDialog({
     if (!shown) return;
     try {
       await navigator.clipboard.writeText(
-        `${window.location.origin}/login?next=${encodeURIComponent(
+        `${siteOrigin()}/login?next=${encodeURIComponent(
           `/room/${shown.id}`,
         )}`,
       );

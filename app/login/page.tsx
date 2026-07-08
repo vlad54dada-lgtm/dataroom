@@ -7,6 +7,7 @@ import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { authErrorMessage } from "@/lib/auth-errors";
 import { shake } from "@/lib/shake";
+import { siteOrigin } from "@/lib/utils";
 import { useDocumentTitle } from "@/lib/hooks/use-document-title";
 import { useSession } from "@/lib/hooks/use-session";
 import { Button } from "@/components/ui/button";
@@ -53,7 +54,7 @@ export default function LoginPage() {
     if (mode === "forgot") {
       const { error: err } = await supabase.auth.resetPasswordForEmail(
         email.trim(),
-        { redirectTo: `${window.location.origin}/reset-password` },
+        { redirectTo: `${siteOrigin()}/reset-password` },
       );
       if (err) setError(authErrorMessage(err.message));
       else

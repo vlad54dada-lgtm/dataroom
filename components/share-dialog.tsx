@@ -10,7 +10,7 @@ import {
   revokeShare,
   type ShareInfo,
 } from "@/lib/storage";
-import { formatModified } from "@/lib/utils";
+import { formatModified, siteOrigin } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -29,9 +29,9 @@ interface ShareDialogProps {
   returnFocusTo?: HTMLElement | null;
 }
 
-/** Absolute, copy-pasteable link for a token (client-only app → window is safe). */
+/** Absolute, copy-pasteable link for a token, pinned to the canonical origin. */
 function shareUrl(token: string): string {
-  return `${window.location.origin}/share/${token}`;
+  return `${siteOrigin()}/share/${token}`;
 }
 
 // Settled result for one node — "loading" is simply "no settled state for

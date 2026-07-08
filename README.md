@@ -53,6 +53,8 @@ cd dataroom && npm install
 
 Backend is a free Supabase project (~2 minutes): create one at [supabase.com](https://supabase.com), run [`supabase/schema.sql`](supabase/schema.sql) in the SQL Editor (tables, search functions, bucket, RLS policies — everything), copy `.env.example` to `.env.local`, fill in the URL and anon key. Then `npm run dev`.
 
+**Deploying:** set `NEXT_PUBLIC_SITE_URL` to your public production origin (e.g. `https://dataroom-self.vercel.app`). Share links, dataroom invites, and the password-reset email all build their URLs from it; without it they fall back to the current host, which on a Vercel preview/branch deployment sits behind "Log in to Vercel" and would trap an anonymous share visitor. Add that same origin to Supabase Auth → URL Configuration → Redirect URLs so the reset link is accepted.
+
 ## Architecture
 
 Client-only SPA — no API routes, no server actions. The browser talks to Supabase through one seam:
