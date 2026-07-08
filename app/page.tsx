@@ -227,19 +227,25 @@ function HomeView() {
         getMyNodeAccess(sharedParam),
       ]);
       if (cancelled) return;
+      // Always REPLACE the "?shared" entry with a single navigation — never
+      // clear-then-push. A push leaves the "?shared" URL in history, so Back
+      // re-fires this redirect and traps the visitor in a bounce loop.
       const params = new URLSearchParams(searchParams);
       params.delete("shared");
-      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+      const cleared = params.toString() ? `${pathname}?${params}` : pathname;
       if (!node || access === null) {
+        router.replace(cleared, { scroll: false });
         toast.error("That shared item isn't available to you");
         return;
       }
       if (node.type === "file") {
+        // Stay on home (behind the viewer), just drop the param.
+        router.replace(cleared, { scroll: false });
         setViewerReturn(null);
         setViewerFind(undefined);
         setViewerFile(node);
       } else {
-        router.push(
+        router.replace(
           node.type === "dataroom" || !node.roomId
             ? `/room/${node.id}`
             : `/room/${node.roomId}?folder=${node.id}`,
