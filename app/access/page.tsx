@@ -593,7 +593,9 @@ function AccessView() {
                         return (
                           <div
                             key={group.nodeId}
-                            className="overflow-hidden rounded-card border bg-card"
+                            className={`overflow-hidden rounded-card border bg-card ${
+                              group.active ? "" : "opacity-60"
+                            }`}
                           >
                             <div className="flex items-center gap-2.5 border-b bg-foreground/3 px-4 py-2.5">
                               <span
@@ -621,6 +623,11 @@ function AccessView() {
                                   title={group.nodeName}
                                 >
                                   {group.nodeName}
+                                  {!group.active && (
+                                    <span className="ml-2 text-xs font-normal text-muted-foreground">
+                                      In trash
+                                    </span>
+                                  )}
                                 </span>
                                 <span className="block truncate text-xs text-muted-foreground">
                                   in {group.roomName}
@@ -663,46 +670,53 @@ function AccessView() {
                                       </span>
                                     )}
                                   </span>
-                                  <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="shrink-0 gap-1"
-                                        disabled={busyKey !== null}
-                                        aria-label={`Role for ${grant.email}`}
+                                  {isFolder ? (
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          className="shrink-0 gap-1"
+                                          disabled={busyKey !== null}
+                                          aria-label={`Role for ${grant.email}`}
+                                        >
+                                          {busyKey === `grant:${grant.id}` ? (
+                                            <Loader2 className="animate-spin" />
+                                          ) : null}
+                                          {ROLE_LABEL[grant.role]}
+                                          <ChevronDown className="size-3.5 text-muted-foreground" />
+                                        </Button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent
+                                        align="end"
+                                        className="w-44"
                                       >
-                                        {busyKey === `grant:${grant.id}` ? (
-                                          <Loader2 className="animate-spin" />
-                                        ) : null}
-                                        {ROLE_LABEL[grant.role]}
-                                        <ChevronDown className="size-3.5 text-muted-foreground" />
-                                      </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent
-                                      align="end"
-                                      className="w-44"
-                                    >
-                                      <DropdownMenuRadioGroup
-                                        value={grant.role}
-                                        onValueChange={(value) =>
-                                          void handleGrantRole(
-                                            group.nodeId,
-                                            grant.id,
-                                            grant.email,
-                                            value as "viewer" | "editor",
-                                          )
-                                        }
-                                      >
-                                        <DropdownMenuRadioItem value="viewer">
-                                          Viewer
-                                        </DropdownMenuRadioItem>
-                                        <DropdownMenuRadioItem value="editor">
-                                          Editor
-                                        </DropdownMenuRadioItem>
-                                      </DropdownMenuRadioGroup>
-                                    </DropdownMenuContent>
-                                  </DropdownMenu>
+                                        <DropdownMenuRadioGroup
+                                          value={grant.role}
+                                          onValueChange={(value) =>
+                                            void handleGrantRole(
+                                              group.nodeId,
+                                              grant.id,
+                                              grant.email,
+                                              value as "viewer" | "editor",
+                                            )
+                                          }
+                                        >
+                                          <DropdownMenuRadioItem value="viewer">
+                                            Viewer
+                                          </DropdownMenuRadioItem>
+                                          <DropdownMenuRadioItem value="editor">
+                                            Editor
+                                          </DropdownMenuRadioItem>
+                                        </DropdownMenuRadioGroup>
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
+                                  ) : (
+                                    // File grants are viewer-only.
+                                    <span className="shrink-0 rounded-full bg-folder-bg px-2.5 py-1 text-xs font-medium text-brand ring-1 ring-brand/15 ring-inset">
+                                      Viewer
+                                    </span>
+                                  )}
                                   <Button
                                     variant="ghost"
                                     size="icon-sm"

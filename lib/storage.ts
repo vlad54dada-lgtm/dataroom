@@ -1174,6 +1174,8 @@ export interface NodeGrantsGroup {
   nodeType: "file" | "folder";
   roomId: string;
   roomName: string;
+  /** false when the node (or an ancestor) is in the trash. */
+  active: boolean;
   grants: NodeGrant[];
 }
 
@@ -1187,6 +1189,7 @@ interface MyNodeGrantRow {
   email: string;
   role: "viewer" | "editor";
   claimed: boolean;
+  active: boolean;
   created_at: string;
 }
 
@@ -1208,6 +1211,7 @@ export async function listMyNodeGrants(): Promise<NodeGrantsGroup[]> {
         nodeType: row.node_type,
         roomId: row.room_id,
         roomName: row.room_name,
+        active: row.active,
         grants: [],
       };
       groups.set(row.node_id, group);

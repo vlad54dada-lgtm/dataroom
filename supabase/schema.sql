@@ -2044,3 +2044,144 @@ as $$
 $$;
 revoke execute on function public.list_my_node_grants() from public;
 grant execute on function public.list_my_node_grants() to authenticated;
+
+-- ===========================================================================
+-- 18) access review remediations (2nd pass)
+-- ===========================================================================
+--   18.1 confine grant-editor moves to their granted subtree (same-room escape)
+--   18.2 room VIEWERS lose trashed content/blobs (member read arms were ungated)
+--   18.3 grants on a FILE are viewer-only (file "editor" is UI-dead + tamper-only)
+--   18.4 list_my_node_grants shows trashed-node grants (active flag), anon-revoked
+
+-- 18.1 — a grantee-editor (no room role on the source) may move a node only to a
+-- destination inside a subtree they also hold editor on. Supersedes §16.1.
+create or replace function public.nodes_root_id_before()
+returns trigger language plpgsql security definer set search_path = ''
+as $$
+begin
+  if tg_op = 'INSERT' then
+    if new.blob_path is not null
+       and split_part(new.blob_path, '/', 1) is distinct from (select auth.uid())::text then
+      raise exception 'blob_path must be under your own storage folder';
+    end if;
+    if new.parent_id is null then new.root_id := new.id;
+    else
+      select root_id into new.root_id from public.nodes where id = new.parent_id;
+      if new.root_id is null then raise exception 'parent % not found', new.parent_id; end if;
+    end if;
+  else
+    if new.user_id is distinct from old.user_id then raise exception 'user_id is immutable'; end if;
+    if new.blob_path is distinct from old.blob_path and new.blob_path is not null then
+      if split_part(new.blob_path, '/', 1) is distinct from (select auth.uid())::text
+         and not exists (
+           select 1 from public.file_versions fv
+           where fv.node_id = new.id and fv.blob_path = new.blob_path
+         ) then
+        raise exception 'blob_path must be your own upload or an existing version of this file';
+      end if;
+    end if;
+    if pg_trigger_depth() > 1 then return new; end if;  -- internal subtree fix-up
+    if new.parent_id is distinct from old.parent_id then
+      if new.parent_id is null then new.root_id := new.id;
+      else
+        select root_id into new.root_id from public.nodes where id = new.parent_id;
+        if new.root_id is null then raise exception 'parent % not found', new.parent_id; end if;
+      end if;
+      -- §16.1: relocating into a DIFFERENT dataroom is owner-only.
+      if new.root_id is distinct from old.root_id
+         and public.room_access(old.root_id) is distinct from 'owner' then
+        raise exception 'only the owner of the source dataroom can move content into another dataroom';
+      end if;
+      -- §18.1: a grantee-editor (no room-level role on the source) must keep the
+      -- node inside their granted subtree — the destination must ALSO be
+      -- granted-editor. Owners / room-editors move freely within the room.
+      if public.room_access(old.root_id) is null
+         and new.parent_id is not null
+         and public.node_grant_role(new.parent_id) is distinct from 'editor' then
+        raise exception 'you can only move content within the folder shared with you';
+      end if;
+    else
+      new.root_id := old.root_id;
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+-- 18.2 — trash is a hard boundary for room VIEWERS too (owner/editor keep trash
+-- preview). ANDs node_chain_live into the viewer case of every member read arm.
+drop policy "file_texts_select_access" on public.file_texts;
+create policy "file_texts_select_access" on public.file_texts for select
+  using (
+    public.room_access(public.node_root(node_id)) in ('owner','editor')
+    or (public.room_access(public.node_root(node_id)) = 'viewer' and public.node_chain_live(node_id))
+    or (public.node_grant_role(node_id) is not null and public.node_chain_live(node_id))
+  );
+
+drop policy "file_versions_select_access" on public.file_versions;
+create policy "file_versions_select_access" on public.file_versions for select
+  using (
+    public.room_access(public.node_root(node_id)) in ('owner','editor')
+    or (public.room_access(public.node_root(node_id)) = 'viewer' and public.node_chain_live(node_id))
+    or (public.node_grant_role(node_id) is not null and public.node_chain_live(node_id))
+  );
+
+create or replace function public.is_object_member_readable(object_name text)
+returns boolean language sql stable security definer set search_path = ''
+as $$
+  select exists (select 1 from public.nodes n where n.blob_path = object_name
+      and (public.room_access(n.root_id) in ('owner','editor')
+           or (public.room_access(n.root_id) = 'viewer' and public.node_chain_live(n.id))
+           or (public.node_grant_role(n.id) is not null and public.node_chain_live(n.id))))
+     or exists (select 1 from public.file_versions fv join public.nodes n on n.id = fv.node_id
+      where fv.blob_path = object_name
+        and (public.room_access(n.root_id) in ('owner','editor')
+             or (public.room_access(n.root_id) = 'viewer' and public.node_chain_live(n.id))
+             or (public.node_grant_role(n.id) is not null and public.node_chain_live(n.id))));
+$$;
+
+-- 18.3 — a grant on a FILE can only be 'viewer' (a file has no children to
+-- organize and no in-app edit surface; editor would be tamper-only via raw API).
+drop policy "node_grants_insert_owner" on public.node_grants;
+create policy "node_grants_insert_owner" on public.node_grants for insert
+  with check (
+    public.node_owner_uid(node_id) = (select auth.uid())
+    and invited_by = (select auth.uid())
+    and exists (select 1 from public.nodes n where n.id = node_id and n.parent_id is not null)
+    and (role = 'viewer'
+         or exists (select 1 from public.nodes n where n.id = node_id and n.type <> 'file'))
+  );
+drop policy "node_grants_update_owner" on public.node_grants;
+create policy "node_grants_update_owner" on public.node_grants for update
+  using (public.node_owner_uid(node_id) = (select auth.uid()))
+  with check (
+    public.node_owner_uid(node_id) = (select auth.uid())
+    and (role = 'viewer'
+         or exists (select 1 from public.nodes n where n.id = node_id and n.type <> 'file'))
+  );
+update public.node_grants set role = 'viewer'
+  where role = 'editor'
+    and node_id in (select id from public.nodes where type = 'file');
+
+-- 18.4 — the access panel shows grants on trashed nodes too (active flag, like
+-- public links), instead of dropping them; and anon EXECUTE is revoked.
+drop function if exists public.list_my_node_grants();
+create function public.list_my_node_grants()
+returns table (
+  id uuid, node_id uuid, node_name text, node_type text,
+  room_id uuid, room_name text,
+  email text, role text, claimed boolean, active boolean, created_at timestamptz
+)
+language sql stable security invoker set search_path = ''
+as $$
+  select g.id, g.node_id, n.name, n.type, n.root_id, r.name,
+         g.email, g.role, (g.user_id is not null) as claimed,
+         public.node_chain_live(g.node_id) as active, g.created_at
+  from public.node_grants g
+  join public.nodes n on n.id = g.node_id
+  join public.nodes r on r.id = n.root_id
+  where public.node_owner_uid(g.node_id) = (select auth.uid())
+  order by lower(n.name), g.created_at;
+$$;
+revoke execute on function public.list_my_node_grants() from anon, public;
+grant execute on function public.list_my_node_grants() to authenticated;

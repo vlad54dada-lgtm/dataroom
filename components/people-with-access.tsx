@@ -50,6 +50,9 @@ type GrantsState =
  * the whole Share dialog is gated by canManage before it opens.
  */
 export function PeopleWithAccess({ node }: PeopleWithAccessProps) {
+  // A shared FILE is view-only: it has nothing to organize and no in-app edit
+  // surface, so "editor" would be tamper-only. Editor is a folder-grant concept.
+  const isFile = node.type === "file";
   const [settled, setSettled] = useState<GrantsState | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -208,30 +211,38 @@ export function PeopleWithAccess({ node }: PeopleWithAccessProps) {
             Invite
           </Button>
         </div>
-        <div
-          role="group"
-          aria-label="Role for the invitation"
-          className="flex flex-wrap items-center gap-1.5"
-        >
-          {(["viewer", "editor"] as const).map((r) => (
-            <button
-              key={r}
-              type="button"
-              aria-pressed={role === r}
-              title={ROLE_HINT[r]}
-              onClick={() => setRole(r)}
-              className={cn(
-                "flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors duration-150 outline-none focus-visible:ring-3 focus-visible:ring-ring/70",
-                role === r
-                  ? "border-brand/30 bg-folder-bg text-brand"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
-              )}
-            >
-              {ROLE_LABEL[r]}
-            </button>
-          ))}
-          <span className="text-xs text-muted-foreground">{ROLE_HINT[role]}</span>
-        </div>
+        {isFile ? (
+          <p className="text-xs text-muted-foreground">
+            People you add can view and download this file.
+          </p>
+        ) : (
+          <div
+            role="group"
+            aria-label="Role for the invitation"
+            className="flex flex-wrap items-center gap-1.5"
+          >
+            {(["viewer", "editor"] as const).map((r) => (
+              <button
+                key={r}
+                type="button"
+                aria-pressed={role === r}
+                title={ROLE_HINT[r]}
+                onClick={() => setRole(r)}
+                className={cn(
+                  "flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors duration-150 outline-none focus-visible:ring-3 focus-visible:ring-ring/70",
+                  role === r
+                    ? "border-brand/30 bg-folder-bg text-brand"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                )}
+              >
+                {ROLE_LABEL[r]}
+              </button>
+            ))}
+            <span className="text-xs text-muted-foreground">
+              {ROLE_HINT[role]}
+            </span>
+          </div>
+        )}
       </form>
 
       {/* Grant list */}
@@ -285,38 +296,45 @@ export function PeopleWithAccess({ node }: PeopleWithAccessProps) {
                   </span>
                 )}
               </p>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="shrink-0 gap-1"
-                    disabled={busyId !== null}
-                    aria-label={`Role for ${grant.email}`}
-                  >
-                    {busyId === grant.id ? (
-                      <Loader2 className="animate-spin" />
-                    ) : null}
-                    {ROLE_LABEL[grant.role]}
-                    <ChevronDown className="size-3.5 text-muted-foreground" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-44">
-                  <DropdownMenuRadioGroup
-                    value={grant.role}
-                    onValueChange={(value) =>
-                      void handleRole(grant, value as "viewer" | "editor")
-                    }
-                  >
-                    <DropdownMenuRadioItem value="viewer">
-                      Viewer
-                    </DropdownMenuRadioItem>
-                    <DropdownMenuRadioItem value="editor">
-                      Editor
-                    </DropdownMenuRadioItem>
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              {isFile ? (
+                // A file grant is always viewer — no role to switch.
+                <span className="shrink-0 rounded-full bg-folder-bg px-2.5 py-1 text-xs font-medium text-brand ring-1 ring-brand/15 ring-inset">
+                  Viewer
+                </span>
+              ) : (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="shrink-0 gap-1"
+                      disabled={busyId !== null}
+                      aria-label={`Role for ${grant.email}`}
+                    >
+                      {busyId === grant.id ? (
+                        <Loader2 className="animate-spin" />
+                      ) : null}
+                      {ROLE_LABEL[grant.role]}
+                      <ChevronDown className="size-3.5 text-muted-foreground" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-44">
+                    <DropdownMenuRadioGroup
+                      value={grant.role}
+                      onValueChange={(value) =>
+                        void handleRole(grant, value as "viewer" | "editor")
+                      }
+                    >
+                      <DropdownMenuRadioItem value="viewer">
+                        Viewer
+                      </DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem value="editor">
+                        Editor
+                      </DropdownMenuRadioItem>
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
               <Button
                 variant="ghost"
                 size="icon-sm"
