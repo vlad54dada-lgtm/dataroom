@@ -1,6 +1,7 @@
 "use client";
 
-import { LogOut } from "lucide-react";
+import Link from "next/link";
+import { LogOut, Share2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useSession } from "@/lib/hooks/use-session";
 import { clearAsyncCache } from "@/lib/hooks/use-async";
@@ -39,6 +40,12 @@ export function UserMenu() {
         <DropdownMenuLabel className="truncate" title={email}>
           {email}
         </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link href="/access">
+            <Share2 /> Sharing &amp; access
+          </Link>
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onSelect={() => {

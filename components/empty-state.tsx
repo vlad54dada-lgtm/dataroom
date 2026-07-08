@@ -2,6 +2,7 @@ import {
   FolderOpen,
   FolderPlus,
   SearchX,
+  Share2,
   Trash2,
   type LucideIcon,
 } from "lucide-react";
@@ -10,7 +11,8 @@ type EmptyStateVariant =
   | "no-datarooms"
   | "empty-folder"
   | "no-results"
-  | "trash-empty";
+  | "trash-empty"
+  | "no-shares";
 
 const COPY: Record<
   EmptyStateVariant,
@@ -35,6 +37,12 @@ const COPY: Record<
     icon: Trash2,
     title: "Trash is empty",
     description: "Deleted items land here so you can restore them.",
+  },
+  "no-shares": {
+    icon: Share2,
+    title: "Nothing shared yet",
+    description:
+      "Share a file or folder, or invite people to a dataroom, and it shows up here.",
   },
 };
 
