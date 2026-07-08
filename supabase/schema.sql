@@ -2019,3 +2019,28 @@ as $$
         and (public.room_access(n.root_id) is not null
              or (public.node_grant_role(n.id) is not null and public.node_chain_live(n.id))));
 $$;
+
+-- ===========================================================================
+-- 17) list_my_node_grants — outgoing per-node grants for the access panel
+-- ===========================================================================
+-- Every file/folder the caller has shared with specific people, with each
+-- grantee, so the owner's "Sharing & access" panel can show + manage them.
+create or replace function public.list_my_node_grants()
+returns table (
+  id uuid, node_id uuid, node_name text, node_type text,
+  room_id uuid, room_name text,
+  email text, role text, claimed boolean, created_at timestamptz
+)
+language sql stable security invoker set search_path = ''
+as $$
+  select g.id, g.node_id, n.name, n.type, n.root_id, r.name,
+         g.email, g.role, (g.user_id is not null) as claimed, g.created_at
+  from public.node_grants g
+  join public.nodes n on n.id = g.node_id
+  join public.nodes r on r.id = n.root_id
+  where public.node_owner_uid(g.node_id) = (select auth.uid())
+    and n.deleted_at is null
+  order by lower(n.name), g.created_at;
+$$;
+revoke execute on function public.list_my_node_grants() from public;
+grant execute on function public.list_my_node_grants() to authenticated;

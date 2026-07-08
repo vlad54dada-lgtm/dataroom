@@ -77,10 +77,13 @@ interface NodeRow {
   sort_order: number | null;
   /** Present on table reads (NODE_COLUMNS); RPC row shapes may omit it. */
   user_id?: string;
+  /** The dataroom the node belongs to; present on table reads, may be omitted
+      by RPC row shapes. */
+  root_id?: string | null;
 }
 
 const NODE_COLUMNS =
-  "id, parent_id, type, name, size, blob_path, created_at, updated_at, description, icon, color, sort_order, user_id";
+  "id, parent_id, type, name, size, blob_path, created_at, updated_at, description, icon, color, sort_order, user_id, root_id";
 
 function toNode(row: NodeRow): Node {
   return {
@@ -91,6 +94,7 @@ function toNode(row: NodeRow): Node {
     createdAt: Date.parse(row.created_at),
     updatedAt: Date.parse(row.updated_at),
     ...(row.user_id !== undefined ? { ownerId: row.user_id } : {}),
+    ...(row.root_id ? { roomId: row.root_id } : {}),
     ...(row.type === "file"
       ? { size: row.size ?? 0, blobKey: row.blob_path ?? undefined }
       : {}),
@@ -105,6 +109,17 @@ function toNode(row: NodeRow): Node {
 function emitTrashChanged(): void {
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent("trash-changed"));
+  }
+}
+
+/**
+ * Lets open listings refresh their "shared" row badges after a public link or
+ * per-person grant changes — so a share made in the dialog shows on the row
+ * without a page reload.
+ */
+function emitShareChanged(): void {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("share-changed"));
   }
 }
 
@@ -496,6 +511,7 @@ export async function createShare(nodeId: string): Promise<ShareInfo> {
     }
     throw error;
   }
+  emitShareChanged();
   return toShareInfo(data);
 }
 
@@ -506,6 +522,7 @@ export async function revokeShare(nodeId: string): Promise<void> {
     .delete()
     .eq("node_id", nodeId);
   if (error) throw error;
+  emitShareChanged();
 }
 
 /**
@@ -940,6 +957,7 @@ export async function inviteToNode(
     if (isUniqueViolation(error)) throw new DuplicateInviteError();
     throw error;
   }
+  emitShareChanged();
   return toNodeGrant(data);
 }
 
@@ -959,6 +977,7 @@ export async function setNodeGrantRole(
 export async function removeNodeGrant(grantId: string): Promise<void> {
   const { error } = await supabase.from("node_grants").delete().eq("id", grantId);
   if (error) throw error;
+  emitShareChanged();
 }
 
 /** The grantee's own exit from a shared file/folder. */
@@ -970,6 +989,7 @@ export async function leaveSharedNode(nodeId: string): Promise<void> {
     .eq("node_id", nodeId)
     .eq("user_id", userId);
   if (error) throw error;
+  emitShareChanged();
 }
 
 /**
@@ -1138,6 +1158,61 @@ export async function listMyRoomMembers(): Promise<RoomMembersGroup[]> {
       groups.set(row.room_id, group);
     }
     group.members.push({
+      id: row.id,
+      email: row.email,
+      role: row.role,
+      pending: !row.claimed,
+      createdAt: Date.parse(row.created_at),
+    });
+  }
+  return [...groups.values()];
+}
+
+export interface NodeGrantsGroup {
+  nodeId: string;
+  nodeName: string;
+  nodeType: "file" | "folder";
+  roomId: string;
+  roomName: string;
+  grants: NodeGrant[];
+}
+
+interface MyNodeGrantRow {
+  id: string;
+  node_id: string;
+  node_name: string;
+  node_type: "file" | "folder";
+  room_id: string;
+  room_name: string;
+  email: string;
+  role: "viewer" | "editor";
+  claimed: boolean;
+  created_at: string;
+}
+
+/**
+ * Files & folders the caller has shared with specific people (their OUTGOING
+ * per-node grants), grouped per node — powers the "Files & folders you've
+ * shared" section of the Sharing & access panel.
+ */
+export async function listMyNodeGrants(): Promise<NodeGrantsGroup[]> {
+  const { data, error } = await supabase.rpc("list_my_node_grants");
+  if (error) throw error;
+  const groups = new Map<string, NodeGrantsGroup>();
+  for (const row of (data ?? []) as MyNodeGrantRow[]) {
+    let group = groups.get(row.node_id);
+    if (!group) {
+      group = {
+        nodeId: row.node_id,
+        nodeName: row.node_name,
+        nodeType: row.node_type,
+        roomId: row.room_id,
+        roomName: row.room_name,
+        grants: [],
+      };
+      groups.set(row.node_id, group);
+    }
+    group.grants.push({
       id: row.id,
       email: row.email,
       role: row.role,

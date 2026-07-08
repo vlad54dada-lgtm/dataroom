@@ -177,8 +177,10 @@ export function ShareDialog({ node, onClose, returnFocusTo }: ShareDialogProps) 
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
-  const [peopleOpen, setPeopleOpen] = useState(true);
-  const [linkOpen, setLinkOpen] = useState(true);
+  // Both collapsed on open: the dialog reads as a compact two-row overview;
+  // expanding a panel is what mounts its (async) contents.
+  const [peopleOpen, setPeopleOpen] = useState(false);
+  const [linkOpen, setLinkOpen] = useState(false);
 
   // Load the current link each time the dialog opens on a node. Only the
   // async completion writes state; the loading UI is derived.
@@ -314,7 +316,10 @@ export function ShareDialog({ node, onClose, returnFocusTo }: ShareDialogProps) 
               onToggle={() => setPeopleOpen((o) => !o)}
               disabled={isPublic}
             >
-              {shown && <PeopleWithAccess key={shown.id} node={shown} />}
+              {/* Mounted only when expanded — no grants fetch until opened. */}
+              {shown && peopleOpen && !isPublic && (
+                <PeopleWithAccess key={shown.id} node={shown} />
+              )}
             </AccessPanel>
 
             {/* Anyone with the link — the switch mints/revokes a view-only

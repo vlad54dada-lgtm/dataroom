@@ -8,6 +8,8 @@ import type { DataroomPatch, Node } from "@/types";
 import {
   compareNodes,
   createNode,
+  getMyNodeAccess,
+  getNode,
   isDuplicateNameError,
   leaveRoom,
   leaveSharedNode,
@@ -210,6 +212,44 @@ function HomeView() {
     setViewerFind(hit?.contentMatch ? debouncedQuery : undefined);
     setViewerFile(file);
   };
+
+  // A "/?shared=<id>" deep link (the link the owner hands invited people):
+  // open the shared file in the viewer, or jump into the shared folder's room.
+  // Access is enforced by RLS — an id the caller can't reach resolves to
+  // nothing. The param is cleared so a refresh doesn't re-trigger it.
+  const sharedParam = searchParams.get("shared");
+  useEffect(() => {
+    if (!sharedParam) return;
+    let cancelled = false;
+    void (async () => {
+      const [node, access] = await Promise.all([
+        getNode(sharedParam),
+        getMyNodeAccess(sharedParam),
+      ]);
+      if (cancelled) return;
+      const params = new URLSearchParams(searchParams);
+      params.delete("shared");
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+      if (!node || access === null) {
+        toast.error("That shared item isn't available to you");
+        return;
+      }
+      if (node.type === "file") {
+        setViewerReturn(null);
+        setViewerFind(undefined);
+        setViewerFile(node);
+      } else {
+        router.push(
+          node.type === "dataroom" || !node.roomId
+            ? `/room/${node.id}`
+            : `/room/${node.roomId}?folder=${node.id}`,
+        );
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [sharedParam, searchParams, pathname, router]);
 
   const [dialog, setDialog] = useState<DialogState>({ kind: "none" });
   // Frozen copy of the last real dialog: content renders from it while the

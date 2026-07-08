@@ -16,6 +16,9 @@ export interface Node {
   /** Creator/uploader (room ownership = the ROOT's ownerId). Absent on
       rows sourced from RPCs that don't return user_id. */
   ownerId?: string;
+  /** The dataroom this node belongs to (self for datarooms). Absent on rows
+      sourced from RPCs that don't return root_id. */
+  roomId?: string;
   size?: number; // files only, bytes
   blobKey?: string; // files only
   description?: string; // datarooms only

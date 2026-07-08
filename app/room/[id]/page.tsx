@@ -227,6 +227,14 @@ function RoomView() {
   const [peopleSharedIds, setPeopleSharedIds] = useState<ReadonlySet<string>>(
     new Set(),
   );
+  // Bumped by the "share-changed" event so a link or grant made in the Share
+  // dialog re-badges the row without a page reload.
+  const [shareRefresh, setShareRefresh] = useState(0);
+  useEffect(() => {
+    const handle = () => setShareRefresh((n) => n + 1);
+    window.addEventListener("share-changed", handle);
+    return () => window.removeEventListener("share-changed", handle);
+  }, []);
   useEffect(() => {
     if (state.status !== "success") return;
     const folderIds = state.data
@@ -257,7 +265,7 @@ function RoomView() {
     return () => {
       cancelled = true;
     };
-  }, [state, canManage]);
+  }, [state, canManage, shareRefresh]);
 
   // The viewer flips through files in the same order the table shows them.
   const viewerFiles = useMemo(

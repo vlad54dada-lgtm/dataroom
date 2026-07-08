@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { ChevronDown, Loader2, UserPlus, X } from "lucide-react";
+import { Check, ChevronDown, Copy, Loader2, UserPlus, X } from "lucide-react";
 import type { Node } from "@/types";
 import {
   InvalidNameError,
@@ -14,7 +14,7 @@ import {
   type NodeGrant,
 } from "@/lib/storage";
 import { shake } from "@/lib/shake";
-import { cn } from "@/lib/utils";
+import { cn, siteOrigin } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -58,6 +58,7 @@ export function PeopleWithAccess({ node }: PeopleWithAccessProps) {
   const [error, setError] = useState<string | null>(null);
   const [inviting, setInviting] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -150,6 +151,19 @@ export function PeopleWithAccess({ node }: PeopleWithAccessProps) {
       toast.error("Couldn't remove access");
     } finally {
       setBusyId(null);
+    }
+  };
+
+  // The link to hand invited people: it opens the shared item once they sign
+  // in with the invited email (access is still gated by the grant — a stranger
+  // who opens it gets nothing).
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(`${siteOrigin()}/?shared=${node.id}`);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Couldn't copy the link");
     }
   };
 
@@ -310,6 +324,25 @@ export function PeopleWithAccess({ node }: PeopleWithAccessProps) {
             </li>
           ))}
         </ul>
+      )}
+
+      {/* The link to send the people invited above. */}
+      {grants.length > 0 && (
+        <div className="flex items-center gap-2 rounded-card border bg-muted/30 px-3 py-2">
+          <p className="min-w-0 flex-1 text-xs text-muted-foreground">
+            Send invited people this link — it opens once they sign in with the
+            invited email.
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="shrink-0"
+            onClick={() => void copyLink()}
+          >
+            {copied ? <Check /> : <Copy />}
+            {copied ? "Copied" : "Copy link"}
+          </Button>
+        </div>
       )}
     </div>
   );

@@ -19,14 +19,18 @@ import {
 import {
   leaveRoom,
   leaveSharedNode,
+  listMyNodeGrants,
   listMyRoomMembers,
   listMyShares,
   listRooms,
   listSharedWithMeNodes,
   removeMember,
+  removeNodeGrant,
   revokeShare,
   setMemberRole,
+  setNodeGrantRole,
   type MyShareLink,
+  type NodeGrantsGroup,
   type RoomListEntry,
   type RoomMembersGroup,
   type SharedNodeEntry,
@@ -53,20 +57,24 @@ import { SharedNodesSection } from "@/components/shared-nodes-section";
 interface AccessData {
   links: MyShareLink[];
   memberGroups: RoomMembersGroup[];
+  nodeGrantGroups: NodeGrantsGroup[];
   sharedWithMe: RoomListEntry[];
   sharedNodes: SharedNodeEntry[];
 }
 
 async function loadAccess(): Promise<AccessData> {
-  const [links, memberGroups, rooms, sharedNodes] = await Promise.all([
-    listMyShares(),
-    listMyRoomMembers(),
-    listRooms(),
-    listSharedWithMeNodes(),
-  ]);
+  const [links, memberGroups, nodeGrantGroups, rooms, sharedNodes] =
+    await Promise.all([
+      listMyShares(),
+      listMyRoomMembers(),
+      listMyNodeGrants(),
+      listRooms(),
+      listSharedWithMeNodes(),
+    ]);
   return {
     links,
     memberGroups,
+    nodeGrantGroups,
     sharedWithMe: rooms.filter((r) => r.access !== "owner"),
     sharedNodes,
   };
@@ -216,6 +224,74 @@ function AccessView() {
     }
   };
 
+  const handleGrantRole = async (
+    nodeId: string,
+    grantId: string,
+    email: string,
+    role: "viewer" | "editor",
+  ) => {
+    setBusyKey(`grant:${grantId}`);
+    try {
+      await setNodeGrantRole(grantId, role);
+      setData((d) => ({
+        ...d,
+        nodeGrantGroups: d.nodeGrantGroups.map((g) =>
+          g.nodeId === nodeId
+            ? {
+                ...g,
+                grants: g.grants.map((gr) =>
+                  gr.id === grantId ? { ...gr, role } : gr,
+                ),
+              }
+            : g,
+        ),
+      }));
+      toast.success(
+        `${email} is now ${role === "editor" ? "an editor" : "a viewer"}`,
+      );
+    } catch {
+      toast.error("Couldn't change the role");
+    } finally {
+      setBusyKey(null);
+    }
+  };
+
+  const handleGrantRemove = async (
+    nodeId: string,
+    grantId: string,
+    email: string,
+  ) => {
+    setBusyKey(`grant:${grantId}`);
+    try {
+      await removeNodeGrant(grantId);
+      setData((d) => ({
+        ...d,
+        nodeGrantGroups: d.nodeGrantGroups
+          .map((g) =>
+            g.nodeId === nodeId
+              ? { ...g, grants: g.grants.filter((gr) => gr.id !== grantId) }
+              : g,
+          )
+          .filter((g) => g.grants.length > 0),
+      }));
+      toast.success("Access removed", { description: email });
+    } catch {
+      toast.error("Couldn't remove access");
+    } finally {
+      setBusyKey(null);
+    }
+  };
+
+  const copyNodeLink = async (nodeId: string) => {
+    try {
+      await navigator.clipboard.writeText(`${siteOrigin()}/?shared=${nodeId}`);
+      setCopiedToken(`node:${nodeId}`);
+      setTimeout(() => setCopiedToken(null), 2000);
+    } catch {
+      toast.error("Couldn't copy the link");
+    }
+  };
+
   return (
     <>
       <AppHeader />
@@ -251,6 +327,7 @@ function AccessView() {
           {state.status === "success" &&
             (state.data.links.length === 0 &&
             state.data.memberGroups.length === 0 &&
+            state.data.nodeGrantGroups.length === 0 &&
             state.data.sharedWithMe.length === 0 &&
             state.data.sharedNodes.length === 0 ? (
               <EmptyState variant="no-shares" />
@@ -494,6 +571,155 @@ function AccessView() {
                           </ul>
                         </div>
                       ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* ------------------------ files & folders you've shared */}
+                {state.data.nodeGrantGroups.length > 0 && (
+                  <div className="space-y-3">
+                    <SectionHeading>
+                      Files &amp; folders you&apos;ve shared
+                    </SectionHeading>
+                    <div className="space-y-4">
+                      {state.data.nodeGrantGroups.map((group) => {
+                        const isFolder = group.nodeType === "folder";
+                        return (
+                          <div
+                            key={group.nodeId}
+                            className="overflow-hidden rounded-card border bg-card"
+                          >
+                            <div className="flex items-center gap-2.5 border-b bg-foreground/3 px-4 py-2.5">
+                              <span
+                                className={`flex size-7 shrink-0 items-center justify-center rounded-tile ring-1 ring-inset ${
+                                  isFolder
+                                    ? "bg-folder-bg ring-folder/15"
+                                    : "bg-file-bg ring-file/15"
+                                }`}
+                              >
+                                {isFolder ? (
+                                  <Folder
+                                    className="size-4 fill-folder/10 text-folder"
+                                    strokeWidth={1.75}
+                                  />
+                                ) : (
+                                  <FileText
+                                    className="size-4 fill-file/10 text-file"
+                                    strokeWidth={1.75}
+                                  />
+                                )}
+                              </span>
+                              <span className="min-w-0 flex-1">
+                                <span
+                                  className="block truncate text-sm font-medium"
+                                  title={group.nodeName}
+                                >
+                                  {group.nodeName}
+                                </span>
+                                <span className="block truncate text-xs text-muted-foreground">
+                                  in {group.roomName}
+                                </span>
+                              </span>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="shrink-0 text-muted-foreground"
+                                title="Copy the link to send invited people"
+                                onClick={() => void copyNodeLink(group.nodeId)}
+                              >
+                                {copiedToken === `node:${group.nodeId}` ? (
+                                  <Check />
+                                ) : (
+                                  <Copy />
+                                )}
+                                Copy link
+                              </Button>
+                            </div>
+                            <ul className="divide-y">
+                              {group.grants.map((grant) => (
+                                <li
+                                  key={grant.id}
+                                  className="flex items-center gap-3 px-4 py-2.5"
+                                >
+                                  <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-folder-bg text-sm font-semibold text-brand ring-1 ring-brand/15 ring-inset">
+                                    {grant.email.charAt(0).toUpperCase()}
+                                  </span>
+                                  <span className="flex min-w-0 flex-1 items-center gap-2">
+                                    <span
+                                      className="truncate text-sm font-medium"
+                                      title={grant.email}
+                                    >
+                                      {grant.email}
+                                    </span>
+                                    {grant.pending && (
+                                      <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground ring-1 ring-border ring-inset">
+                                        Pending
+                                      </span>
+                                    )}
+                                  </span>
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="shrink-0 gap-1"
+                                        disabled={busyKey !== null}
+                                        aria-label={`Role for ${grant.email}`}
+                                      >
+                                        {busyKey === `grant:${grant.id}` ? (
+                                          <Loader2 className="animate-spin" />
+                                        ) : null}
+                                        {ROLE_LABEL[grant.role]}
+                                        <ChevronDown className="size-3.5 text-muted-foreground" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent
+                                      align="end"
+                                      className="w-44"
+                                    >
+                                      <DropdownMenuRadioGroup
+                                        value={grant.role}
+                                        onValueChange={(value) =>
+                                          void handleGrantRole(
+                                            group.nodeId,
+                                            grant.id,
+                                            grant.email,
+                                            value as "viewer" | "editor",
+                                          )
+                                        }
+                                      >
+                                        <DropdownMenuRadioItem value="viewer">
+                                          Viewer
+                                        </DropdownMenuRadioItem>
+                                        <DropdownMenuRadioItem value="editor">
+                                          Editor
+                                        </DropdownMenuRadioItem>
+                                      </DropdownMenuRadioGroup>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    aria-label={`Remove ${grant.email}`}
+                                    title="Remove access"
+                                    className="shrink-0 text-muted-foreground hover:text-destructive"
+                                    disabled={busyKey !== null}
+                                    onClick={() =>
+                                      void handleGrantRemove(
+                                        group.nodeId,
+                                        grant.id,
+                                        grant.email,
+                                      )
+                                    }
+                                  >
+                                    <X />
+                                  </Button>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
