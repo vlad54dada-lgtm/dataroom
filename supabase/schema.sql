@@ -1544,13 +1544,20 @@ begin
 end;
 $$;
 
--- A blob_path CHANGE is constrained to the caller's own uid prefix (fresh
--- upload) or an existing version of the node (restore). Supersedes §14.2.
+-- A blob_path is constrained to the caller's own uid prefix (fresh upload)
+-- or, on UPDATE only, an existing version of the node (restore). Both INSERT
+-- and UPDATE are guarded so is_object_member_readable can't be tricked into
+-- serving another user's object via an attacker-set blob_path. Supersedes
+-- §14.2 and §14.18.
 create or replace function public.nodes_root_id_before()
 returns trigger language plpgsql security definer set search_path = ''
 as $$
 begin
   if tg_op = 'INSERT' then
+    if new.blob_path is not null
+       and split_part(new.blob_path, '/', 1) is distinct from (select auth.uid())::text then
+      raise exception 'blob_path must be under your own storage folder';
+    end if;
     if new.parent_id is null then new.root_id := new.id;
     else
       select root_id into new.root_id from public.nodes where id = new.parent_id;
