@@ -772,9 +772,11 @@ function RoomView() {
   // which the crumbs reload (below) can see the granted subtree.
   if (!roleResolved) return <RoomFallback />;
   if (crumbs.notFound) {
-    // A fresh grantee's crumbs 404 until the claim lands; the retry effect
-    // reloads once. Only after that is it a genuine not-found.
-    if (!crumbsRetried) return <RoomFallback />;
+    // With a resolved role but no access here (role null), it's genuinely not
+    // found. With a role (member/grantee) whose crumbs raced the invite claim,
+    // the retry effect (which only fires when role !== null) reloads once —
+    // wait for that before deciding, so a fresh grantee doesn't flash 404.
+    if (role !== null && !crumbsRetried) return <RoomFallback />;
     return <NotFoundState kind={isRoot ? "room" : "folder"} />;
   }
   if (crumbs.loading || !crumbs.crumbs) return <RoomFallback />;
