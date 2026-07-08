@@ -1881,3 +1881,141 @@ grant execute on function public.node_grant_role(uuid), public.node_access(uuid)
 revoke execute on function public.node_access(uuid), public.node_owner_uid(uuid),
   public.list_shared_with_me() from anon;
 revoke execute on function public.claim_node_grant_on_insert() from anon, authenticated, public;
+
+-- ===========================================================================
+-- 16) access_and_sharing_v3 — security review remediations
+-- ===========================================================================
+-- Closes four issues found by an adversarial review of §15 per-node grants
+-- (all reproduced + fixes verified via live RLS simulation):
+--   16.1 CRITICAL: an editor grantee (or §14 room editor) could re-parent a
+--        node into a room they own and seize ownership of the whole subtree.
+--   16.2 HIGH: a revoked/downgraded grant-editor kept purge_claims (1h storage
+--        read+delete) — cleanup existed only for room_members, not node_grants.
+--   16.3 MEDIUM: file_versions.blob_path was unconstrained, letting an editor
+--        point a version row at another user's storage object and read it.
+--   16.4 MEDIUM: grantee content/blob reads ignored trash (node_chain_live was
+--        only in nodes_select, not the file_texts/file_versions/storage grant arms).
+
+-- 16.1 — cross-root relocation is owner-only. WITH CHECK can't see OLD, so the
+-- guard lives in the BEFORE trigger, which can. A parent_id change that moves a
+-- node into a DIFFERENT dataroom (root_id changes) now requires the caller to be
+-- the OWNER of the source room; editors and grantees stay inside their subtree.
+-- Supersedes the §15 definition.
+create or replace function public.nodes_root_id_before()
+returns trigger language plpgsql security definer set search_path = ''
+as $$
+begin
+  if tg_op = 'INSERT' then
+    if new.blob_path is not null
+       and split_part(new.blob_path, '/', 1) is distinct from (select auth.uid())::text then
+      raise exception 'blob_path must be under your own storage folder';
+    end if;
+    if new.parent_id is null then new.root_id := new.id;
+    else
+      select root_id into new.root_id from public.nodes where id = new.parent_id;
+      if new.root_id is null then raise exception 'parent % not found', new.parent_id; end if;
+    end if;
+  else
+    if new.user_id is distinct from old.user_id then raise exception 'user_id is immutable'; end if;
+    if new.blob_path is distinct from old.blob_path and new.blob_path is not null then
+      if split_part(new.blob_path, '/', 1) is distinct from (select auth.uid())::text
+         and not exists (
+           select 1 from public.file_versions fv
+           where fv.node_id = new.id and fv.blob_path = new.blob_path
+         ) then
+        raise exception 'blob_path must be your own upload or an existing version of this file';
+      end if;
+    end if;
+    if pg_trigger_depth() > 1 then return new; end if;  -- internal subtree fix-up
+    if new.parent_id is distinct from old.parent_id then
+      if new.parent_id is null then new.root_id := new.id;
+      else
+        select root_id into new.root_id from public.nodes where id = new.parent_id;
+        if new.root_id is null then raise exception 'parent % not found', new.parent_id; end if;
+      end if;
+      -- SECURITY FIX 16.1: relocating a node into a DIFFERENT dataroom is
+      -- owner-only. Blocks an editor/grantee from laundering another owner's
+      -- content into a room they own (which would flip room_access to 'owner'
+      -- once root_id is repointed and pass the WITH CHECK owner arm).
+      if new.root_id is distinct from old.root_id
+         and public.room_access(old.root_id) is distinct from 'owner' then
+        raise exception 'only the owner of the source dataroom can move content into another dataroom';
+      end if;
+    else
+      new.root_id := old.root_id;
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+-- 16.2 — clear a user's purge_claims when their node_grant is revoked or
+-- downgraded, mirroring clear_purge_claims_on_leave for room_members.
+create or replace function public.clear_node_grant_purge_claims()
+returns trigger language plpgsql security definer set search_path = ''
+as $$
+begin
+  if old.user_id is not null then
+    delete from public.purge_claims where user_id = old.user_id;
+  end if;
+  return old;
+end;
+$$;
+drop trigger if exists clear_purge_claims_on_grant_change on public.node_grants;
+create trigger clear_purge_claims_on_grant_change
+  after delete or update of role on public.node_grants
+  for each row execute function public.clear_node_grant_purge_claims();
+revoke execute on function public.clear_node_grant_purge_claims() from anon, authenticated, public;
+
+-- 16.3 — constrain file_versions.blob_path. A version row may reference a blob
+-- ONLY if it is under the caller's own storage folder (a fresh upload) OR is a
+-- blob already legitimately bound to THIS node (its current blob, or an existing
+-- version of it) — the baseline/restore paths. Blocks pointing a version row at
+-- an arbitrary foreign object to flip is_object_member_readable true.
+create or replace function public.guard_file_version_blob_path()
+returns trigger language plpgsql security definer set search_path = ''
+as $$
+begin
+  if split_part(new.blob_path, '/', 1) is distinct from (select auth.uid())::text
+     and not exists (select 1 from public.nodes n
+                     where n.id = new.node_id and n.blob_path = new.blob_path)
+     and not exists (select 1 from public.file_versions fv
+                     where fv.node_id = new.node_id and fv.blob_path = new.blob_path) then
+    raise exception 'file version blob_path must be your own upload or an existing blob of this file';
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists guard_file_version_blob_path on public.file_versions;
+create trigger guard_file_version_blob_path
+  before insert on public.file_versions
+  for each row execute function public.guard_file_version_blob_path();
+revoke execute on function public.guard_file_version_blob_path() from anon, authenticated, public;
+
+-- 16.4 — trash is a hard boundary for grantee content reads. node_grant_role()
+-- ignores deleted_at, so AND node_chain_live() into the three GRANT read arms
+-- (mirrors nodes_select_access). Member arms are intentionally left unchanged
+-- (pre-existing §14 behavior; owners preview trashed content via room_access).
+drop policy "file_texts_select_access" on public.file_texts;
+create policy "file_texts_select_access" on public.file_texts for select
+  using (public.room_access(public.node_root(node_id)) is not null
+         or (public.node_grant_role(node_id) is not null
+             and public.node_chain_live(node_id)));
+
+drop policy "file_versions_select_access" on public.file_versions;
+create policy "file_versions_select_access" on public.file_versions for select
+  using (public.room_access(public.node_root(node_id)) is not null
+         or (public.node_grant_role(node_id) is not null
+             and public.node_chain_live(node_id)));
+
+create or replace function public.is_object_member_readable(object_name text)
+returns boolean language sql stable security definer set search_path = ''
+as $$
+  select exists (select 1 from public.nodes n where n.blob_path = object_name
+      and (public.room_access(n.root_id) is not null
+           or (public.node_grant_role(n.id) is not null and public.node_chain_live(n.id))))
+     or exists (select 1 from public.file_versions fv join public.nodes n on n.id = fv.node_id
+      where fv.blob_path = object_name
+        and (public.room_access(n.root_id) is not null
+             or (public.node_grant_role(n.id) is not null and public.node_chain_live(n.id))));
+$$;
