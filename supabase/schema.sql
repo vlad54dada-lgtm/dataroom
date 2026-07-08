@@ -954,9 +954,11 @@ as $$ select root_id from public.nodes where id = node; $$;
 
 create policy "room_members_select" on public.room_members for select
   using ((select auth.uid()) = user_id or public.room_owner_uid(room_id) = (select auth.uid()));
+-- user_id is TRIGGER-OWNED (claim_invite_on_insert overwrites any client
+-- value), so the policy doesn't need to constrain it.
 create policy "room_members_insert_owner" on public.room_members for insert
   with check (public.room_owner_uid(room_id) = (select auth.uid())
-              and invited_by = (select auth.uid()) and user_id is null);
+              and invited_by = (select auth.uid()));
 create policy "room_members_update_owner" on public.room_members for update
   using (public.room_owner_uid(room_id) = (select auth.uid()))
   with check (public.room_owner_uid(room_id) = (select auth.uid()));
@@ -987,6 +989,20 @@ begin
   return n;
 end;
 $$;
+
+-- An invite for an ALREADY-REGISTERED email links immediately, so the owner
+-- sees an active member, not a pending badge until next sign-in. user_id is
+-- fully trigger-owned: whatever the client sends is overwritten.
+create or replace function public.claim_invite_on_insert()
+returns trigger language plpgsql security definer set search_path = ''
+as $$
+begin
+  new.user_id := (select id from auth.users where lower(email) = new.email);
+  return new;
+end;
+$$;
+create trigger claim_invite_on_insert before insert on public.room_members
+  for each row execute function public.claim_invite_on_insert();
 
 -- 14.7 nodes policies: membership-aware. Replaces the owner-only set; owner
 -- behavior is identical (room_access = 'owner' for every pre-existing row).
@@ -1297,6 +1313,6 @@ revoke execute on function public.claim_room_invites(), public.claim_purge_paths
 -- 14.14 Trigger functions run as the table owner via their triggers; nothing
 -- should call them through the API. (Advisor-driven hardening.)
 revoke execute on function public.nodes_root_id_before(), public.nodes_root_id_after(),
-  public.claim_invites_for_new_user(), public.set_updated_at(),
-  public.auto_confirm_email(), public.handle_new_user()
+  public.claim_invites_for_new_user(), public.claim_invite_on_insert(),
+  public.set_updated_at(), public.auto_confirm_email(), public.handle_new_user()
 from anon, authenticated, public;

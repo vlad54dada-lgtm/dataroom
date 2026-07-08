@@ -75,10 +75,12 @@ interface NodeRow {
   icon: string | null;
   color: string | null;
   sort_order: number | null;
+  /** Present on table reads (NODE_COLUMNS); RPC row shapes may omit it. */
+  user_id?: string;
 }
 
 const NODE_COLUMNS =
-  "id, parent_id, type, name, size, blob_path, created_at, updated_at, description, icon, color, sort_order";
+  "id, parent_id, type, name, size, blob_path, created_at, updated_at, description, icon, color, sort_order, user_id";
 
 function toNode(row: NodeRow): Node {
   return {
@@ -88,6 +90,7 @@ function toNode(row: NodeRow): Node {
     name: row.name,
     createdAt: Date.parse(row.created_at),
     updatedAt: Date.parse(row.updated_at),
+    ...(row.user_id !== undefined ? { ownerId: row.user_id } : {}),
     ...(row.type === "file"
       ? { size: row.size ?? 0, blobKey: row.blob_path ?? undefined }
       : {}),
@@ -428,38 +431,51 @@ export async function getBlob(blobKey: string): Promise<Blob | undefined> {
 }
 
 // ---------------------------------------------------------------------------
-// File sharing — public per-file links. A file carries at most one active
-// link; the unguessable token IS the capability. The owner mints/reads/revokes
-// it here; anyone holding the link resolves it through getSharedFile, which
-// needs no session (SECURITY DEFINER RPC + an anon storage-read policy scoped
-// to shared objects — see the file_sharing migration).
+// Public links — files AND folders. A node carries at most one active link;
+// the unguessable token IS the capability, always view-only. The room owner
+// mints/reads/revokes it here; anyone holding the link resolves it through
+// the getShared* functions, which need no session (SECURITY DEFINER RPCs +
+// an ancestor-aware anon storage-read policy — see migration 14).
 // ---------------------------------------------------------------------------
 
 export interface ShareInfo {
   token: string;
   createdAt: number;
+  openCount: number;
+  lastOpenedAt: number | null;
 }
 
 interface ShareRow {
   token: string;
   created_at: string;
+  open_count: number;
+  last_opened_at: string | null;
 }
 
-/** The active share link for a file, or null when it isn't shared. */
+const SHARE_COLUMNS = "token, created_at, open_count, last_opened_at";
+
+function toShareInfo(row: ShareRow): ShareInfo {
+  return {
+    token: row.token,
+    createdAt: Date.parse(row.created_at),
+    openCount: row.open_count,
+    lastOpenedAt: row.last_opened_at ? Date.parse(row.last_opened_at) : null,
+  };
+}
+
+/** The active public link for a node, or null when it isn't shared. */
 export async function getShare(nodeId: string): Promise<ShareInfo | null> {
   const { data, error } = await supabase
     .from("file_shares")
-    .select("token, created_at")
+    .select(SHARE_COLUMNS)
     .eq("node_id", nodeId)
     .maybeSingle<ShareRow>();
   if (error) throw error;
-  return data
-    ? { token: data.token, createdAt: Date.parse(data.created_at) }
-    : null;
+  return data ? toShareInfo(data) : null;
 }
 
 /**
- * Turns sharing ON: returns the existing link if the file already has one,
+ * Turns sharing ON: returns the existing link if the node already has one,
  * otherwise mints a fresh token. Idempotent — the unique(node_id) index folds
  * a concurrent-create race back to the single row.
  */
@@ -470,7 +486,7 @@ export async function createShare(nodeId: string): Promise<ShareInfo> {
   const { data, error } = await supabase
     .from("file_shares")
     .insert({ node_id: nodeId, user_id: userId })
-    .select("token, created_at")
+    .select(SHARE_COLUMNS)
     .single<ShareRow>();
   if (error) {
     // Lost the race to a concurrent create — the row exists now, return it.
@@ -480,7 +496,7 @@ export async function createShare(nodeId: string): Promise<ShareInfo> {
     }
     throw error;
   }
-  return { token: data.token, createdAt: Date.parse(data.created_at) };
+  return toShareInfo(data);
 }
 
 /** Turns sharing OFF: deletes the row so the old link stops resolving. */
@@ -492,28 +508,46 @@ export async function revokeShare(nodeId: string): Promise<void> {
   if (error) throw error;
 }
 
-export interface SharedFile {
-  nodeId: string;
-  name: string;
-  size: number;
-  blobPath: string;
+/**
+ * Which of these nodes carry an active public link — one batch query per
+ * listing, powering the "shared" badges. Only the caller's own links are
+ * visible (RLS), which is exactly who the badges are for.
+ */
+export async function listShareStatus(
+  nodeIds: string[],
+): Promise<Set<string>> {
+  if (nodeIds.length === 0) return new Set();
+  const { data, error } = await supabase
+    .from("file_shares")
+    .select("node_id")
+    .in("node_id", nodeIds);
+  if (error) throw error;
+  return new Set(((data ?? []) as { node_id: string }[]).map((r) => r.node_id));
 }
 
-interface SharedFileRow {
-  node_id: string;
+export interface SharedNode {
+  nodeId: string;
+  type: "file" | "folder";
   name: string;
-  size: number;
-  blob_path: string;
+  size: number | null;
+  blobPath: string | null;
+}
+
+interface SharedNodeRow {
+  node_id: string;
+  node_type: "file" | "folder";
+  name: string;
+  size: number | null;
+  blob_path: string | null;
 }
 
 /**
- * Resolves a share token to its file — works WITHOUT a session (anon). Returns
- * null for an unknown, expired, or trashed link. The blob itself is fetched
- * with getBlob(blobPath), which the anon storage policy permits for shared
- * objects only.
+ * Resolves a share token to its node (file or folder) — works WITHOUT a
+ * session. Returns null for an unknown, expired, or trashed link. File blobs
+ * are fetched with getBlob(blobPath) under the anon storage policy.
  */
-export async function getSharedFile(token: string): Promise<SharedFile | null> {
-  const { data, error } = await supabase.rpc("get_shared_file", {
+export async function getSharedNode(token: string): Promise<SharedNode | null> {
+  const { data, error } = await supabase.rpc("get_shared_node", {
     share_token: token,
   });
   if (error) {
@@ -521,15 +555,427 @@ export async function getSharedFile(token: string): Promise<SharedFile | null> {
     if (error.code === "22P02") return null;
     throw error;
   }
-  const row = ((data ?? []) as SharedFileRow[])[0];
+  const row = ((data ?? []) as SharedNodeRow[])[0];
   return row
     ? {
         nodeId: row.node_id,
+        type: row.node_type,
         name: row.name,
         size: row.size,
         blobPath: row.blob_path,
       }
     : null;
+}
+
+export interface SharedFile {
+  nodeId: string;
+  name: string;
+  size: number;
+  blobPath: string;
+}
+
+/** @deprecated Use getSharedNode — kept only until the share page migrates. */
+export async function getSharedFile(token: string): Promise<SharedFile | null> {
+  const node = await getSharedNode(token);
+  return node && node.type === "file" && node.blobPath
+    ? {
+        nodeId: node.nodeId,
+        name: node.name,
+        size: node.size ?? 0,
+        blobPath: node.blobPath,
+      }
+    : null;
+}
+
+export interface SharedChild {
+  id: string;
+  parentId: string;
+  type: "file" | "folder";
+  name: string;
+  size: number | null;
+  blobPath: string | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+interface SharedChildRow {
+  id: string;
+  parent_id: string;
+  type: "file" | "folder";
+  name: string;
+  size: number | null;
+  blob_path: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+const sharedChildCollator = new Intl.Collator(undefined, {
+  numeric: true,
+  sensitivity: "base",
+});
+
+/**
+ * Children of a folder inside a shared subtree (anon). The RPC verifies the
+ * requested parent actually lives under the token's folder — ids outside the
+ * share read as an empty folder, which the page treats as "not available".
+ */
+export async function listSharedChildren(
+  token: string,
+  parentId: string,
+): Promise<SharedChild[]> {
+  const { data, error } = await supabase.rpc("list_shared_children", {
+    share_token: token,
+    parent: parentId,
+  });
+  if (error) {
+    if (error.code === "22P02") return [];
+    throw error;
+  }
+  return ((data ?? []) as SharedChildRow[])
+    .map((row) => ({
+      id: row.id,
+      parentId: row.parent_id,
+      type: row.type,
+      name: row.name,
+      size: row.size,
+      blobPath: row.blob_path,
+      createdAt: Date.parse(row.created_at),
+      updatedAt: Date.parse(row.updated_at),
+    }))
+    .sort(
+      (a, b) =>
+        Number(a.type === "file") - Number(b.type === "file") ||
+        sharedChildCollator.compare(a.name, b.name) ||
+        a.id.localeCompare(b.id),
+    );
+}
+
+/**
+ * Breadcrumb chain from the shared root down to nodeId (anon) — how a deep
+ * ?folder= URL rebuilds its trail on refresh. Empty when nodeId is outside
+ * the shared subtree.
+ */
+export async function getSharedAncestors(
+  token: string,
+  nodeId: string,
+): Promise<{ id: string; name: string }[]> {
+  const { data, error } = await supabase.rpc("get_shared_ancestors", {
+    share_token: token,
+    node: nodeId,
+  });
+  if (error) {
+    if (error.code === "22P02") return [];
+    throw error;
+  }
+  return ((data ?? []) as { id: string; name: string }[]).map((r) => ({
+    id: r.id,
+    name: r.name,
+  }));
+}
+
+// Once per token per session — a reload is a new open, a re-render isn't.
+const recordedOpens = new Set<string>();
+
+/** Bumps the link's open counter (anon-callable, best-effort). */
+export async function recordShareOpen(token: string): Promise<void> {
+  if (recordedOpens.has(token)) return;
+  recordedOpens.add(token);
+  await supabase
+    .rpc("record_share_open", { share_token: token })
+    .then(() => undefined, () => undefined);
+}
+
+// ---------------------------------------------------------------------------
+// Dataroom membership — invites by email with viewer/editor roles. Only the
+// room owner manages access; RLS enforces every rule the UI expresses.
+// ---------------------------------------------------------------------------
+
+export type RoomRole = "owner" | "editor" | "viewer";
+
+export class DuplicateInviteError extends Error {
+  readonly code = "DUPLICATE_INVITE";
+  constructor() {
+    super("This person is already invited");
+    this.name = "DuplicateInviteError";
+  }
+}
+
+export function isDuplicateInviteError(
+  error: unknown,
+): error is DuplicateInviteError {
+  return (
+    error instanceof Error &&
+    (error as { code?: string }).code === "DUPLICATE_INVITE"
+  );
+}
+
+// Pending invites are claimed by email on first load after sign-in. Single
+// flight per user: every listRooms/getMyRoomAccess awaits the same promise,
+// so a burst of loaders costs one RPC.
+let claimedForUid: string | null = null;
+let claimPromise: Promise<void> | null = null;
+
+async function claimInvitesOnce(): Promise<void> {
+  const { data } = await supabase.auth.getSession();
+  const uid = data.session?.user.id ?? null;
+  if (!uid) return;
+  if (claimedForUid === uid && claimPromise) return claimPromise;
+  claimedForUid = uid;
+  // Best-effort; the signup trigger already ran for brand-new accounts.
+  claimPromise = Promise.resolve(
+    supabase.rpc("claim_room_invites").then(() => undefined, () => undefined),
+  );
+  return claimPromise;
+}
+
+/** The caller's relationship to a room; null = no access (or no session). */
+export async function getMyRoomAccess(
+  roomId: string,
+): Promise<RoomRole | null> {
+  await claimInvitesOnce();
+  const { data, error } = await supabase.rpc("room_access", { room: roomId });
+  if (error) {
+    if (error.code === "22P02") return null;
+    throw error;
+  }
+  return (data ?? null) as RoomRole | null;
+}
+
+export interface RoomListEntry {
+  node: Node;
+  access: RoomRole;
+  /** Members invited by the owner; 0 unless access = "owner". */
+  memberCount: number;
+}
+
+interface RoomListRow extends NodeRow {
+  access: RoomRole | null;
+  member_count: number;
+}
+
+/**
+ * Every dataroom the caller can open — owned AND shared with them — with
+ * their role and (for owners) the member count. Replaces listChildren(null)
+ * everywhere a room list is shown.
+ */
+export async function listRooms(): Promise<RoomListEntry[]> {
+  await claimInvitesOnce();
+  const { data, error } = await supabase.rpc("list_rooms");
+  if (error) throw error;
+  return ((data ?? []) as RoomListRow[])
+    .filter((row) => row.access !== null)
+    .map((row) => ({
+      node: toNode(row),
+      access: row.access as RoomRole,
+      memberCount: Number(row.member_count),
+    }))
+    .sort((a, b) => compareNodes(a.node, b.node));
+}
+
+export interface RoomMember {
+  id: string;
+  email: string;
+  role: Exclude<RoomRole, "owner">;
+  /** True until the invitee signs up/in with the invited email. */
+  pending: boolean;
+  createdAt: number;
+}
+
+interface RoomMemberRow {
+  id: string;
+  email: string;
+  role: "viewer" | "editor";
+  user_id: string | null;
+  created_at: string;
+}
+
+/** Members of one room (owner-only by RLS), oldest first. */
+export async function listRoomMembers(roomId: string): Promise<RoomMember[]> {
+  const { data, error } = await supabase
+    .from("room_members")
+    .select("id, email, role, user_id, created_at")
+    .eq("room_id", roomId)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return ((data ?? []) as RoomMemberRow[]).map((row) => ({
+    id: row.id,
+    email: row.email,
+    role: row.role,
+    pending: row.user_id === null,
+    createdAt: Date.parse(row.created_at),
+  }));
+}
+
+/**
+ * Invites an email to the room. Throws InvalidNameError for a malformed or
+ * own address (rendered inline by the dialog) and DuplicateInviteError when
+ * the email is already on the list.
+ */
+export async function inviteMember(
+  roomId: string,
+  email: string,
+  role: "viewer" | "editor",
+): Promise<RoomMember> {
+  const normalized = email.trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
+    throw new InvalidNameError("Enter a valid email address");
+  }
+  const { data: session } = await supabase.auth.getSession();
+  const me = session.session?.user;
+  if (!me) throw new Error("Not signed in");
+  if (me.email && me.email.toLowerCase() === normalized) {
+    throw new InvalidNameError("That's your own email");
+  }
+  // A DB trigger links user_id when the email already has an account, so
+  // the returned row is immediately "active" rather than pending.
+  const { data, error } = await supabase
+    .from("room_members")
+    .insert({
+      room_id: roomId,
+      email: normalized,
+      role,
+      invited_by: me.id,
+    })
+    .select("id, email, role, user_id, created_at")
+    .single<RoomMemberRow>();
+  if (error) {
+    if (isUniqueViolation(error)) throw new DuplicateInviteError();
+    throw error;
+  }
+  return {
+    id: data.id,
+    email: data.email,
+    role: data.role,
+    pending: data.user_id === null,
+    createdAt: Date.parse(data.created_at),
+  };
+}
+
+/** Switches a member between viewer and editor (owner-only by RLS). */
+export async function setMemberRole(
+  memberId: string,
+  role: "viewer" | "editor",
+): Promise<void> {
+  const { error } = await supabase
+    .from("room_members")
+    .update({ role })
+    .eq("id", memberId);
+  if (error) throw error;
+}
+
+/** Removes a member — their access ends at the database, immediately. */
+export async function removeMember(memberId: string): Promise<void> {
+  const { error } = await supabase
+    .from("room_members")
+    .delete()
+    .eq("id", memberId);
+  if (error) throw error;
+}
+
+/** The member's own exit: deletes their membership row for this room. */
+export async function leaveRoom(roomId: string): Promise<void> {
+  const userId = await currentUserId();
+  const { error } = await supabase
+    .from("room_members")
+    .delete()
+    .eq("room_id", roomId)
+    .eq("user_id", userId);
+  if (error) throw error;
+}
+
+// ---------------------------------------------------------------------------
+// Sharing & access panel queries
+// ---------------------------------------------------------------------------
+
+export interface MyShareLink {
+  token: string;
+  createdAt: number;
+  openCount: number;
+  lastOpenedAt: number | null;
+  nodeId: string;
+  nodeName: string;
+  nodeType: NodeType;
+  /** False when the shared node is in the trash (link resolves as gone). */
+  active: boolean;
+  /** Containing room's name; null when the node IS a room-level item. */
+  roomName: string | null;
+}
+
+interface MyShareRow {
+  token: string;
+  created_at: string;
+  open_count: number;
+  last_opened_at: string | null;
+  node_id: string;
+  node_name: string;
+  node_type: NodeType;
+  active: boolean;
+  room_name: string | null;
+}
+
+/** Every public link the caller has minted, newest first, with open stats. */
+export async function listMyShares(): Promise<MyShareLink[]> {
+  const { data, error } = await supabase.rpc("list_my_shares");
+  if (error) throw error;
+  return ((data ?? []) as MyShareRow[]).map((row) => ({
+    token: row.token,
+    createdAt: Date.parse(row.created_at),
+    openCount: row.open_count,
+    lastOpenedAt: row.last_opened_at ? Date.parse(row.last_opened_at) : null,
+    nodeId: row.node_id,
+    nodeName: row.node_name,
+    nodeType: row.node_type,
+    active: row.active,
+    roomName: row.room_name,
+  }));
+}
+
+export interface RoomMembersGroup {
+  roomId: string;
+  roomName: string;
+  roomIcon: string | null;
+  roomColor: string | null;
+  members: RoomMember[];
+}
+
+interface MyRoomMemberRow {
+  id: string;
+  room_id: string;
+  room_name: string;
+  room_icon: string | null;
+  room_color: string | null;
+  email: string;
+  role: "viewer" | "editor";
+  claimed: boolean;
+  created_at: string;
+}
+
+/** Members across every room the caller owns, grouped per room. */
+export async function listMyRoomMembers(): Promise<RoomMembersGroup[]> {
+  const { data, error } = await supabase.rpc("list_my_room_members");
+  if (error) throw error;
+  const groups = new Map<string, RoomMembersGroup>();
+  for (const row of (data ?? []) as MyRoomMemberRow[]) {
+    let group = groups.get(row.room_id);
+    if (!group) {
+      group = {
+        roomId: row.room_id,
+        roomName: row.room_name,
+        roomIcon: row.room_icon,
+        roomColor: row.room_color,
+        members: [],
+      };
+      groups.set(row.room_id, group);
+    }
+    group.members.push({
+      id: row.id,
+      email: row.email,
+      role: row.role,
+      pending: !row.claimed,
+      createdAt: Date.parse(row.created_at),
+    });
+  }
+  return [...groups.values()];
 }
 
 // ---------------------------------------------------------------------------
@@ -1128,8 +1574,12 @@ export async function getDeleteCounts(id: string): Promise<DeleteCounts> {
  * half-deleted trees.
  */
 export async function purgeNode(id: string): Promise<void> {
+  // claim_purge_paths both returns the subtree's blob paths AND records
+  // storage-delete claims for them — the deleter may not be the uploader
+  // (owner purging an editor's file), and the plain own-folder storage
+  // policy can't cover that.
   const { data: paths, error: pathsError } = await supabase.rpc(
-    "get_subtree_blob_paths",
+    "claim_purge_paths",
     { node_id: id },
   );
   if (pathsError) throw pathsError;

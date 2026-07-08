@@ -13,6 +13,9 @@ export interface Node {
   name: string;
   createdAt: number;
   updatedAt: number;
+  /** Creator/uploader (room ownership = the ROOT's ownerId). Absent on
+      rows sourced from RPCs that don't return user_id. */
+  ownerId?: string;
   size?: number; // files only, bytes
   blobKey?: string; // files only
   description?: string; // datarooms only
