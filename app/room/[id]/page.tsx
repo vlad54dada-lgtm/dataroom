@@ -14,11 +14,12 @@ import {
   compareNodes,
   createNode,
   getBlob,
-  getMyRoomAccess,
+  getMyNodeAccess,
   getNode,
   isDuplicateNameError,
   listChildCounts,
   listChildren,
+  listNodeGrantStatus,
   listShareStatus,
   moveNodes,
   renameNode,
@@ -140,28 +141,39 @@ function RoomView() {
 
   // The caller's role decides which controls exist at all: viewers get a
   // read-only room, editors full content CRUD, owners also access management.
-  // A FAILED role fetch must NOT silently downgrade an owner to read-only —
-  // it's surfaced as an error with retry below, never treated as "no access".
-  const access = useAsync(() => getMyRoomAccess(roomId), `access:${roomId}`);
+  // node_access covers BOTH room members and per-node grantees (a grant on the
+  // current folder or an ancestor). Keyed by the current folder — not the room
+  // — because a grantee has no room-level role, and this call also fires the
+  // invite claim (getMyNodeAccess → claimInvitesOnce) so a fresh grantee's
+  // subtree becomes visible. A FAILED fetch surfaces as an error with retry
+  // below, never a silent downgrade.
+  const access = useAsync(
+    () => getMyNodeAccess(currentFolderId),
+    `access:${currentFolderId}`,
+  );
   const role = access.state.status === "success" ? access.state.data : null;
   const roleResolved = access.state.status === "success";
   const canEdit = role === "owner" || role === "editor";
   const canManage = role === "owner";
+  // Search + role management scope to the "floor" — the room root for a member,
+  // the granted node for a grantee — so a grantee never searches outside it.
+  const floorId = crumbs.crumbs?.[0]?.id ?? roomId;
 
-  // Deep link straight after signup: the crumbs query can race the invite
-  // claim and settle as notFound before membership lands. Once the role
-  // resolves to a real value, give the crumbs one more chance.
-  const retriedCrumbsRef = useRef(false);
+  // Deep link straight after signup / invite: the crumbs query can race the
+  // invite claim and settle as notFound before the grant/membership lands.
+  // Once the role resolves to a real value, give the crumbs one more chance.
+  // State (not a ref) so the render gate can tell a transient 404 from a real
+  // one without reading a ref mid-render.
+  const [crumbsRetried, setCrumbsRetried] = useState(false);
   useEffect(() => {
-    if (
-      role !== null &&
-      crumbs.notFound &&
-      !retriedCrumbsRef.current
-    ) {
-      retriedCrumbsRef.current = true;
+    if (role === null || !crumbs.notFound || crumbsRetried) return;
+    // rAF keeps the setState out of the effect's synchronous pass.
+    const raf = requestAnimationFrame(() => {
+      setCrumbsRetried(true);
       crumbs.reload();
-    }
-  }, [role, crumbs]);
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [role, crumbs, crumbsRetried]);
   const { state, isStale, reload, setData } = useAsync(
     () => listChildren(currentFolderId),
     currentFolderId,
@@ -225,9 +237,11 @@ function RoomView() {
         .catch(() => undefined); // cosmetic — folders fall back to "—"
     }
     if (canManage && state.data.length > 0) {
-      listShareStatus(state.data.map((n) => n.id))
-        .then((ids) => {
-          if (!cancelled) setSharedIds(ids);
+      const ids = state.data.map((n) => n.id);
+      // A node is "shared" if it carries a public link OR a per-person grant.
+      Promise.all([listShareStatus(ids), listNodeGrantStatus(ids)])
+        .then(([links, grants]) => {
+          if (!cancelled) setSharedIds(new Set([...links, ...grants]));
         })
         .catch(() => undefined); // cosmetic — badges just don't show
     }
@@ -272,8 +286,8 @@ function RoomView() {
   const searching = debouncedQuery.length > 0;
   const search = useAsync(
     () =>
-      searching ? searchNodes(roomId, debouncedQuery) : Promise.resolve([]),
-    `search:${roomId}:${debouncedQuery}`,
+      searching ? searchNodes(floorId, debouncedQuery) : Promise.resolve([]),
+    `search:${floorId}:${debouncedQuery}`,
   );
   // Result refinement chips; reset when the user leaves search (adjust-
   // during-render) so the next query never starts silently pre-filtered.
@@ -754,10 +768,16 @@ function RoomView() {
   if (crumbs.error) return <ErrorState onRetry={crumbs.reload} />;
   if (access.state.status === "error")
     return <ErrorState onRetry={access.reload} />;
-  if (crumbs.notFound)
+  // Resolve the role FIRST — that call fires the grantee's invite claim, after
+  // which the crumbs reload (below) can see the granted subtree.
+  if (!roleResolved) return <RoomFallback />;
+  if (crumbs.notFound) {
+    // A fresh grantee's crumbs 404 until the claim lands; the retry effect
+    // reloads once. Only after that is it a genuine not-found.
+    if (!crumbsRetried) return <RoomFallback />;
     return <NotFoundState kind={isRoot ? "room" : "folder"} />;
-  if (crumbs.loading || !crumbs.crumbs || !roleResolved)
-    return <RoomFallback />;
+  }
+  if (crumbs.loading || !crumbs.crumbs) return <RoomFallback />;
   const roomNode = crumbs.crumbs[0];
 
   return (
