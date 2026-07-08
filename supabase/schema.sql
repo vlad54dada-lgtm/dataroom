@@ -1588,3 +1588,296 @@ begin
   return new;
 end;
 $$;
+
+-- ===========================================================================
+-- 15) access_and_sharing_v3 — per-node email grants (viewer/editor)
+-- ===========================================================================
+-- Drive-style sharing of a single file/folder with people by email. ADDITIVE:
+-- every touched policy keeps its hardened room arm FIRST and adds a grant arm
+-- only in the else/trailing-or, reached solely when room_access is null — so a
+-- solo owner or an existing room member never evaluates the grant walk and
+-- their behavior + cost are byte-identical to §14. Only the room owner manages
+-- grants; a grantee sees ONLY the shared subtree (RLS is the guard; the UI just
+-- floors breadcrumbs at the shared node) and the strongest of {room role,
+-- grant role} wins.
+
+-- 15.1 Table
+create table public.node_grants (
+  id uuid primary key default gen_random_uuid(),
+  node_id uuid not null references public.nodes(id) on delete cascade,
+  email text not null check (email = lower(email) and position('@' in email) > 1),
+  user_id uuid references auth.users(id) on delete cascade,
+  role text not null check (role in ('viewer', 'editor')),
+  invited_by uuid not null references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  unique (node_id, email)
+);
+create index node_grants_node_idx  on public.node_grants (node_id);
+create index node_grants_user_idx  on public.node_grants (user_id, node_id);
+create index node_grants_email_idx on public.node_grants (email) where user_id is null;
+create unique index node_grants_user_node_idx
+  on public.node_grants (node_id, user_id) where user_id is not null;
+alter table public.node_grants enable row level security;
+
+-- 15.2 Helpers
+create or replace function public.node_owner_uid(node uuid)
+returns uuid language sql stable security definer set search_path = ''
+as $$ select r.user_id from public.nodes n join public.nodes r on r.id = n.root_id
+       where n.id = node; $$;
+
+-- Grant-only ancestor walk (room_access already null in the callers). depth<60.
+create or replace function public.node_grant_role(node uuid)
+returns text language sql stable security definer set search_path = ''
+as $$
+  select g.role from public.node_grants g
+  where g.user_id = (select auth.uid())
+    and g.node_id in (
+      with recursive up as (
+        select n.id, n.parent_id, 1 as depth from public.nodes n where n.id = node
+        union all
+        select p.id, p.parent_id, u.depth + 1
+        from public.nodes p join up u on p.id = u.parent_id where u.depth < 60
+      ) select id from up)
+  order by case g.role when 'editor' then 2 when 'viewer' then 1 else 0 end desc
+  limit 1;
+$$;
+
+-- Public role helper (RPC). plpgsql so the walk is genuinely skipped for
+-- owners/editors (the strongest content roles a grant could confer anyway).
+create or replace function public.node_access(node uuid)
+returns text language plpgsql stable security definer set search_path = ''
+as $$
+declare room_role text; grant_role text;
+begin
+  select public.room_access(root_id) into room_role from public.nodes where id = node;
+  if room_role in ('owner', 'editor') then return room_role; end if;
+  grant_role := public.node_grant_role(node);
+  if grant_role = 'editor' then return 'editor'; end if;
+  if room_role = 'viewer' or grant_role = 'viewer' then return 'viewer'; end if;
+  return null;
+end;
+$$;
+
+-- 15.3 node_grants RLS (owner-of-root manages; grantee sees + leaves own row)
+create policy "node_grants_select" on public.node_grants for select
+  using ((select auth.uid()) = user_id
+         or public.node_owner_uid(node_id) = (select auth.uid()));
+create policy "node_grants_insert_owner" on public.node_grants for insert
+  with check (public.node_owner_uid(node_id) = (select auth.uid())
+    and invited_by = (select auth.uid())
+    and exists (select 1 from public.nodes n where n.id = node_id and n.parent_id is not null));
+create policy "node_grants_update_owner" on public.node_grants for update
+  using (public.node_owner_uid(node_id) = (select auth.uid()))
+  with check (public.node_owner_uid(node_id) = (select auth.uid()));
+create policy "node_grants_delete" on public.node_grants for delete
+  using (public.node_owner_uid(node_id) = (select auth.uid())
+         or (select auth.uid()) = user_id);
+
+-- 15.4 Claim flow (extend room-member claim to also claim grants)
+create or replace function public.claim_invites_for_new_user()
+returns trigger language plpgsql security definer set search_path = ''
+as $$ begin
+  update public.room_members set user_id = new.id where email = lower(new.email) and user_id is null;
+  update public.node_grants  set user_id = new.id where email = lower(new.email) and user_id is null;
+  return new; end; $$;
+
+create or replace function public.claim_node_grant_on_insert()
+returns trigger language plpgsql security definer set search_path = ''
+as $$ begin
+  new.user_id := (select id from auth.users where lower(email) = new.email);
+  return new; end; $$;
+create trigger claim_node_grant_on_insert before insert on public.node_grants
+  for each row execute function public.claim_node_grant_on_insert();
+
+create or replace function public.claim_room_invites()
+returns int language plpgsql security definer set search_path = ''
+as $$ declare uid uuid := (select auth.uid()); em text; n int; m int;
+begin
+  if uid is null then return 0; end if;
+  select lower(email) into em from auth.users where id = uid;
+  update public.room_members set user_id = uid where email = em and user_id is null;
+  get diagnostics n = row_count;
+  update public.node_grants  set user_id = uid where email = em and user_id is null;
+  get diagnostics m = row_count;
+  return n + m; end; $$;
+
+-- 15.5 nodes policies — ADD a grant arm; room arms FIRST (short-circuit).
+-- The node_grant_role(parent_id) arm fixes INSERT..RETURNING: node_grant_role
+-- is STABLE and can't see the just-inserted row, but the parent is visible.
+drop policy "nodes_select_access" on public.nodes;
+create policy "nodes_select_access" on public.nodes for select
+  using (
+    (parent_id is null and (select auth.uid()) = user_id)
+    or case public.room_access(root_id)
+      when 'owner'  then true
+      when 'editor' then (deleted_at is null or type <> 'dataroom')
+      when 'viewer' then deleted_at is null
+      else (deleted_at is null and public.node_chain_live(id)
+            and (public.node_grant_role(id) is not null
+                 or public.node_grant_role(parent_id) is not null))
+    end
+  );
+drop policy "nodes_insert_access" on public.nodes;
+create policy "nodes_insert_access" on public.nodes for insert
+  with check ((select auth.uid()) = user_id
+    and (parent_id is null
+         or public.room_access(root_id) in ('owner', 'editor')
+         or public.node_grant_role(parent_id) = 'editor'));
+drop policy "nodes_update_access" on public.nodes;
+create policy "nodes_update_access" on public.nodes for update
+  using (public.room_access(root_id) = 'owner'
+         or (public.room_access(root_id) = 'editor' and parent_id is not null)
+         or (public.node_grant_role(id) = 'editor' and parent_id is not null))
+  with check (public.room_access(root_id) = 'owner'
+         or (public.room_access(root_id) = 'editor' and parent_id is not null)
+         or (public.node_grant_role(id) = 'editor' and parent_id is not null));
+drop policy "nodes_delete_access" on public.nodes;
+create policy "nodes_delete_access" on public.nodes for delete
+  using (public.room_access(root_id) = 'owner'
+         or (public.room_access(root_id) = 'editor' and parent_id is not null)
+         or (public.node_grant_role(id) = 'editor' and parent_id is not null));
+
+-- 15.6 file_texts / file_versions — mirror the grant arm
+drop policy "file_texts_select_access" on public.file_texts;
+create policy "file_texts_select_access" on public.file_texts for select
+  using (public.room_access(public.node_root(node_id)) is not null
+         or public.node_grant_role(node_id) is not null);
+drop policy "file_texts_insert_access" on public.file_texts;
+create policy "file_texts_insert_access" on public.file_texts for insert
+  with check ((select auth.uid()) = user_id
+    and (public.room_access(public.node_root(node_id)) in ('owner','editor')
+         or public.node_grant_role(node_id) = 'editor'));
+drop policy "file_texts_update_access" on public.file_texts;
+create policy "file_texts_update_access" on public.file_texts for update
+  using (public.room_access(public.node_root(node_id)) in ('owner','editor')
+         or public.node_grant_role(node_id) = 'editor')
+  with check (public.room_access(public.node_root(node_id)) in ('owner','editor')
+         or public.node_grant_role(node_id) = 'editor');
+drop policy "file_texts_delete_access" on public.file_texts;
+create policy "file_texts_delete_access" on public.file_texts for delete
+  using (public.room_access(public.node_root(node_id)) in ('owner','editor')
+         or public.node_grant_role(node_id) = 'editor');
+
+drop policy "file_versions_select_access" on public.file_versions;
+create policy "file_versions_select_access" on public.file_versions for select
+  using (public.room_access(public.node_root(node_id)) is not null
+         or public.node_grant_role(node_id) is not null);
+drop policy "file_versions_insert_access" on public.file_versions;
+create policy "file_versions_insert_access" on public.file_versions for insert
+  with check ((select auth.uid()) = user_id
+    and (public.room_access(public.node_root(node_id)) in ('owner','editor')
+         or public.node_grant_role(node_id) = 'editor'));
+drop policy "file_versions_delete_access" on public.file_versions;
+create policy "file_versions_delete_access" on public.file_versions for delete
+  using (public.room_access(public.node_root(node_id)) in ('owner','editor')
+         or public.node_grant_role(node_id) = 'editor');
+
+-- 15.7 Storage read — grantees read current + version blobs in their subtree
+create or replace function public.is_object_member_readable(object_name text)
+returns boolean language sql stable security definer set search_path = ''
+as $$
+  select exists (select 1 from public.nodes n where n.blob_path = object_name
+      and (public.room_access(n.root_id) is not null or public.node_grant_role(n.id) is not null))
+     or exists (select 1 from public.file_versions fv join public.nodes n on n.id = fv.node_id
+      where fv.blob_path = object_name
+        and (public.room_access(n.root_id) is not null or public.node_grant_role(n.id) is not null));
+$$;
+
+-- 15.8 claim_purge_paths — accept a node-grant editor (blob cleanup)
+create or replace function public.claim_purge_paths(node_id uuid)
+returns setof text language plpgsql security definer set search_path = ''
+as $$
+declare uid uuid := (select auth.uid()); rt uuid; par uuid;
+begin
+  if uid is null then raise exception 'not signed in'; end if;
+  select root_id, parent_id into rt, par from public.nodes where id = node_id;
+  if rt is null then raise exception 'not found'; end if;
+  if not (public.room_access(rt) = 'owner'
+          or (public.room_access(rt) = 'editor' and par is not null)
+          or (public.node_grant_role(node_id) = 'editor' and par is not null)) then
+    raise exception 'not allowed';
+  end if;
+  delete from public.purge_claims where user_id = uid and created_at < now() - interval '1 hour';
+  return query
+    with recursive subtree as (
+      select id, blob_path from public.nodes where id = node_id
+      union all
+      select n.id, n.blob_path from public.nodes n join subtree s on n.parent_id = s.id
+    ),
+    paths as (
+      select blob_path from subtree where blob_path is not null
+      union
+      select fv.blob_path from public.file_versions fv join subtree s on fv.node_id = s.id
+    ),
+    ins as (
+      insert into public.purge_claims (user_id, object_name)
+      select uid, blob_path from paths on conflict do nothing returning object_name
+    )
+    select blob_path from paths;
+end;
+$$;
+
+-- 15.9 nodes_root_id_after — cross-OWNER move also strips the subtree's grants
+-- (a same-owner room reorg keeps them). Supersedes §14.18.
+create or replace function public.nodes_root_id_after()
+returns trigger language plpgsql security definer set search_path = ''
+as $$
+declare new_owner uuid; old_owner uuid;
+begin
+  if pg_trigger_depth() > 1 then return null; end if;
+  update public.nodes set root_id = new.root_id
+  where id in (
+    with recursive sub as (
+      select id from public.nodes where parent_id = new.id
+      union all select n.id from public.nodes n join sub s on n.parent_id = s.id
+    ) select id from sub
+  ) and root_id is distinct from new.root_id;
+
+  select user_id into new_owner from public.nodes where id = new.root_id;
+  select user_id into old_owner from public.nodes where id = old.root_id;
+
+  with recursive sub as (
+    select new.id as id
+    union all select n.id from public.nodes n join sub s on n.parent_id = s.id
+  )
+  delete from public.file_shares where node_id in (select id from sub)
+    and user_id is distinct from new_owner;
+
+  if new_owner is distinct from old_owner then
+    with recursive sub as (
+      select new.id as id
+      union all select n.id from public.nodes n join sub s on n.parent_id = s.id
+    )
+    delete from public.node_grants where node_id in (select id from sub);
+  end if;
+  return null;
+end;
+$$;
+
+-- 15.10 Shared-with-me — TOP-MOST live grants only (dedup nesting)
+create or replace function public.list_shared_with_me()
+returns table (id uuid, room_id uuid, room_name text, type text, name text,
+               role text, size bigint, blob_path text, icon text, color text)
+language sql stable security definer set search_path = ''
+as $$
+  with mine as (select g.node_id, g.role from public.node_grants g where g.user_id = (select auth.uid())),
+  topmost as (
+    select m.node_id, m.role from mine m
+    where public.node_chain_live(m.node_id)
+      and not exists (
+        with recursive up as (
+          select n.parent_id as pid, 1 as depth from public.nodes n where n.id = m.node_id
+          union all select p.parent_id, u.depth+1 from public.nodes p join up u on p.id = u.pid
+          where u.depth < 60 and p.parent_id is not null
+        ) select 1 from up join mine m2 on m2.node_id = up.pid))
+  select n.id, n.root_id, r.name, n.type, n.name, t.role, n.size, n.blob_path, n.icon, n.color
+  from topmost t join public.nodes n on n.id = t.node_id join public.nodes r on r.id = n.root_id
+  order by lower(n.name);
+$$;
+
+-- 15.11 Grants
+grant execute on function public.node_grant_role(uuid), public.node_access(uuid),
+  public.node_owner_uid(uuid), public.list_shared_with_me() to authenticated;
+revoke execute on function public.node_access(uuid), public.node_owner_uid(uuid),
+  public.list_shared_with_me() from anon;
+revoke execute on function public.claim_node_grant_on_insert() from anon, authenticated, public;
