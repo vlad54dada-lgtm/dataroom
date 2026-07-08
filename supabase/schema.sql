@@ -1140,6 +1140,14 @@ create policy "pdfs_delete_claimed" on storage.objects for delete to authenticat
     select 1 from public.purge_claims c
     where c.user_id = (select auth.uid()) and c.object_name = name
   ));
+-- Storage remove() RETURNs the deleted rows, so SELECT policies apply to the
+-- delete — and by cleanup time the metadata is gone, which kills the member-
+-- read visibility. A claim therefore grants SELECT too, same 1-hour window.
+create policy "pdfs_select_claimed" on storage.objects for select to authenticated
+  using (bucket_id = 'pdfs' and exists (
+    select 1 from public.purge_claims c
+    where c.user_id = (select auth.uid()) and c.object_name = name
+  ));
 
 -- 14.11 Public links: folders + open tracking + a security fix.
 alter table public.file_shares
