@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { ChevronDown, Loader2, UserPlus, Users, X } from "lucide-react";
+import { ChevronDown, Loader2, UserPlus, X } from "lucide-react";
 import type { Node } from "@/types";
 import {
   InvalidNameError,
@@ -50,7 +50,6 @@ type GrantsState =
  * the whole Share dialog is gated by canManage before it opens.
  */
 export function PeopleWithAccess({ node }: PeopleWithAccessProps) {
-  const isFolder = node.type === "folder";
   const [settled, setSettled] = useState<GrantsState | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -156,23 +155,6 @@ export function PeopleWithAccess({ node }: PeopleWithAccessProps) {
 
   return (
     <div className="space-y-3">
-      {/* Iconed header pairs with the globe on the public-link section below,
-          so the two ways to share read as two distinct modes. */}
-      <div className="flex items-start gap-2.5">
-        <Users
-          className="mt-px size-4 shrink-0 text-muted-foreground"
-          strokeWidth={1.75}
-          aria-hidden
-        />
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium leading-none">People with access</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Invite specific people by email to just this{" "}
-            {isFolder ? "folder" : "file"}.
-          </p>
-        </div>
-      </div>
-
       {/* Invite form — always-pressable submit + shake on invalid input. */}
       <form onSubmit={(e) => void handleInvite(e)} className="space-y-2">
         <div className="flex items-start gap-2">

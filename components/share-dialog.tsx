@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Check, ChevronDown, Copy, Globe, Loader2, Lock } from "lucide-react";
+import { Check, ChevronDown, Copy, Globe, Lock, Users } from "lucide-react";
 import type { Node } from "@/types";
 import {
   createShare,
@@ -21,13 +21,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { PeopleWithAccess } from "@/components/people-with-access";
 
 interface ShareDialogProps {
@@ -48,15 +41,129 @@ type ShareState =
   | { nodeId: string; status: "ready"; share: ShareInfo | null }
   | { nodeId: string; status: "error" };
 
+/** A small on/off toggle for the public link (no shadcn switch in the stack). */
+function Toggle({
+  checked,
+  onToggle,
+  disabled,
+  label,
+}: {
+  checked: boolean;
+  onToggle: () => void;
+  disabled?: boolean;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      disabled={disabled}
+      onClick={onToggle}
+      className={cn(
+        "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full outline-none transition-colors duration-200 focus-visible:ring-3 focus-visible:ring-ring/70 disabled:cursor-not-allowed disabled:opacity-60",
+        checked ? "bg-brand" : "bg-muted-foreground/30",
+      )}
+    >
+      <span
+        className={cn(
+          "inline-block size-4 rounded-full bg-white shadow-sm transition-transform duration-200",
+          checked ? "translate-x-4" : "translate-x-0.5",
+        )}
+      />
+    </button>
+  );
+}
+
 /**
- * Sharing settings for a file or folder — the Google-Drive access model, so
- * there is ONE coherent policy rather than two competing toggles:
- *   • "People with access" — specific people invited by email, each with a
- *     viewer/editor role (editor is the reason named access still matters when
- *     a public link is on: the link is always view-only);
- *   • "General access" — the blanket floor for everyone else, switched between
- *     Restricted (only invited people) and Anyone-with-the-link (view-only, no
- *     sign-in). Switching mints or revokes the capability link.
+ * One collapsible access panel: an icon + title + summary header (click to
+ * expand), an optional trailing control (the public toggle), and a body that
+ * reveals on expand. When `disabled` (the file is already public), the panel
+ * greys out, shows a lock instead of the chevron, and can't be expanded.
+ */
+function AccessPanel({
+  icon,
+  iconClass,
+  title,
+  summary,
+  open,
+  onToggle,
+  disabled,
+  trailing,
+  children,
+}: {
+  icon: React.ReactNode;
+  iconClass: string;
+  title: string;
+  summary: string;
+  open: boolean;
+  onToggle: () => void;
+  disabled?: boolean;
+  trailing?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  const expanded = open && !disabled;
+  return (
+    <div
+      className={cn(
+        "overflow-hidden rounded-card border transition-opacity",
+        disabled && "opacity-55",
+      )}
+    >
+      <div className="flex items-center gap-3 px-3 py-2.5">
+        <span
+          className={cn(
+            "flex size-9 shrink-0 items-center justify-center rounded-tile ring-1 ring-inset transition-colors",
+            iconClass,
+          )}
+        >
+          {icon}
+        </span>
+        <button
+          type="button"
+          onClick={disabled ? undefined : onToggle}
+          disabled={disabled}
+          aria-expanded={disabled ? undefined : expanded}
+          className="min-w-0 flex-1 rounded-sm py-0.5 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/70 disabled:cursor-default"
+        >
+          <p className="text-sm font-medium">{title}</p>
+          <p className="truncate text-xs text-muted-foreground">{summary}</p>
+        </button>
+        {trailing}
+        {disabled ? (
+          <Lock className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+        ) : (
+          <button
+            type="button"
+            onClick={onToggle}
+            aria-label={expanded ? "Collapse section" : "Expand section"}
+            className="shrink-0 rounded-sm p-1 text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/70"
+          >
+            <ChevronDown
+              className={cn(
+                "size-4 transition-transform duration-200",
+                expanded && "rotate-180",
+              )}
+            />
+          </button>
+        )}
+      </div>
+      <div className={cn("border-t px-3 py-3", !expanded && "hidden")}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Sharing settings for a file or folder — two collapsible panels for one
+ * coherent policy:
+ *   • "People with access" — specific people invited by email (viewer/editor).
+ *     It LOCKS (greys out) while the file is public, because anyone with the
+ *     link can already view it; turning the link off re-opens it.
+ *   • "Anyone with the link" — a switch that mints/revokes a view-only public
+ *     link; expand it for the link itself + open stats.
  * Owner-only — the entry points are gated before this dialog ever opens.
  */
 export function ShareDialog({ node, onClose, returnFocusTo }: ShareDialogProps) {
@@ -70,6 +177,8 @@ export function ShareDialog({ node, onClose, returnFocusTo }: ShareDialogProps) 
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const [peopleOpen, setPeopleOpen] = useState(true);
+  const [linkOpen, setLinkOpen] = useState(true);
 
   // Load the current link each time the dialog opens on a node. Only the
   // async completion writes state; the loading UI is derived.
@@ -93,6 +202,7 @@ export function ShareDialog({ node, onClose, returnFocusTo }: ShareDialogProps) 
   const current = settled && settled.nodeId === shown?.id ? settled : null;
   const loading = node !== null && current === null;
   const share = current?.status === "ready" ? current.share : null;
+  const isPublic = share !== null;
 
   const copy = async (token: string) => {
     try {
@@ -127,7 +237,7 @@ export function ShareDialog({ node, onClose, returnFocusTo }: ShareDialogProps) 
     try {
       await revokeShare(shown.id);
       setSettled({ nodeId: shown.id, status: "ready", share: null });
-      toast.success("Access set to restricted", { description: shown.name });
+      toast.success("Link turned off", { description: shown.name });
     } catch {
       toast.error("Couldn't change access");
     } finally {
@@ -135,14 +245,11 @@ export function ShareDialog({ node, onClose, returnFocusTo }: ShareDialogProps) 
     }
   };
 
-  // General access is one control with two states: "restricted" (no link) and
-  // "public" (a live view-only link). Switching mints or revokes the link.
-  const handleAccessChange = (value: string) => {
-    if (busy) return;
-    const wantPublic = value === "public";
-    if (wantPublic === (share !== null)) return; // already in that state
-    if (wantPublic) void handleCreate();
-    else void handleRevoke();
+  // The switch mints or revokes the view-only public link.
+  const togglePublic = () => {
+    if (busy || !shown) return;
+    if (isPublic) void handleRevoke();
+    else void handleCreate();
   };
 
   const restoreFocus = (event: Event) => {
@@ -167,102 +274,82 @@ export function ShareDialog({ node, onClose, returnFocusTo }: ShareDialogProps) 
           </DialogDescription>
         </DialogHeader>
 
-        {/* People with access — keyed per node so it remounts fresh on open. */}
-        {shown && <PeopleWithAccess key={shown.id} node={shown} />}
-
-        <div className="space-y-3 border-t pt-5">
-          <p className="text-[11px] font-medium tracking-[0.08em] uppercase text-muted-foreground">
-            General access
-          </p>
-
-          {loading ? (
+        {loading ? (
+          <div className="space-y-3">
             <Skeleton className="h-[4.25rem] w-full rounded-card" />
-          ) : current?.status === "error" ? (
-            <div className="flex flex-col items-center gap-3 rounded-card border px-6 py-8 text-center">
-              <p className="text-sm text-muted-foreground">
-                Couldn&apos;t load the sharing settings.
-              </p>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setSettled(null);
-                  setReloadKey((k) => k + 1);
-                }}
-              >
-                Try again
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {/* One row, two states. The dropdown IS the toggle: picking a
-                  level mints or revokes the link — no separate create/remove
-                  buttons to reason about. */}
-              <div className="flex items-center gap-3 rounded-card border px-3 py-2.5">
-                <span
-                  className={cn(
-                    "flex size-9 shrink-0 items-center justify-center rounded-tile ring-1 ring-inset transition-colors",
-                    share
-                      ? "bg-folder-bg text-brand ring-brand/20"
-                      : "bg-muted text-muted-foreground ring-border",
-                  )}
-                >
-                  {share ? (
-                    <Globe className="size-5" strokeWidth={1.75} />
-                  ) : (
-                    <Lock className="size-5" strokeWidth={1.75} />
-                  )}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button
-                        type="button"
-                        disabled={busy}
-                        className="-ml-1.5 flex max-w-full items-center gap-1 rounded-sm px-1.5 py-0.5 text-sm font-medium outline-none transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/70 disabled:opacity-60"
-                      >
-                        {busy && (
-                          <Loader2 className="size-3.5 shrink-0 animate-spin text-muted-foreground" />
-                        )}
-                        <span className="truncate">
-                          {share ? "Anyone with the link" : "Restricted"}
-                        </span>
-                        <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" className="w-56">
-                      <DropdownMenuRadioGroup
-                        value={share ? "public" : "restricted"}
-                        onValueChange={handleAccessChange}
-                      >
-                        <DropdownMenuRadioItem value="restricted">
-                          Restricted
-                        </DropdownMenuRadioItem>
-                        <DropdownMenuRadioItem value="public">
-                          Anyone with the link
-                        </DropdownMenuRadioItem>
-                      </DropdownMenuRadioGroup>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                  <p className="mt-0.5 px-1.5 text-xs text-muted-foreground">
-                    {share
-                      ? isFolder
-                        ? "Anyone with the link can browse this folder and view its files."
-                        : "Anyone with the link can view this file — no sign-in."
-                      : isFolder
-                        ? "Only people you invite can open this folder."
-                        : "Only people you invite can open this file."}
-                  </p>
-                </div>
-                {share && (
-                  <span className="shrink-0 rounded-full bg-folder-bg px-2 py-0.5 text-xs font-medium text-brand ring-1 ring-brand/15 ring-inset">
-                    Viewer
-                  </span>
-                )}
-              </div>
+            <Skeleton className="h-[4.25rem] w-full rounded-card" />
+          </div>
+        ) : current?.status === "error" ? (
+          <div className="flex flex-col items-center gap-3 rounded-card border px-6 py-8 text-center">
+            <p className="text-sm text-muted-foreground">
+              Couldn&apos;t load the sharing settings.
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setSettled(null);
+                setReloadKey((k) => k + 1);
+              }}
+            >
+              Try again
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {/* People with access — locks while the file is public, since
+                anyone with the link can already view it. */}
+            <AccessPanel
+              icon={<Users className="size-5" strokeWidth={1.75} />}
+              iconClass="bg-muted text-muted-foreground ring-border"
+              title="People with access"
+              summary={
+                isPublic
+                  ? `Turn off the link to invite specific people to this ${
+                      isFolder ? "folder" : "file"
+                    }.`
+                  : "Invite specific people by email."
+              }
+              open={peopleOpen}
+              onToggle={() => setPeopleOpen((o) => !o)}
+              disabled={isPublic}
+            >
+              {shown && <PeopleWithAccess key={shown.id} node={shown} />}
+            </AccessPanel>
 
-              {/* The link + its open stats appear only when access is public. */}
-              {share && (
+            {/* Anyone with the link — the switch mints/revokes a view-only
+                public link; expand for the link + its open stats. */}
+            <AccessPanel
+              icon={
+                isPublic ? (
+                  <Globe className="size-5" strokeWidth={1.75} />
+                ) : (
+                  <Lock className="size-5" strokeWidth={1.75} />
+                )
+              }
+              iconClass={
+                isPublic
+                  ? "bg-folder-bg text-brand ring-brand/20"
+                  : "bg-muted text-muted-foreground ring-border"
+              }
+              title="Anyone with the link"
+              summary={
+                isPublic
+                  ? "On · anyone with the link can view (view only)"
+                  : "Off · only invited people can open it"
+              }
+              open={linkOpen}
+              onToggle={() => setLinkOpen((o) => !o)}
+              trailing={
+                <Toggle
+                  checked={isPublic}
+                  onToggle={togglePublic}
+                  disabled={busy}
+                  label="Public link"
+                />
+              }
+            >
+              {isPublic && share ? (
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
                     <Input
@@ -294,10 +381,18 @@ export function ShareDialog({ node, onClose, returnFocusTo }: ShareDialogProps) 
                         }`}
                   </p>
                 </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Turn on the switch to create a link{" "}
+                  {isFolder
+                    ? "anyone can open to browse this folder"
+                    : "anyone can open to view this file"}{" "}
+                  — view only, no sign-in.
+                </p>
               )}
-            </div>
-          )}
-        </div>
+            </AccessPanel>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
