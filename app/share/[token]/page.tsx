@@ -62,10 +62,13 @@ export default function SharePage() {
   }, [token]);
 
   return (
-    <div className="flex min-h-full flex-1 flex-col">
+    // Exact viewport height so the viewer's scroll region is bounded and
+    // scrolls INTERNALLY (page stepper + thumbnails call scrollTo on it) —
+    // without this the whole page scrolls on <body> and paging is a no-op.
+    <div className="flex h-dvh flex-col overflow-hidden">
       {/* Slim public header — the Acme mark plus a Confidential marker. No
           user menu or trash: an anonymous visitor has no account surface. */}
-      <header className="sticky top-0 z-30 border-b bg-card">
+      <header className="z-30 shrink-0 border-b bg-card">
         <div className="mx-auto flex h-14 w-full max-w-5xl items-center gap-4 px-4 sm:px-6">
           <Link
             href="/"
@@ -110,7 +113,7 @@ export default function SharePage() {
         </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-4 py-4 sm:px-6">
+      <main className="mx-auto flex w-full min-h-0 max-w-5xl flex-1 flex-col px-4 py-4 sm:px-6">
         {state.status === "loading" && (
           <div className="flex flex-1 items-center justify-center text-muted-foreground">
             <Loader2 className="size-5 animate-spin" aria-label="Loading document" />
