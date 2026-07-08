@@ -567,26 +567,6 @@ export async function getSharedNode(token: string): Promise<SharedNode | null> {
     : null;
 }
 
-export interface SharedFile {
-  nodeId: string;
-  name: string;
-  size: number;
-  blobPath: string;
-}
-
-/** @deprecated Use getSharedNode — kept only until the share page migrates. */
-export async function getSharedFile(token: string): Promise<SharedFile | null> {
-  const node = await getSharedNode(token);
-  return node && node.type === "file" && node.blobPath
-    ? {
-        nodeId: node.nodeId,
-        name: node.name,
-        size: node.size ?? 0,
-        blobPath: node.blobPath,
-      }
-    : null;
-}
-
 export interface SharedChild {
   id: string;
   parentId: string;

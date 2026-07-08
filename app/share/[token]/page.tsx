@@ -1,57 +1,80 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { Download, FileText, Loader2 } from "lucide-react";
-import { getBlob, getSharedFile, type SharedFile } from "@/lib/storage";
-import { formatBytes } from "@/lib/utils";
+import { Download, FileText, Folder, Loader2 } from "lucide-react";
+import {
+  getBlob,
+  getSharedNode,
+  recordShareOpen,
+  type SharedNode,
+} from "@/lib/storage";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { PdfCanvasViewer } from "@/components/pdf-canvas-viewer";
+import { SharedFolderView } from "@/components/shared-folder-view";
+import { ListSkeleton } from "@/components/list-skeleton";
+
+// Settled result for one token; "loading" is derived — no settled state for
+// the current token yet — so the effect never sets state synchronously.
+type SettledState =
+  | { token: string; status: "gone" }
+  | { token: string; status: "file"; node: SharedNode; url: string }
+  | { token: string; status: "folder"; node: SharedNode };
 
 type LoadState =
   | { status: "loading" }
   | { status: "gone" }
-  | { status: "ready"; file: SharedFile; url: string };
+  | { status: "file"; node: SharedNode; url: string }
+  | { status: "folder"; node: SharedNode };
 
 /**
- * Public, sign-in-free view of a single shared file. The token in the URL is
- * the capability: getSharedFile resolves it through a SECURITY DEFINER RPC and
- * getBlob downloads under the anon storage policy. The document renders in the
- * same PdfCanvasViewer the authenticated app uses, so a share link opens into
- * the product's real reading UI — one click, no friction.
+ * Public, sign-in-free view of a shared node. The token in the URL is the
+ * capability: a FILE renders in the product PDF viewer; a FOLDER opens a
+ * read-only browser of the shared subtree. Resolution and blob reads run
+ * under SECURITY DEFINER RPCs + the anon storage policy; each visit bumps
+ * the link's open counter.
  */
 export default function SharePage() {
   const { token } = useParams<{ token: string }>();
-  const [state, setState] = useState<LoadState>({ status: "loading" });
-  // pdf.js couldn't parse this document — fall back to the browser renderer.
-  const [canvasFailed, setCanvasFailed] = useState(false);
+  const [settled, setSettled] = useState<SettledState | null>(null);
+  // pdf.js couldn't parse THIS token's document — browser-renderer fallback.
+  const [failedToken, setFailedToken] = useState<string | null>(null);
+  const canvasFailed = failedToken === token;
 
   useEffect(() => {
     let cancelled = false;
     let objectUrl: string | null = null;
-    setState({ status: "loading" });
-    setCanvasFailed(false);
 
     void (async () => {
       try {
-        const file = await getSharedFile(token);
-        if (!file) {
-          if (!cancelled) setState({ status: "gone" });
+        const node = await getSharedNode(token);
+        if (!node) {
+          if (!cancelled) setSettled({ token, status: "gone" });
           return;
         }
-        const blob = await getBlob(file.blobPath);
+        // A resolved link is an open — folders too, once per session.
+        void recordShareOpen(token);
+        if (node.type === "folder") {
+          if (!cancelled) setSettled({ token, status: "folder", node });
+          return;
+        }
+        if (!node.blobPath) {
+          if (!cancelled) setSettled({ token, status: "gone" });
+          return;
+        }
+        const blob = await getBlob(node.blobPath);
         if (cancelled) return;
         if (!blob) {
-          setState({ status: "gone" });
+          setSettled({ token, status: "gone" });
           return;
         }
         objectUrl = URL.createObjectURL(blob);
-        setState({ status: "ready", file, url: objectUrl });
+        setSettled({ token, status: "file", node, url: objectUrl });
       } catch {
-        if (!cancelled) setState({ status: "gone" });
+        if (!cancelled) setSettled({ token, status: "gone" });
       }
     })();
 
@@ -61,13 +84,16 @@ export default function SharePage() {
     };
   }, [token]);
 
+  const state: LoadState =
+    settled && settled.token === token ? settled : { status: "loading" };
+
   return (
     // Exact viewport height so the viewer's scroll region is bounded and
     // scrolls INTERNALLY (page stepper + thumbnails call scrollTo on it) —
     // without this the whole page scrolls on <body> and paging is a no-op.
     <div className="flex h-dvh flex-col overflow-hidden">
-      {/* Slim public header — the Acme mark plus a Confidential marker. No
-          user menu or trash: an anonymous visitor has no account surface. */}
+      {/* Slim public header — the Acme mark plus the shared object. No user
+          menu or trash: an anonymous visitor has no account surface. */}
       <header className="z-30 shrink-0 border-b bg-card">
         <div className="mx-auto flex h-14 w-full max-w-5xl items-center gap-4 px-4 sm:px-6">
           <Link
@@ -92,22 +118,35 @@ export default function SharePage() {
               </span>
             </span>
           </Link>
-          {state.status === "ready" && (
-            <>
-              <span className="hidden min-w-0 flex-1 items-center gap-2 truncate text-sm text-muted-foreground md:flex">
+          {(state.status === "file" || state.status === "folder") && (
+            <span className="hidden min-w-0 flex-1 items-center gap-2 truncate text-sm text-muted-foreground md:flex">
+              {state.status === "folder" ? (
+                <Folder className="size-4 shrink-0" strokeWidth={1.75} />
+              ) : (
                 <FileText className="size-4 shrink-0" strokeWidth={1.75} />
-                <span className="truncate" title={state.file.name}>
-                  {state.file.name}
-                </span>
+              )}
+              <span className="truncate" title={state.node.name}>
+                {state.node.name}
               </span>
-              <Button variant="outline" size="sm" asChild className="ml-auto shrink-0">
-                <a href={state.url} download={state.file.name}>
-                  <Download /> Download
-                </a>
-              </Button>
-            </>
+            </span>
           )}
-          <div className={state.status === "ready" ? "shrink-0" : "ml-auto shrink-0"}>
+          {state.status === "file" && (
+            <Button
+              variant="outline"
+              size="sm"
+              asChild
+              className="ml-auto shrink-0"
+            >
+              <a href={state.url} download={state.node.name}>
+                <Download /> Download
+              </a>
+            </Button>
+          )}
+          <div
+            className={
+              state.status === "file" ? "shrink-0" : "ml-auto shrink-0"
+            }
+          >
             <ThemeToggle />
           </div>
         </div>
@@ -116,7 +155,10 @@ export default function SharePage() {
       <main className="mx-auto flex w-full min-h-0 max-w-5xl flex-1 flex-col px-4 py-4 sm:px-6">
         {state.status === "loading" && (
           <div className="flex flex-1 items-center justify-center text-muted-foreground">
-            <Loader2 className="size-5 animate-spin" aria-label="Loading document" />
+            <Loader2
+              className="size-5 animate-spin"
+              aria-label="Loading shared content"
+            />
           </div>
         )}
 
@@ -130,8 +172,8 @@ export default function SharePage() {
                 This link isn&apos;t available
               </h1>
               <p className="max-w-sm text-sm text-muted-foreground">
-                The file may have been unshared, moved, or deleted. Ask whoever
-                sent it for a fresh link.
+                It may have been unshared, moved, or deleted. Ask whoever sent
+                it for a fresh link.
               </p>
             </div>
             <Button variant="outline" size="sm" asChild>
@@ -140,26 +182,37 @@ export default function SharePage() {
           </div>
         )}
 
-        {state.status === "ready" && !canvasFailed && (
+        {state.status === "folder" && (
+          <>
+            <h1 className="sr-only">{state.node.name}</h1>
+            {/* useSearchParams (the ?folder= param) needs a Suspense boundary
+                in production builds. */}
+            <Suspense fallback={<ListSkeleton variant="rows" count={4} />}>
+              <SharedFolderView token={token} root={state.node} />
+            </Suspense>
+          </>
+        )}
+
+        {state.status === "file" && !canvasFailed && (
           <PdfCanvasViewer
             url={state.url}
-            onRenderError={() => setCanvasFailed(true)}
+            onRenderError={() => setFailedToken(token)}
             watermark={{ title: "Confidential" }}
           />
         )}
 
-        {state.status === "ready" && canvasFailed && (
+        {state.status === "file" && canvasFailed && (
           <>
             <iframe
               src={state.url}
-              title={state.file.name}
+              title={state.node.name}
               className="min-h-0 w-full flex-1 rounded-lg border bg-white dark:border-line-strong"
             />
             <p className="mt-2 text-center text-sm text-muted-foreground">
               Can&apos;t preview?{" "}
               <a
                 href={state.url}
-                download={state.file.name}
+                download={state.node.name}
                 className="font-medium text-brand hover:underline"
               >
                 Download the file

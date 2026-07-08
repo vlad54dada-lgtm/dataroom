@@ -283,9 +283,7 @@ export function ItemRow({
                   : undefined
               }
               onShare={
-                !isFolder && onShare
-                  ? (trigger) => onShare(node, trigger)
-                  : undefined
+                onShare ? (trigger) => onShare(node, trigger) : undefined
               }
               onMove={onMove ? () => onMove(node) : undefined}
             />
@@ -318,7 +316,7 @@ export function ItemRow({
             <History /> Version history
           </ContextMenuItem>
         )}
-        {!isFolder && onShare && (
+        {onShare && (
           <ContextMenuItem onSelect={() => onShare(node, null)}>
             <Link2 /> Share
           </ContextMenuItem>

@@ -1061,7 +1061,7 @@ function RoomView() {
       />
       <ShareDialog
         key={`share-${dialogGen}`}
-        file={dialog.kind === "share" ? dialog.node : null}
+        node={dialog.kind === "share" ? dialog.node : null}
         onClose={closeDialog}
         returnFocusTo={returnTo}
       />
