@@ -1328,3 +1328,256 @@ revoke execute on function public.nodes_root_id_before(), public.nodes_root_id_a
   public.claim_invites_for_new_user(), public.claim_invite_on_insert(),
   public.set_updated_at(), public.auto_confirm_email(), public.handle_new_user()
 from anon, authenticated, public;
+
+-- ---------------------------------------------------------------------------
+-- 14.18) review hardening
+-- ---------------------------------------------------------------------------
+--
+-- Fixes surfaced by an adversarial review of the feature:
+--   * public links must die when an ANCESTOR (not just the node itself) is
+--     trashed — soft delete stamps only the trash root, so a descendant keeps
+--     deleted_at = null yet is unreachable;
+--   * purge claims must not outlive membership (a removed editor could keep a
+--     pre-staged read/delete grant on the owner's blobs);
+--   * a cross-owner move must revoke the moved subtree's links (they'd be
+--     orphaned — invisible to both parties, un-revocable);
+--   * one membership row per (room, account) — else room_access returns >1 row;
+--   * the root_id fix-up must not stamp updated_at on a cross-room move;
+--   * an editor must not repoint blob_path to an object they don't own.
+
+-- node_chain_live: reachable iff the node AND every ancestor to the root carry
+-- no deleted_at. (Later CREATE OR REPLACE win over the §13/earlier definitions.)
+create or replace function public.node_chain_live(node uuid)
+returns boolean language sql stable security definer set search_path = ''
+as $$
+  with recursive up as (
+    select n.id, n.parent_id, n.deleted_at, 1 as depth
+    from public.nodes n where n.id = node
+    union all
+    select p.id, p.parent_id, p.deleted_at, u.depth + 1
+    from public.nodes p join up u on p.id = u.parent_id
+    where u.depth < 60
+  )
+  select node is not null and not exists (select 1 from up where deleted_at is not null);
+$$;
+grant execute on function public.node_chain_live(uuid) to anon, authenticated;
+
+create or replace function public.get_shared_node(share_token uuid)
+returns table (node_id uuid, node_type text, name text, size bigint, blob_path text)
+language sql stable security definer set search_path = ''
+as $$
+  select n.id, n.type, n.name, n.size, n.blob_path
+  from public.file_shares s join public.nodes n on n.id = s.node_id
+  where s.token = share_token
+    and (s.expires_at is null or s.expires_at > now())
+    and n.type in ('file', 'folder')
+    and public.node_chain_live(n.id);
+$$;
+
+create or replace function public.list_shared_children(share_token uuid, parent uuid)
+returns table (id uuid, parent_id uuid, type text, name text, size bigint,
+               blob_path text, created_at timestamptz, updated_at timestamptz)
+language sql stable security definer set search_path = ''
+as $$
+  with recursive share as (
+    select s.node_id from public.file_shares s
+    join public.nodes sn on sn.id = s.node_id
+    where s.token = share_token and (s.expires_at is null or s.expires_at > now())
+      and sn.type = 'folder' and public.node_chain_live(sn.id)
+  ),
+  up as (
+    select p.id, p.parent_id, 1 as depth from public.nodes p
+    where p.id = parent and p.deleted_at is null
+    union all
+    select n.id, n.parent_id, up.depth + 1 from public.nodes n
+    join up on n.id = up.parent_id
+    where n.deleted_at is null and up.depth < 60
+  )
+  select c.id, c.parent_id, c.type, c.name, c.size, c.blob_path, c.created_at, c.updated_at
+  from public.nodes c
+  where c.parent_id = parent and c.deleted_at is null
+    and exists (select 1 from share sh join up u on u.id = sh.node_id);
+$$;
+
+create or replace function public.get_shared_ancestors(share_token uuid, node uuid)
+returns table (id uuid, name text, type text)
+language sql stable security definer set search_path = ''
+as $$
+  with recursive share as (
+    select s.node_id from public.file_shares s
+    join public.nodes sn on sn.id = s.node_id
+    where s.token = share_token and (s.expires_at is null or s.expires_at > now())
+      and sn.type = 'folder' and public.node_chain_live(sn.id)
+  ),
+  up as (
+    select p.id, p.parent_id, p.name, p.type, 1 as depth from public.nodes p
+    where p.id = node and p.deleted_at is null
+    union all
+    select n.id, n.parent_id, n.name, n.type, up.depth + 1 from public.nodes n
+    join up on n.id = up.parent_id
+    where n.deleted_at is null and up.depth < 60
+  )
+  select u.id, u.name, u.type from up u
+  where exists (select 1 from share sh join up r on r.id = sh.node_id)
+    and u.depth <= (select min(r.depth) from up r join share sh on sh.node_id = r.id)
+  order by u.depth desc;
+$$;
+
+create or replace function public.is_object_shared(object_name text)
+returns boolean language sql stable security definer set search_path = ''
+as $$
+  with recursive up as (
+    select n.id, n.parent_id, n.deleted_at, 1 as depth from public.nodes n
+    where n.blob_path = object_name
+    union all
+    select p.id, p.parent_id, p.deleted_at, u.depth + 1 from public.nodes p
+    join up u on p.id = u.parent_id
+    where u.depth < 60
+  )
+  select not exists (select 1 from up where deleted_at is not null)
+     and exists (
+       select 1 from public.file_shares s join up u on u.id = s.node_id
+       where (s.expires_at is null or s.expires_at > now())
+     );
+$$;
+
+create or replace function public.list_my_shares()
+returns table (token uuid, created_at timestamptz, open_count int,
+  last_opened_at timestamptz, node_id uuid, node_name text, node_type text,
+  active boolean, room_name text)
+language sql stable security invoker set search_path = ''
+as $$
+  select s.token, s.created_at, s.open_count, s.last_opened_at,
+         n.id, n.name, n.type, public.node_chain_live(n.id) as active,
+         case when r.id = n.id then null else r.name end as room_name
+  from public.file_shares s
+  join public.nodes n on n.id = s.node_id
+  left join public.nodes r on r.id = n.root_id
+  where s.user_id = (select auth.uid())
+  order by s.created_at desc;
+$$;
+
+-- purge claims: bound to a 1-hour window and cleared when a member is removed.
+drop policy "pdfs_select_claimed" on storage.objects;
+create policy "pdfs_select_claimed" on storage.objects for select to authenticated
+  using (bucket_id = 'pdfs' and exists (
+    select 1 from public.purge_claims c
+    where c.user_id = (select auth.uid()) and c.object_name = name
+      and c.created_at > now() - interval '1 hour'
+  ));
+drop policy "pdfs_delete_claimed" on storage.objects;
+create policy "pdfs_delete_claimed" on storage.objects for delete to authenticated
+  using (bucket_id = 'pdfs' and exists (
+    select 1 from public.purge_claims c
+    where c.user_id = (select auth.uid()) and c.object_name = name
+      and c.created_at > now() - interval '1 hour'
+  ));
+
+create or replace function public.clear_purge_claims_on_leave()
+returns trigger language plpgsql security definer set search_path = ''
+as $$
+begin
+  if old.user_id is not null then
+    delete from public.purge_claims where user_id = old.user_id;
+  end if;
+  return old;
+end;
+$$;
+create trigger clear_purge_claims_on_leave after delete on public.room_members
+  for each row execute function public.clear_purge_claims_on_leave();
+revoke execute on function public.clear_purge_claims_on_leave() from anon, authenticated, public;
+
+-- Cross-owner move revokes the moved subtree's links (only the room owner may
+-- hold one). Supersedes the §14.2 definition.
+create or replace function public.nodes_root_id_after()
+returns trigger language plpgsql security definer set search_path = ''
+as $$
+declare new_owner uuid;
+begin
+  if pg_trigger_depth() > 1 then return null; end if;
+  update public.nodes set root_id = new.root_id
+  where id in (
+    with recursive sub as (
+      select id from public.nodes where parent_id = new.id
+      union all
+      select n.id from public.nodes n join sub s on n.parent_id = s.id
+    ) select id from sub
+  ) and root_id is distinct from new.root_id;
+
+  select user_id into new_owner from public.nodes where id = new.root_id;
+  delete from public.file_shares
+  where user_id is distinct from new_owner
+    and node_id in (
+      with recursive sub as (
+        select new.id as id
+        union all
+        select n.id from public.nodes n join sub s on n.parent_id = s.id
+      ) select id from sub
+    );
+  return null;
+end;
+$$;
+
+-- One membership row per (room, account).
+create unique index room_members_user_room_idx
+  on public.room_members (room_id, user_id) where user_id is not null;
+
+create or replace function public.room_access(room uuid)
+returns text language sql stable security definer set search_path = ''
+as $$
+  select case
+    when exists (select 1 from public.nodes r where r.id = room and r.user_id = (select auth.uid())) then 'owner'
+    else (select m.role from public.room_members m
+          where m.room_id = room and m.user_id = (select auth.uid()) limit 1)
+  end;
+$$;
+
+-- The root_id subtree fix-up is bookkeeping, not an edit: skip updated_at at
+-- trigger depth > 1. Supersedes the §1 definition.
+create or replace function public.set_updated_at()
+returns trigger language plpgsql security definer set search_path = ''
+as $$
+begin
+  if pg_trigger_depth() > 1 then return new; end if;
+  new.updated_at := now();
+  return new;
+end;
+$$;
+
+-- A blob_path CHANGE is constrained to the caller's own uid prefix (fresh
+-- upload) or an existing version of the node (restore). Supersedes §14.2.
+create or replace function public.nodes_root_id_before()
+returns trigger language plpgsql security definer set search_path = ''
+as $$
+begin
+  if tg_op = 'INSERT' then
+    if new.parent_id is null then new.root_id := new.id;
+    else
+      select root_id into new.root_id from public.nodes where id = new.parent_id;
+      if new.root_id is null then raise exception 'parent % not found', new.parent_id; end if;
+    end if;
+  else
+    if new.user_id is distinct from old.user_id then raise exception 'user_id is immutable'; end if;
+    if new.blob_path is distinct from old.blob_path and new.blob_path is not null then
+      if split_part(new.blob_path, '/', 1) is distinct from (select auth.uid())::text
+         and not exists (
+           select 1 from public.file_versions fv
+           where fv.node_id = new.id and fv.blob_path = new.blob_path
+         ) then
+        raise exception 'blob_path must be your own upload or an existing version of this file';
+      end if;
+    end if;
+    if pg_trigger_depth() > 1 then return new; end if;  -- internal subtree fix-up
+    if new.parent_id is distinct from old.parent_id then
+      if new.parent_id is null then new.root_id := new.id;
+      else
+        select root_id into new.root_id from public.nodes where id = new.parent_id;
+        if new.root_id is null then raise exception 'parent % not found', new.parent_id; end if;
+      end if;
+    else
+      new.root_id := old.root_id;
+    end if;
+  end if;
+  return new;
+end;
+$$;

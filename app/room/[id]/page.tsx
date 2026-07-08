@@ -140,9 +140,11 @@ function RoomView() {
 
   // The caller's role decides which controls exist at all: viewers get a
   // read-only room, editors full content CRUD, owners also access management.
+  // A FAILED role fetch must NOT silently downgrade an owner to read-only —
+  // it's surfaced as an error with retry below, never treated as "no access".
   const access = useAsync(() => getMyRoomAccess(roomId), `access:${roomId}`);
   const role = access.state.status === "success" ? access.state.data : null;
-  const roleResolved = access.state.status !== "loading";
+  const roleResolved = access.state.status === "success";
   const canEdit = role === "owner" || role === "editor";
   const canManage = role === "owner";
 
@@ -750,6 +752,8 @@ function RoomView() {
   // controls render at all, so the page waits for BOTH crumbs and access —
   // an owner must never see their toolbar pop in late.
   if (crumbs.error) return <ErrorState onRetry={crumbs.reload} />;
+  if (access.state.status === "error")
+    return <ErrorState onRetry={access.reload} />;
   if (crumbs.notFound)
     return <NotFoundState kind={isRoot ? "room" : "folder"} />;
   if (crumbs.loading || !crumbs.crumbs || !roleResolved)

@@ -68,6 +68,19 @@ export function RowMenu({
   // Written only inside event handlers (never during render).
   const actionChosenRef = useRef(false);
 
+  // A viewer's folder row resolves NO items — never render a kebab that
+  // opens an empty menu (CLAUDE.md: no control that does nothing).
+  const hasAnyItem =
+    !!onDownload ||
+    !!onUploadVersion ||
+    !!onVersionHistory ||
+    !!onShare ||
+    !!onRename ||
+    !!onMove ||
+    !!onDelete ||
+    !!onLeave;
+  if (!hasAnyItem) return null;
+
   return (
     <DropdownMenu
       onOpenChange={(open) => {
@@ -169,7 +182,15 @@ export function RowMenu({
         )}
         {onLeave && (
           <>
-            <DropdownMenuSeparator />
+            {/* Separator only when something precedes it — an onLeave-only
+                menu (shared-with-me cards) must not open with a stray line. */}
+            {(onDownload ||
+              onUploadVersion ||
+              onVersionHistory ||
+              onShare ||
+              onRename ||
+              onMove ||
+              onDelete) && <DropdownMenuSeparator />}
             <DropdownMenuItem
               variant="destructive"
               onSelect={() => {
