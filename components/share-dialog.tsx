@@ -21,6 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { PeopleWithAccess } from "@/components/people-with-access";
 
 interface ShareDialogProps {
   /** The file or folder being shared; null when closed. */
@@ -41,11 +42,11 @@ type ShareState =
   | { nodeId: string; status: "error" };
 
 /**
- * Sharing settings for a file or folder. A node has at most one public link:
- * turning sharing on mints an unguessable token anyone can open with no
- * sign-in (folders open a read-only browser of the subtree); turning it off
- * deletes the token so the old link dies at once. Owner-only — the entry
- * points are gated before this dialog ever opens.
+ * Sharing settings for a file or folder — Google-Drive layout: specific
+ * people (email + viewer/editor grant) on top, one public link below.
+ * The link is a capability token anyone can open with no sign-in (folders
+ * open a read-only browser of the subtree); revoking deletes it at once.
+ * Owner-only — the entry points are gated before this dialog ever opens.
  */
 export function ShareDialog({ node, onClose, returnFocusTo }: ShareDialogProps) {
   // Held past close so content doesn't blank mid-exit (adjust-during-render).
@@ -133,7 +134,10 @@ export function ShareDialog({ node, onClose, returnFocusTo }: ShareDialogProps) 
 
   return (
     <Dialog open={node !== null} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent className="sm:max-w-md" onCloseAutoFocus={restoreFocus}>
+      <DialogContent
+        className="max-h-[88dvh] overflow-y-auto sm:max-w-md"
+        onCloseAutoFocus={restoreFocus}
+      >
         <DialogHeader>
           <DialogTitle className="truncate pr-6">
             {isFolder ? "Share folder" : "Share file"}
@@ -143,7 +147,14 @@ export function ShareDialog({ node, onClose, returnFocusTo }: ShareDialogProps) 
           </DialogDescription>
         </DialogHeader>
 
-        {loading ? (
+        {/* People with access — keyed per node so it remounts fresh on open. */}
+        {shown && <PeopleWithAccess key={shown.id} node={shown} />}
+
+        <div className="space-y-3 border-t pt-4">
+          <p className="text-[11px] font-medium tracking-[0.08em] uppercase text-muted-foreground">
+            Public link
+          </p>
+          {loading ? (
           <div className="space-y-3">
             <Skeleton className="h-4 w-48" />
             <Skeleton className="h-9 w-full rounded-md" />
@@ -249,7 +260,8 @@ export function ShareDialog({ node, onClose, returnFocusTo }: ShareDialogProps) 
               Create share link
             </Button>
           </div>
-        )}
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   );
