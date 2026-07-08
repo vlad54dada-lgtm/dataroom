@@ -5,6 +5,10 @@
 > the design register was elevated to a serious legal platform. This
 > document describes the CURRENT product; the original take-home scope is
 > preserved in git history.
+>
+> Updated 2026-07-08: access & sharing v2 — public file/folder links,
+> dataroom membership with viewer/editor roles, open tracking, and the
+> Sharing & access panel. The former "no sharing" scope line is history.
 
 ## What is this
 
@@ -32,6 +36,9 @@ Deal teams — lawyers, finance people, founders — who need to organize hundre
 6. **Trash** — deleted items land in a trash (floating access bottom-right) and can be restored to their original location, restored into a picked folder, or purged; bulk select/restore/purge; drag out of the trash stack onto a room card to restore.
 7. **Bulk actions** — row checkboxes with shift-range select; selection bar with Download / Move to / Move to trash.
 8. **Theme** — light and dark, toggle on every screen including login; gentle cross-fade on switch.
+9. **Public share links** — a file or folder can be made "anyone with the link": an unguessable token URL opens the document (or a read-only folder browser) in the product UI with no account. Links are always view-only, revocable, and track opens (count + last opened).
+10. **Dataroom membership** — the owner invites people by email with a role: **viewer** (read and download everything) or **editor** (full content CRUD — upload, rename, move, trash, versions — but no access management and no changes to the room itself). Invitees sign up with the invited email and the room appears in their home and rail under "Shared with you".
+11. **Sharing & access panel** — one page (`/access`, via the account menu) listing every public link (with open stats, copy, revoke) and every room member (change role, remove), plus rooms shared with you (leave).
 
 ## Screens & flows
 
@@ -44,6 +51,9 @@ Deal teams — lawyers, finance people, founders — who need to organize hundre
 3. **Upload** — "Upload" button + full-area drag&drop with a visible drop overlay. Multi-file. PDF only.
 4. **PDF viewer** — full-screen dialog: filename in the header, the PDF rendered in an `<iframe>` via object URL, plus a "Download" button as fallback. Revoke the object URL on close.
 5. **Dialogs** — create dataroom, create folder, rename, delete confirm. Delete confirm for a non-empty folder must say: "This will permanently delete N folders and M files." Enter submits, Esc closes, autofocus on the input with text pre-selected when renaming.
+6. **Share dialog** — on any file or folder row (owner only): create/copy/revoke the public link, see open stats. On a dataroom: manage members (invite by email + role, change role, remove, copy invite link).
+7. **Public share page `/share/[token]`** — no auth. A file renders in the full viewer; a folder renders a read-only browser (breadcrumbs within the shared subtree, `?folder=` in the URL, files open in the viewer).
+8. **Sharing & access `/access`** — the owner's control panel: public links table with open stats, members grouped by room, rooms shared with you.
 
 ## Edge cases — all must work
 
@@ -71,9 +81,19 @@ A serious legal/finance platform — the register of an institution handling a m
 - Every action gives instant feedback: optimistic UI update, toast where appropriate.
 - Responsive down to ~768px is enough (desktop-first tool), but nothing should visibly break on mobile.
 
+## Sharing rules — all must hold
+
+1. Public links are **view-only** and exist for files and folders, never for a whole dataroom.
+2. Only the **room owner** creates or revokes public links and manages members. Editors and viewers see no sharing controls at all.
+3. An anonymous visitor with a folder link can browse **only that subtree** — tampering with ids outside it reads as "link isn't available".
+4. Revoking a link or removing a member takes effect immediately (database-enforced, not UI-enforced).
+5. A viewer can read and download everything in the room but cannot change anything — including restoring versions or seeing the room's trash.
+6. An editor's uploads belong to the room: the owner sees, opens, and can purge them (including their storage blobs).
+7. Sharing state must be visible where the object lives: shared rows and cards carry a badge.
+
 ## Out of scope
 
-Sharing and permissions (multi-user rooms, roles, view-only), audit logs, non-PDF file types, document versioning UI beyond upload replace, Q&A workflows. Do not build any UI for these.
+Audit logs beyond link-open counts, per-folder membership (membership is per-dataroom), link passwords/expiry UI, email notifications for invites, non-PDF file types, Q&A workflows. Do not build any UI for these.
 
 ## Success criteria
 

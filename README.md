@@ -18,7 +18,8 @@ The brief asks for folder/file CRUD. This ships that, plus what a deal team actu
 - **A real document viewer.** Canvas rendering, page thumbnails, in-document find, zoom, keyboard paging, and a per-user CONFIDENTIAL watermark on every page.
 - **Trash + Undo instead of confirmation dialogs.** Deletes are instant and reversible; a single file can be pulled out of a deleted folder.
 - **Drive-grade interactions.** Full keyboard model, right-click menus, shift-range selection, drag & drop for move, delete, restore, and reorder.
-- **Security enforced by the database, not the UI.** Row-level security isolates every user's tree in Postgres; PDFs live in a private bucket; the browser only ever holds the publishable key.
+- **Security enforced by the database, not the UI.** Row-level security scopes every tree to its owner and invited members in Postgres; PDFs live in a private bucket; the browser only ever holds the publishable key.
+- **Sharing that matches how deals work.** Public view-only links for files *and* folders (anonymous browsing of just that subtree), dataroom membership with viewer/editor roles, open tracking, and a single Sharing & access panel to see and revoke everything.
 - **CI you can click.** The badge above runs lint, the production build, and 45 end-to-end scenarios in three engines — Chromium, WebKit, and mobile Safari — against the real backend on every push.
 
 ## Feature summary
@@ -29,6 +30,9 @@ The brief asks for folder/file CRUD. This ships that, plus what a deal team actu
 - File versioning: upload a new version, browse history, restore any previous one
 - Search scoped to a room or across all rooms, by name and content, with type filters — the query lives in the URL, so refresh and deep links keep it
 - Sortable columns; optimistic updates with rollback on every mutation; data revalidates when the tab regains focus; folder contents prefetch on hover
+- Public share links for files and folders — view-only, no sign-in, revocable, with open counts; folders open a read-only browser scoped to the shared subtree
+- Dataroom membership: invite by email as viewer or editor; shared rooms appear under "Shared with you"; every RLS policy knows the difference
+- A Sharing & access panel (`/access`) listing all links and members in one place
 - Light and dark themes, `prefers-reduced-motion` support, live regions and visible focus for assistive tech
 
 ## Tests
@@ -62,7 +66,9 @@ tests/e2e/      Playwright suite
 
 The whole tree is one table — `nodes (id, parent_id, type, name, size, blob_path, deleted_at, …)`. A dataroom is a node with `parent_id = null`; a self-referencing FK with `on delete cascade` makes recursive delete a single `DELETE`. Extracted PDF text lives in a separate GIN-indexed table so tree queries stay light. The few recursive reads (subtree counts, search with snippets) are small SQL functions.
 
-**Why the seam matters:** the app started on IndexedDB, as the brief suggests. Moving to a real backend was one commit that rewrote `lib/storage.ts` — no component changed. Sharing and roles would follow the same path: new RLS policies behind the same seam.
+**Why the seam matters:** the app started on IndexedDB, as the brief suggests. Moving to a real backend was one commit that rewrote `lib/storage.ts` — no component changed. Sharing and roles then followed the same path: a denormalized `root_id` on every node, membership-aware RLS policies, and a handful of `SECURITY DEFINER` functions for the anonymous link surface — all behind the same seam.
+
+**The access model in one paragraph:** every node carries the id of its dataroom (`root_id`, trigger-maintained). One SQL function, `room_access(room)`, answers "owner / editor / viewer / stranger" and every RLS policy on nodes, texts, versions, and storage objects delegates to it. Public links are capability tokens: anonymous visitors resolve them through narrow `SECURITY DEFINER` RPCs that return exactly the shared subtree and nothing else. An editor's move/rename/upload powers are symmetric with the owner's over *content*, but the room row itself and all sharing controls answer only to the owner.
 
 ## Design
 
@@ -99,4 +105,6 @@ A data room is a working table, so the design goes denser and cooler than the fa
 
 ## What's next
 
-**Roles and sharing** — invite by email with viewer/editor roles; RLS makes this a policies problem behind the existing storage seam, not a rewrite. **Audit log** — who opened which document, when; core value in real due diligence. Realtime sync between open windows. Zip download for folders. Virtualized rows for thousand-file folders. Language-aware search stemming.
+**Audit log** — who opened which document, when (public links already count opens; member-level trails are the next step); core value in real due diligence. **Link controls** — passwords and expiry dates on public links (the schema already carries `expires_at`). Email notifications for invites. Realtime sync between open windows. Zip download for folders. Virtualized rows for thousand-file folders. Language-aware search stemming.
+
+One accepted v1 trade-off: an editor can move room content into their own room — symmetric with their existing download-and-recreate powers, but a future audit log should record it.
