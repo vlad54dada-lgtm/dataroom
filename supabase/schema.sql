@@ -826,3 +826,477 @@ grant execute on function public.is_object_shared(text) to anon, authenticated;
 create policy "pdfs_select_shared" on storage.objects
   for select to anon, authenticated
   using (bucket_id = 'pdfs' and public.is_object_shared(name));
+
+-- ---------------------------------------------------------------------------
+-- 14) access_and_sharing_v2
+-- ---------------------------------------------------------------------------
+--
+-- Three access surfaces on top of the owner-only model:
+--   * public links extend to FOLDERS (anon browsing of the shared subtree)
+--     and track opens (count + last opened);
+--   * dataroom MEMBERSHIP: the owner invites people by email as viewer
+--     (read/download) or editor (full content CRUD, no access management,
+--     no changes to the room row itself);
+--   * every table's RLS delegates to one helper, room_access(room), over a
+--     denormalized nodes.root_id (the dataroom every node belongs to).
+
+-- 14.1 root_id: the dataroom every node belongs to (self for datarooms).
+alter table public.nodes add column root_id uuid references public.nodes(id) on delete cascade;
+
+-- Backfill must not bump updated_at on every row.
+alter table public.nodes disable trigger nodes_set_updated_at;
+with recursive tree as (
+  select id, id as root from public.nodes where parent_id is null
+  union all
+  select n.id, t.root from public.nodes n join tree t on n.parent_id = t.id
+)
+update public.nodes n set root_id = t.root from tree t where n.id = t.id;
+alter table public.nodes enable trigger nodes_set_updated_at;
+
+alter table public.nodes alter column root_id set not null;
+create index nodes_root_idx on public.nodes (root_id);
+-- Membership queries no longer filter by user_id equality.
+drop index public.nodes_parent_idx;
+create index nodes_parent_idx on public.nodes (parent_id);
+
+-- 14.2 Triggers maintaining root_id (BEFORE computes; AFTER repoints the
+-- subtree on a cross-room move). SECURITY DEFINER like set_updated_at.
+create or replace function public.nodes_root_id_before()
+returns trigger language plpgsql security definer set search_path = ''
+as $$
+begin
+  if tg_op = 'INSERT' then
+    if new.parent_id is null then new.root_id := new.id;
+    else
+      select root_id into new.root_id from public.nodes where id = new.parent_id;
+      if new.root_id is null then raise exception 'parent % not found', new.parent_id; end if;
+    end if;
+  else
+    if pg_trigger_depth() > 1 then return new; end if;  -- internal subtree fix-up
+    if new.parent_id is distinct from old.parent_id then
+      if new.parent_id is null then new.root_id := new.id;
+      else
+        select root_id into new.root_id from public.nodes where id = new.parent_id;
+        if new.root_id is null then raise exception 'parent % not found', new.parent_id; end if;
+      end if;
+    else
+      new.root_id := old.root_id;  -- clients can never set root_id directly
+    end if;
+    if new.user_id is distinct from old.user_id then raise exception 'user_id is immutable'; end if;
+  end if;
+  return new;
+end;
+$$;
+create trigger nodes_root_id_before before insert or update on public.nodes
+  for each row execute function public.nodes_root_id_before();
+
+create or replace function public.nodes_root_id_after()
+returns trigger language plpgsql security definer set search_path = ''
+as $$
+begin
+  if pg_trigger_depth() > 1 then return null; end if;
+  update public.nodes set root_id = new.root_id
+  where id in (
+    with recursive sub as (
+      select id from public.nodes where parent_id = new.id
+      union all
+      select n.id from public.nodes n join sub s on n.parent_id = s.id
+    ) select id from sub
+  ) and root_id is distinct from new.root_id;
+  return null;
+end;
+$$;
+create trigger nodes_root_id_after after update of parent_id on public.nodes
+  for each row when (old.root_id is distinct from new.root_id)
+  execute function public.nodes_root_id_after();
+
+-- 14.3 Name uniqueness rescoped: children share ONE namespace per parent
+-- (owner + editors write into the same folder); roots stay per-account.
+drop index public.nodes_unique_container_names;
+create unique index nodes_unique_container_names on public.nodes (parent_id, lower(name))
+  where (type <> 'file' and deleted_at is null and parent_id is not null);
+create unique index nodes_unique_root_names on public.nodes (user_id, lower(name))
+  where (type <> 'file' and deleted_at is null and parent_id is null);
+
+-- 14.4 Membership.
+create table public.room_members (
+  id uuid primary key default gen_random_uuid(),
+  room_id uuid not null references public.nodes(id) on delete cascade,
+  email text not null check (email = lower(email) and position('@' in email) > 1),
+  user_id uuid references auth.users(id) on delete cascade,
+  role text not null check (role in ('viewer', 'editor')),
+  invited_by uuid not null references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  unique (room_id, email)
+);
+create index room_members_user_idx on public.room_members (user_id, room_id);
+create index room_members_email_idx on public.room_members (email) where user_id is null;
+alter table public.room_members enable row level security;
+
+-- 14.5 Access helpers. SECURITY DEFINER = safe to call FROM policies (they
+-- read past RLS, so no recursive policy evaluation).
+create or replace function public.room_owner_uid(room uuid)
+returns uuid language sql stable security definer set search_path = ''
+as $$ select user_id from public.nodes where id = room; $$;
+
+create or replace function public.room_access(room uuid)
+returns text language sql stable security definer set search_path = ''
+as $$
+  select case
+    when exists (select 1 from public.nodes r where r.id = room and r.user_id = (select auth.uid())) then 'owner'
+    else (select m.role from public.room_members m where m.room_id = room and m.user_id = (select auth.uid()))
+  end;
+$$;
+
+create or replace function public.node_root(node uuid)
+returns uuid language sql stable security definer set search_path = ''
+as $$ select root_id from public.nodes where id = node; $$;
+
+create policy "room_members_select" on public.room_members for select
+  using ((select auth.uid()) = user_id or public.room_owner_uid(room_id) = (select auth.uid()));
+create policy "room_members_insert_owner" on public.room_members for insert
+  with check (public.room_owner_uid(room_id) = (select auth.uid())
+              and invited_by = (select auth.uid()) and user_id is null);
+create policy "room_members_update_owner" on public.room_members for update
+  using (public.room_owner_uid(room_id) = (select auth.uid()))
+  with check (public.room_owner_uid(room_id) = (select auth.uid()));
+create policy "room_members_delete" on public.room_members for delete
+  using (public.room_owner_uid(room_id) = (select auth.uid()) or (select auth.uid()) = user_id);
+
+-- 14.6 Invite claiming: at signup (trigger) and at any later sign-in (RPC).
+create or replace function public.claim_invites_for_new_user()
+returns trigger language plpgsql security definer set search_path = ''
+as $$
+begin
+  update public.room_members set user_id = new.id where email = lower(new.email) and user_id is null;
+  return new;
+end;
+$$;
+create trigger claim_invites_on_signup after insert on auth.users
+  for each row execute function public.claim_invites_for_new_user();
+
+create or replace function public.claim_room_invites()
+returns int language plpgsql security definer set search_path = ''
+as $$
+declare uid uuid := (select auth.uid()); em text; n int;
+begin
+  if uid is null then return 0; end if;
+  select lower(email) into em from auth.users where id = uid;
+  update public.room_members set user_id = uid where email = em and user_id is null;
+  get diagnostics n = row_count;
+  return n;
+end;
+$$;
+
+-- 14.7 nodes policies: membership-aware. Replaces the owner-only set; owner
+-- behavior is identical (room_access = 'owner' for every pre-existing row).
+drop policy "nodes_select_own" on public.nodes;
+drop policy "nodes_insert_own" on public.nodes;
+drop policy "nodes_update_own" on public.nodes;
+drop policy "nodes_delete_own" on public.nodes;
+
+-- Viewer never sees trash; editor sees trash but never a trashed ROOM row
+-- (only the owner restores a room). One expression keeps list_trash/
+-- search_trash/countTrash consistent with zero RPC changes.
+--
+-- The first arm is NOT redundant: INSERT ... RETURNING on a NEW dataroom
+-- evaluates this policy, and room_access() (STABLE) reads the statement-
+-- start snapshot where the just-inserted room doesn't exist yet. Root rows
+-- owned by the caller are owner-visible by definition; content rows
+-- (parent_id not null) still answer to room_access alone, so a removed
+-- editor loses sight of rows they created.
+create policy "nodes_select_access" on public.nodes for select
+  using (
+    (parent_id is null and (select auth.uid()) = user_id)
+    or case public.room_access(root_id)
+      when 'owner'  then true
+      when 'editor' then (deleted_at is null or type <> 'dataroom')
+      when 'viewer' then deleted_at is null
+      else false
+    end
+  );
+-- WITH CHECK runs AFTER before-triggers, so root_id is already correct.
+-- A new dataroom's root_id = its own id, which doesn't exist yet: hence
+-- the parent_id-null bypass.
+create policy "nodes_insert_access" on public.nodes for insert
+  with check (
+    (select auth.uid()) = user_id
+    and (parent_id is null or public.room_access(root_id) in ('owner', 'editor'))
+  );
+-- Editors touch content only, never the room row (parent_id not null on
+-- BOTH sides: can't edit a room, can't turn a folder into a root).
+create policy "nodes_update_access" on public.nodes for update
+  using (public.room_access(root_id) = 'owner'
+         or (public.room_access(root_id) = 'editor' and parent_id is not null))
+  with check (public.room_access(root_id) = 'owner'
+              or (public.room_access(root_id) = 'editor' and parent_id is not null));
+create policy "nodes_delete_access" on public.nodes for delete
+  using (public.room_access(root_id) = 'owner'
+         or (public.room_access(root_id) = 'editor' and parent_id is not null));
+
+-- 14.8 file_texts / file_versions: members read, editors write.
+drop policy "file_texts_all_own" on public.file_texts;
+create policy "file_texts_select_access" on public.file_texts for select
+  using (public.room_access(public.node_root(node_id)) is not null);
+create policy "file_texts_insert_access" on public.file_texts for insert
+  with check ((select auth.uid()) = user_id
+    and public.room_access(public.node_root(node_id)) in ('owner','editor'));
+create policy "file_texts_update_access" on public.file_texts for update
+  using (public.room_access(public.node_root(node_id)) in ('owner','editor'))
+  with check (public.room_access(public.node_root(node_id)) in ('owner','editor'));
+create policy "file_texts_delete_access" on public.file_texts for delete
+  using (public.room_access(public.node_root(node_id)) in ('owner','editor'));
+
+drop policy "file_versions_all_own" on public.file_versions;
+create policy "file_versions_select_access" on public.file_versions for select
+  using (public.room_access(public.node_root(node_id)) is not null);
+create policy "file_versions_insert_access" on public.file_versions for insert
+  with check ((select auth.uid()) = user_id
+    and public.room_access(public.node_root(node_id)) in ('owner','editor'));
+create policy "file_versions_delete_access" on public.file_versions for delete
+  using (public.room_access(public.node_root(node_id)) in ('owner','editor'));
+
+-- 14.9 Storage: member read (current + version blobs). Editor upload needs
+-- no change: saveFile writes {uploader_uid}/... which pdfs_insert_own permits.
+create or replace function public.is_object_member_readable(object_name text)
+returns boolean language sql stable security definer set search_path = ''
+as $$
+  select exists (
+    select 1 from public.nodes n
+    where n.blob_path = object_name and public.room_access(n.root_id) is not null
+  ) or exists (
+    select 1 from public.file_versions fv
+    join public.nodes n on n.id = fv.node_id
+    where fv.blob_path = object_name and public.room_access(n.root_id) is not null
+  );
+$$;
+create policy "pdfs_select_member" on storage.objects for select to authenticated
+  using (bucket_id = 'pdfs' and public.is_object_member_readable(name));
+
+-- 14.10 Purge claims: blob cleanup when the deleter isn't the uploader.
+-- Claimed BEFORE the metadata delete (afterwards the rows are gone and no
+-- policy could authorize the storage removal).
+create table public.purge_claims (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  object_name text not null,
+  created_at timestamptz not null default now(),
+  primary key (user_id, object_name)
+);
+alter table public.purge_claims enable row level security;
+create policy "purge_claims_select_own" on public.purge_claims for select
+  using ((select auth.uid()) = user_id);
+
+create or replace function public.claim_purge_paths(node_id uuid)
+returns setof text language plpgsql security definer set search_path = ''
+as $$
+declare uid uuid := (select auth.uid()); rt uuid; par uuid;
+begin
+  if uid is null then raise exception 'not signed in'; end if;
+  select root_id, parent_id into rt, par from public.nodes where id = node_id;
+  if rt is null then raise exception 'not found'; end if;
+  if not (public.room_access(rt) = 'owner'
+          or (public.room_access(rt) = 'editor' and par is not null)) then
+    raise exception 'not allowed';
+  end if;
+  delete from public.purge_claims where user_id = uid and created_at < now() - interval '1 hour';
+  return query
+    with recursive subtree as (
+      select id, blob_path from public.nodes where id = node_id
+      union all
+      select n.id, n.blob_path from public.nodes n join subtree s on n.parent_id = s.id
+    ),
+    paths as (
+      select blob_path from subtree where blob_path is not null
+      union
+      select fv.blob_path from public.file_versions fv join subtree s on fv.node_id = s.id
+    ),
+    ins as (
+      insert into public.purge_claims (user_id, object_name)
+      select uid, blob_path from paths
+      on conflict do nothing
+      returning object_name
+    )
+    select blob_path from paths;
+end;
+$$;
+create policy "pdfs_delete_claimed" on storage.objects for delete to authenticated
+  using (bucket_id = 'pdfs' and exists (
+    select 1 from public.purge_claims c
+    where c.user_id = (select auth.uid()) and c.object_name = name
+  ));
+
+-- 14.11 Public links: folders + open tracking + a security fix.
+alter table public.file_shares
+  add column open_count int not null default 0,
+  add column last_opened_at timestamptz;
+
+-- FIX: the old policy checked only the share row's user_id — with
+-- membership an editor could mint a public link for owner content. Only
+-- the ROOM OWNER shares, and never a dataroom.
+drop policy "file_shares_insert_own" on public.file_shares;
+create policy "file_shares_insert_owner" on public.file_shares for insert
+  with check (
+    (select auth.uid()) = user_id
+    and exists (
+      select 1 from public.nodes n
+      where n.id = node_id and n.type <> 'dataroom'
+        and public.room_access(n.root_id) = 'owner'
+    )
+  );
+
+-- Token -> node (file OR folder), anon-safe.
+create or replace function public.get_shared_node(share_token uuid)
+returns table (node_id uuid, node_type text, name text, size bigint, blob_path text)
+language sql stable security definer set search_path = ''
+as $$
+  select n.id, n.type, n.name, n.size, n.blob_path
+  from public.file_shares s join public.nodes n on n.id = s.node_id
+  where s.token = share_token
+    and (s.expires_at is null or s.expires_at > now())
+    and n.deleted_at is null and n.type in ('file', 'folder');
+$$;
+
+-- Children of a folder INSIDE the shared subtree. Containment = bounded
+-- live up-walk from the requested parent to the token's node.
+create or replace function public.list_shared_children(share_token uuid, parent uuid)
+returns table (id uuid, parent_id uuid, type text, name text, size bigint,
+               blob_path text, created_at timestamptz, updated_at timestamptz)
+language sql stable security definer set search_path = ''
+as $$
+  with recursive share as (
+    select s.node_id from public.file_shares s
+    join public.nodes sn on sn.id = s.node_id
+    where s.token = share_token and (s.expires_at is null or s.expires_at > now())
+      and sn.deleted_at is null and sn.type = 'folder'
+  ),
+  up as (
+    select p.id, p.parent_id, 1 as depth from public.nodes p
+    where p.id = parent and p.deleted_at is null
+    union all
+    select n.id, n.parent_id, up.depth + 1 from public.nodes n
+    join up on n.id = up.parent_id
+    where n.deleted_at is null and up.depth < 60
+  )
+  select c.id, c.parent_id, c.type, c.name, c.size, c.blob_path, c.created_at, c.updated_at
+  from public.nodes c
+  where c.parent_id = parent and c.deleted_at is null
+    and exists (select 1 from share sh join up u on u.id = sh.node_id);
+$$;
+
+-- Breadcrumb chain from the shared root down to node (refresh support).
+-- Returns nothing when node is outside the shared subtree.
+create or replace function public.get_shared_ancestors(share_token uuid, node uuid)
+returns table (id uuid, name text, type text)
+language sql stable security definer set search_path = ''
+as $$
+  with recursive share as (
+    select s.node_id from public.file_shares s
+    join public.nodes sn on sn.id = s.node_id
+    where s.token = share_token and (s.expires_at is null or s.expires_at > now())
+      and sn.deleted_at is null and sn.type = 'folder'
+  ),
+  up as (
+    select p.id, p.parent_id, p.name, p.type, 1 as depth from public.nodes p
+    where p.id = node and p.deleted_at is null
+    union all
+    select n.id, n.parent_id, n.name, n.type, up.depth + 1 from public.nodes n
+    join up on n.id = up.parent_id
+    where n.deleted_at is null and up.depth < 60
+  )
+  select u.id, u.name, u.type from up u
+  where exists (select 1 from share sh join up r on r.id = sh.node_id)
+    and u.depth <= (select min(r.depth) from up r join share sh on sh.node_id = r.id)
+  order by u.depth desc;
+$$;
+
+-- Open tracking: count + last-opened, no visit log. Anon-callable.
+create or replace function public.record_share_open(share_token uuid)
+returns void language sql security definer set search_path = ''
+as $$
+  update public.file_shares
+  set open_count = open_count + 1, last_opened_at = now()
+  where token = share_token and (expires_at is null or expires_at > now());
+$$;
+
+-- Rewritten: TRUE when any LIVE ancestor (or the file itself) carries a
+-- live share. Strictly compatible for direct file links.
+create or replace function public.is_object_shared(object_name text)
+returns boolean language sql stable security definer set search_path = ''
+as $$
+  with recursive up as (
+    select n.id, n.parent_id, 1 as depth from public.nodes n
+    where n.blob_path = object_name and n.deleted_at is null
+    union all
+    select p.id, p.parent_id, u.depth + 1 from public.nodes p
+    join up u on p.id = u.parent_id
+    where p.deleted_at is null and u.depth < 60
+  )
+  select exists (
+    select 1 from public.file_shares s join up u on u.id = s.node_id
+    where (s.expires_at is null or s.expires_at > now())
+  );
+$$;
+
+-- 14.12 Listing RPCs for the client (SECURITY INVOKER — RLS does scoping).
+create or replace function public.list_rooms()
+returns table (id uuid, parent_id uuid, type text, name text, size bigint,
+  blob_path text, created_at timestamptz, updated_at timestamptz,
+  description text, icon text, color text, sort_order double precision,
+  access text, member_count bigint)
+language sql stable security invoker set search_path = ''
+as $$
+  select n.id, n.parent_id, n.type, n.name, n.size, n.blob_path,
+         n.created_at, n.updated_at, n.description, n.icon, n.color, n.sort_order,
+         public.room_access(n.id) as access,
+         case when public.room_access(n.id) = 'owner'
+              then (select count(*) from public.room_members m where m.room_id = n.id)
+              else 0 end as member_count
+  from public.nodes n
+  where n.parent_id is null and n.deleted_at is null;
+$$;
+
+create or replace function public.list_my_shares()
+returns table (token uuid, created_at timestamptz, open_count int,
+  last_opened_at timestamptz, node_id uuid, node_name text, node_type text,
+  active boolean, room_name text)
+language sql stable security invoker set search_path = ''
+as $$
+  select s.token, s.created_at, s.open_count, s.last_opened_at,
+         n.id, n.name, n.type, (n.deleted_at is null) as active,
+         case when r.id = n.id then null else r.name end as room_name
+  from public.file_shares s
+  join public.nodes n on n.id = s.node_id
+  left join public.nodes r on r.id = n.root_id
+  where s.user_id = (select auth.uid())
+  order by s.created_at desc;
+$$;
+
+create or replace function public.list_my_room_members()
+returns table (id uuid, room_id uuid, room_name text, room_icon text,
+  room_color text, email text, role text, claimed boolean, created_at timestamptz)
+language sql stable security invoker set search_path = ''
+as $$
+  select m.id, m.room_id, r.name, r.icon, r.color,
+         m.email, m.role, (m.user_id is not null) as claimed, m.created_at
+  from public.room_members m
+  join public.nodes r on r.id = m.room_id
+  where public.room_owner_uid(m.room_id) = (select auth.uid()) and r.deleted_at is null
+  order by lower(r.name), m.created_at;
+$$;
+
+-- 14.13 Grants.
+grant execute on function public.get_shared_node(uuid), public.list_shared_children(uuid, uuid),
+  public.get_shared_ancestors(uuid, uuid), public.record_share_open(uuid),
+  public.is_object_shared(text) to anon, authenticated;
+grant execute on function public.room_access(uuid), public.claim_room_invites(),
+  public.claim_purge_paths(uuid), public.list_rooms(), public.list_my_shares(),
+  public.list_my_room_members(), public.is_object_member_readable(text) to authenticated;
+revoke execute on function public.claim_room_invites(), public.claim_purge_paths(uuid),
+  public.list_rooms(), public.list_my_shares(), public.list_my_room_members() from anon;
+
+-- 14.14 Trigger functions run as the table owner via their triggers; nothing
+-- should call them through the API. (Advisor-driven hardening.)
+revoke execute on function public.nodes_root_id_before(), public.nodes_root_id_after(),
+  public.claim_invites_for_new_user(), public.set_updated_at(),
+  public.auto_confirm_email(), public.handle_new_user()
+from anon, authenticated, public;
