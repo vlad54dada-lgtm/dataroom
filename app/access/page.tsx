@@ -18,15 +18,18 @@ import {
 } from "lucide-react";
 import {
   leaveRoom,
+  leaveSharedNode,
   listMyRoomMembers,
   listMyShares,
   listRooms,
+  listSharedWithMeNodes,
   removeMember,
   revokeShare,
   setMemberRole,
   type MyShareLink,
   type RoomListEntry,
   type RoomMembersGroup,
+  type SharedNodeEntry,
 } from "@/lib/storage";
 import { formatDate, formatModified, siteOrigin } from "@/lib/utils";
 import { useAsync } from "@/lib/hooks/use-async";
@@ -45,23 +48,27 @@ import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
 import { ListSkeleton } from "@/components/list-skeleton";
 import { RoomAvatar } from "@/components/room-avatar";
+import { SharedNodesSection } from "@/components/shared-nodes-section";
 
 interface AccessData {
   links: MyShareLink[];
   memberGroups: RoomMembersGroup[];
   sharedWithMe: RoomListEntry[];
+  sharedNodes: SharedNodeEntry[];
 }
 
 async function loadAccess(): Promise<AccessData> {
-  const [links, memberGroups, rooms] = await Promise.all([
+  const [links, memberGroups, rooms, sharedNodes] = await Promise.all([
     listMyShares(),
     listMyRoomMembers(),
     listRooms(),
+    listSharedWithMeNodes(),
   ]);
   return {
     links,
     memberGroups,
     sharedWithMe: rooms.filter((r) => r.access !== "owner"),
+    sharedNodes,
   };
 }
 
@@ -193,6 +200,22 @@ function AccessView() {
     }
   };
 
+  const handleLeaveNode = async (entry: SharedNodeEntry) => {
+    setBusyKey(`leave-node:${entry.id}`);
+    try {
+      await leaveSharedNode(entry.id);
+      setData((d) => ({
+        ...d,
+        sharedNodes: d.sharedNodes.filter((n) => n.id !== entry.id),
+      }));
+      toast.success("You left", { description: entry.name });
+    } catch {
+      toast.error("Couldn't leave");
+    } finally {
+      setBusyKey(null);
+    }
+  };
+
   return (
     <>
       <AppHeader />
@@ -228,7 +251,8 @@ function AccessView() {
           {state.status === "success" &&
             (state.data.links.length === 0 &&
             state.data.memberGroups.length === 0 &&
-            state.data.sharedWithMe.length === 0 ? (
+            state.data.sharedWithMe.length === 0 &&
+            state.data.sharedNodes.length === 0 ? (
               <EmptyState variant="no-shares" />
             ) : (
               <div className="space-y-8">
@@ -519,6 +543,22 @@ function AccessView() {
                         ))}
                       </ul>
                     </div>
+                  </div>
+                )}
+
+                {/* --------------------------- files & folders shared with me */}
+                {state.data.sharedNodes.length > 0 && (
+                  <div className="space-y-3">
+                    <SectionHeading>Files &amp; folders shared with you</SectionHeading>
+                    <SharedNodesSection
+                      entries={state.data.sharedNodes}
+                      onLeave={(entry) => void handleLeaveNode(entry)}
+                      leavingId={
+                        busyKey?.startsWith("leave-node:")
+                          ? busyKey.slice("leave-node:".length)
+                          : null
+                      }
+                    />
                   </div>
                 )}
               </div>

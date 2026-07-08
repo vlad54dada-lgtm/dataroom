@@ -10,13 +10,16 @@ import {
   createNode,
   isDuplicateNameError,
   leaveRoom,
+  leaveSharedNode,
   listChildCounts,
   listRooms,
+  listSharedWithMeNodes,
   reorderDatarooms,
   restoreNode,
   searchAllNodes,
   trashNode,
   updateDataroom,
+  type SharedNodeEntry,
 } from "@/lib/storage";
 import { flySourcesFor, flyToTrash } from "@/lib/fly-to-trash";
 import { useAsync } from "@/lib/hooks/use-async";
@@ -32,6 +35,7 @@ import type { DataroomListItem } from "@/components/dataroom-card";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
 import { ListSkeleton } from "@/components/list-skeleton";
+import { SharedNodesSection } from "@/components/shared-nodes-section";
 import { SearchResults } from "@/components/search-results";
 import {
   DEFAULT_SEARCH_FILTER,
@@ -99,6 +103,23 @@ export default function HomePage() {
 function HomeView() {
   useDocumentTitle("Datarooms — Acme Corp. Dataroom");
   const { state, reload, setData } = useAsync(loadRooms, "datarooms");
+  // Individual files/folders shared with me (separate from shared rooms).
+  const sharedNodes = useAsync(listSharedWithMeNodes, "shared-nodes");
+  const sharedNodeList =
+    sharedNodes.state.status === "success" ? sharedNodes.state.data : [];
+  const [leavingNodeId, setLeavingNodeId] = useState<string | null>(null);
+  const handleLeaveNode = async (entry: SharedNodeEntry) => {
+    setLeavingNodeId(entry.id);
+    try {
+      await leaveSharedNode(entry.id);
+      sharedNodes.setData((list) => list.filter((n) => n.id !== entry.id));
+      toast.success("You left", { description: entry.name });
+    } catch {
+      toast.error("Couldn't leave");
+    } finally {
+      setLeavingNodeId(null);
+    }
+  };
 
   // Global search across every dataroom — same URL/debounce contract as the
   // room search (?q= is the source of truth, 250ms debounce, / or Cmd+K).
@@ -461,7 +482,11 @@ function HomeView() {
                   const shared = state.data.filter(
                     (it) => it.access !== "owner",
                   );
-                  if (owned.length === 0 && shared.length === 0) {
+                  if (
+                    owned.length === 0 &&
+                    shared.length === 0 &&
+                    sharedNodeList.length === 0
+                  ) {
                     return (
                       <EmptyState
                         variant="no-datarooms"
@@ -512,6 +537,24 @@ function HomeView() {
                             onLeave={(room) =>
                               void leaveShared.run(room).catch(() => {})
                             }
+                          />
+                        </div>
+                      )}
+                      {sharedNodeList.length > 0 && (
+                        <div
+                          className={
+                            owned.length > 0 || shared.length > 0
+                              ? "mt-8"
+                              : undefined
+                          }
+                        >
+                          <h2 className="mb-3 text-[11px] font-medium tracking-[0.08em] uppercase text-muted-foreground">
+                            Files &amp; folders shared with you
+                          </h2>
+                          <SharedNodesSection
+                            entries={sharedNodeList}
+                            onLeave={(entry) => void handleLeaveNode(entry)}
+                            leavingId={leavingNodeId}
                           />
                         </div>
                       )}
