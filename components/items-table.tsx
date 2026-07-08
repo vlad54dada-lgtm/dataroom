@@ -111,25 +111,30 @@ interface ItemsTableProps {
   onSortChange: (sort: ItemsSort) => void;
   hrefFor: (id: string) => string;
   onOpenFile: (node: Node, trigger: HTMLElement | null) => void;
-  onRename: (node: Node, trigger: HTMLElement | null) => void;
-  onDelete: (node: Node, trigger: HTMLElement | null) => void;
+  /** Optional: viewers get a read-only table (no mutating controls). */
+  onRename?: (node: Node, trigger: HTMLElement | null) => void;
+  onDelete?: (node: Node, trigger: HTMLElement | null) => void;
   /** Single-item actions surfaced in the kebab and context menu. */
   onDownloadNode?: (node: Node) => void;
   onMoveNode?: (node: Node) => void;
   /** File versioning: replace content / open the history dialog. */
   onUploadVersion?: (node: Node) => void;
   onVersionHistory?: (node: Node, trigger: HTMLElement | null) => void;
-  /** Opens the share settings dialog for a file. */
+  /** Opens the share settings dialog for a file or folder. */
   onShare?: (node: Node, trigger: HTMLElement | null) => void;
   /** Warms a folder's contents cache on row hover. */
   onPrefetch?: (id: string) => void;
   /** Direct child counts per folder id — folders show them in Size. */
   childCounts?: ReadonlyMap<string, number>;
-  /** Bulk actions for the selection bar. */
-  onBulkTrash: (nodes: Node[]) => void;
+  /** Nodes carrying an active public link — rows show the badge. */
+  sharedIds?: ReadonlySet<string>;
+  /** Viewer mode: no drag sources or folder drop targets. */
+  disableDrag?: boolean;
+  /** Bulk actions for the selection bar (absent in viewer mode). */
+  onBulkTrash?: (nodes: Node[]) => void;
   onBulkDownload: (files: Node[]) => void;
   /** Opens the destination picker for the given nodes. */
-  onBulkMove: (nodes: Node[]) => void;
+  onBulkMove?: (nodes: Node[]) => void;
   /** Ids dropped onto a folder row (drag-and-drop move). */
   onDropNodes: (ids: string[], target: Node) => void;
 }
@@ -155,6 +160,8 @@ export function ItemsTable({
   onShare,
   onPrefetch,
   childCounts,
+  sharedIds,
+  disableDrag,
   onBulkTrash,
   onBulkDownload,
   onBulkMove,
@@ -293,7 +300,7 @@ export function ItemsTable({
         break;
       case "F2":
         e.preventDefault();
-        onRename(node, target);
+        onRename?.(node, target);
         break;
       case " ":
         if (target.hasAttribute("data-row-primary")) {
@@ -302,15 +309,16 @@ export function ItemsTable({
         }
         break;
       case "Delete": {
+        if (!onDelete && !onBulkTrash) break; // read-only table
         e.preventDefault();
         // Keep the keyboard in the list: focus the neighbor before rows move.
         const neighbor =
           primaryOf(rows[index + 1]) ?? primaryOf(rows[index - 1]);
-        if (selectionActive) {
+        if (selectionActive && onBulkTrash) {
           onBulkTrash(liveSelected);
           clear();
         } else {
-          onDelete(node, null);
+          onDelete?.(node, null);
         }
         setTimeout(() => {
           if (neighbor?.isConnected) neighbor.focus();
@@ -387,6 +395,8 @@ export function ItemsTable({
                 onShare={onShare}
                 onPrefetch={onPrefetch}
                 childCount={childCounts?.get(node.id)}
+                shared={sharedIds?.has(node.id)}
+                disableDrag={disableDrag}
                 selected={selectedIds.has(node.id)}
                 selectionActive={selectionActive}
                 onToggleSelect={toggle}
@@ -412,11 +422,15 @@ export function ItemsTable({
         onDownload={() => {
           onBulkDownload(liveSelected.filter((n) => n.type === "file"));
         }}
-        onMove={() => onBulkMove(liveSelected)}
-        onTrash={() => {
-          onBulkTrash(liveSelected);
-          clear();
-        }}
+        onMove={onBulkMove ? () => onBulkMove(liveSelected) : undefined}
+        onTrash={
+          onBulkTrash
+            ? () => {
+                onBulkTrash(liveSelected);
+                clear();
+              }
+            : undefined
+        }
         onClear={clear}
       />
     </>

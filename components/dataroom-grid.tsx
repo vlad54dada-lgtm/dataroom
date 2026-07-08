@@ -15,8 +15,12 @@ import {
 
 interface DataroomGridProps {
   items: DataroomListItem[];
-  onEdit: (room: Node, trigger: HTMLElement | null) => void;
-  onDelete: (room: Node, trigger: HTMLElement | null) => void;
+  /** Owner-only actions; absent for the "Shared with you" section. */
+  onEdit?: (room: Node, trigger: HTMLElement | null) => void;
+  onDelete?: (room: Node, trigger: HTMLElement | null) => void;
+  onManageAccess?: (room: Node, trigger: HTMLElement | null) => void;
+  /** Shared-with-me cards: the member's own exit. */
+  onLeave?: (room: Node, trigger: HTMLElement | null) => void;
   /** Trash-stack items dropped on a card restore into that room. */
   onDropRestore?: (ids: string[], room: Node) => void;
   /** Persist a new order after a drag-to-reorder (no-op when unchanged). */
@@ -38,6 +42,8 @@ export function DataroomGrid({
   items,
   onEdit,
   onDelete,
+  onManageAccess,
+  onLeave,
   onDropRestore,
   onReorder,
 }: DataroomGridProps) {
@@ -72,6 +78,8 @@ export function DataroomGrid({
             reorderDisabled={!reorderable}
             onEdit={onEdit}
             onDelete={onDelete}
+            onManageAccess={onManageAccess}
+            onLeave={onLeave}
             onDropRestore={onDropRestore}
           />
         ))}

@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSortable } from "@dnd-kit/react/sortable";
+import { Users } from "lucide-react";
 import type { Node } from "@/types";
+import type { RoomRole } from "@/lib/storage";
 import { RESTORE_MIME, readIds } from "@/lib/dnd";
 import { cn, formatDate } from "@/lib/utils";
 import { RoomAvatar } from "@/components/room-avatar";
@@ -12,6 +14,10 @@ import { RowMenu } from "@/components/row-menu";
 export interface DataroomListItem {
   node: Node;
   itemCount: number; // direct children only
+  /** The caller's relationship to this room. */
+  access: RoomRole;
+  /** People invited by the owner (0 unless access = "owner"). */
+  memberCount: number;
 }
 
 interface DataroomCardProps {
@@ -20,8 +26,12 @@ interface DataroomCardProps {
   index: number;
   /** Turns off drag-to-reorder (single-card grid, or reorder unsupported). */
   reorderDisabled?: boolean;
-  onEdit: (room: Node, trigger: HTMLElement | null) => void;
-  onDelete: (room: Node, trigger: HTMLElement | null) => void;
+  /** Owner-only actions; absent on shared-with-me cards. */
+  onEdit?: (room: Node, trigger: HTMLElement | null) => void;
+  onDelete?: (room: Node, trigger: HTMLElement | null) => void;
+  onManageAccess?: (room: Node, trigger: HTMLElement | null) => void;
+  /** Shared-with-me cards: the member's own exit. */
+  onLeave?: (room: Node, trigger: HTMLElement | null) => void;
   /** Items dragged out of the trash stack and dropped here restore into this room. */
   onDropRestore?: (ids: string[], room: Node) => void;
 }
@@ -39,9 +49,12 @@ export function DataroomCard({
   reorderDisabled,
   onEdit,
   onDelete,
+  onManageAccess,
+  onLeave,
   onDropRestore,
 }: DataroomCardProps) {
-  const { node, itemCount } = item;
+  const { node, itemCount, access, memberCount } = item;
+  const sharedWithMe = access !== "owner";
   const router = useRouter();
   const href = `/room/${node.id}`;
   // A trash-stack item is hovering over this card.
@@ -146,16 +159,39 @@ export function DataroomCard({
       )}
     >
       <div className="flex items-start justify-between gap-2">
-        <RoomAvatar
-          icon={node.icon}
-          color={node.color}
-          className="transition-transform duration-200 ease-out-strong group-hover:scale-[1.03] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
-        />
+        <div className="flex min-w-0 items-center gap-2">
+          <RoomAvatar
+            icon={node.icon}
+            color={node.color}
+            className="shrink-0 transition-transform duration-200 ease-out-strong group-hover:scale-[1.03] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
+          />
+          {/* Access at a glance: brand pill on rooms I've shared out,
+              neutral pill on rooms shared with me. */}
+          {sharedWithMe ? (
+            <span className="flex shrink-0 items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground ring-1 ring-border ring-inset">
+              <Users className="size-3" aria-hidden />
+              Shared with you
+            </span>
+          ) : memberCount > 0 ? (
+            <span className="flex shrink-0 items-center gap-1 rounded-full bg-folder-bg px-2 py-0.5 text-xs font-medium text-brand ring-1 ring-brand/15 ring-inset">
+              <Users className="size-3" aria-hidden />
+              Shared
+            </span>
+          ) : null}
+        </div>
         <RowMenu
-          className="relative z-10 -mt-1 -mr-1 text-muted-foreground"
+          className="relative z-10 -mt-1 -mr-1 shrink-0 text-muted-foreground"
+          subject={node.name}
           renameLabel="Edit"
-          onRename={(trigger) => onEdit(node, trigger)}
-          onDelete={(trigger) => onDelete(node, trigger)}
+          onRename={onEdit ? (trigger) => onEdit(node, trigger) : undefined}
+          onDelete={onDelete ? (trigger) => onDelete(node, trigger) : undefined}
+          onShare={
+            onManageAccess
+              ? (trigger) => onManageAccess(node, trigger)
+              : undefined
+          }
+          shareLabel={onManageAccess ? "Manage access" : undefined}
+          onLeave={onLeave ? (trigger) => onLeave(node, trigger) : undefined}
         />
       </div>
       {/* One size + one weight step above a table-row name: with the color
@@ -186,6 +222,8 @@ export function DataroomCard({
             {itemCount === 1 ? "1 item" : `${itemCount} items`}
             {" · Created "}
             {formatDate(node.createdAt)}
+            {memberCount > 0 &&
+              ` · ${memberCount} ${memberCount === 1 ? "person" : "people"}`}
           </p>
         </div>
       </div>

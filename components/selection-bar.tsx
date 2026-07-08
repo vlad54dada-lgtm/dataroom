@@ -15,8 +15,9 @@ interface SelectionBarProps {
   /** How many of the selected items are files (downloadable). */
   fileCount: number;
   onDownload: () => void;
-  onMove: () => void;
-  onTrash: () => void;
+  /** Absent in viewer mode — the buttons simply don't render. */
+  onMove?: () => void;
+  onTrash?: () => void;
   onClear: () => void;
 }
 
@@ -107,19 +108,23 @@ export function SelectionBar(props: SelectionBarProps) {
             <TooltipContent>Only files can be downloaded</TooltipContent>
           )}
         </Tooltip>
-        <Button variant="ghost" size="sm" onClick={onMove}>
-          <FolderInput /> <span className="max-sm:sr-only">Move to…</span>
-        </Button>
+        {onMove && (
+          <Button variant="ghost" size="sm" onClick={onMove}>
+            <FolderInput /> <span className="max-sm:sr-only">Move to…</span>
+          </Button>
+        )}
         {/* Destructive register, same recipe as the menus' Move-to-trash
             item: red text, red wash on hover. */}
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-destructive hover:bg-destructive/10 hover:text-destructive dark:hover:bg-destructive/15"
-          onClick={onTrash}
-        >
-          <Trash2 /> <span className="max-sm:sr-only">Move to trash</span>
-        </Button>
+        {onTrash && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-destructive hover:bg-destructive/10 hover:text-destructive dark:hover:bg-destructive/15"
+            onClick={onTrash}
+          >
+            <Trash2 /> <span className="max-sm:sr-only">Move to trash</span>
+          </Button>
+        )}
         <Button
           variant="ghost"
           size="icon-sm"

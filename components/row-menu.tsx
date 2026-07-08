@@ -8,8 +8,10 @@ import {
   FolderInput,
   History,
   Link2,
+  LogOut,
   Pencil,
   Trash2,
+  Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,17 +23,23 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 interface RowMenuProps {
-  /** Callbacks receive the kebab element so dialogs can restore focus to it. */
-  onRename: (trigger: HTMLElement | null) => void;
-  onDelete: (trigger: HTMLElement | null) => void;
+  /** Callbacks receive the kebab element so dialogs can restore focus to it.
+      Optional: viewers get no mutating items at all. */
+  onRename?: (trigger: HTMLElement | null) => void;
+  onDelete?: (trigger: HTMLElement | null) => void;
   /** File rows only: single-item download. */
   onDownload?: () => void;
   /** File rows only: replace content, keep name/id — history preserved. */
   onUploadVersion?: () => void;
   /** File rows only: opens the version history dialog. */
   onVersionHistory?: (trigger: HTMLElement | null) => void;
-  /** File rows only: opens the share settings dialog. */
+  /** Opens the share settings dialog (files, folders — and rooms, where
+      cards pass shareLabel "Manage access"). */
   onShare?: (trigger: HTMLElement | null) => void;
+  /** Overrides the Share item's label + icon (dataroom cards). */
+  shareLabel?: string;
+  /** Shared-with-me cards: leave the room (destructive register). */
+  onLeave?: (trigger: HTMLElement | null) => void;
   /** Opens the Move to… destination picker for this item. */
   onMove?: (trigger: HTMLElement | null) => void;
   /** Dataroom cards say "Edit" (name + description + avatar), rows "Rename". */
@@ -49,6 +57,8 @@ export function RowMenu({
   onUploadVersion,
   onVersionHistory,
   onShare,
+  shareLabel,
+  onLeave,
   onMove,
   renameLabel = "Rename",
   subject,
@@ -116,20 +126,23 @@ export function RowMenu({
               onShare(triggerRef.current);
             }}
           >
-            <Link2 /> Share
+            {shareLabel ? <Users /> : <Link2 />} {shareLabel ?? "Share"}
           </DropdownMenuItem>
         )}
-        {(onDownload || onUploadVersion || onVersionHistory || onShare) && (
-          <DropdownMenuSeparator />
+        {(onDownload || onUploadVersion || onVersionHistory || onShare) &&
+          (onRename || onMove || onDelete || onLeave) && (
+            <DropdownMenuSeparator />
+          )}
+        {onRename && (
+          <DropdownMenuItem
+            onSelect={() => {
+              actionChosenRef.current = true;
+              onRename(triggerRef.current);
+            }}
+          >
+            <Pencil /> {renameLabel}
+          </DropdownMenuItem>
         )}
-        <DropdownMenuItem
-          onSelect={() => {
-            actionChosenRef.current = true;
-            onRename(triggerRef.current);
-          }}
-        >
-          <Pencil /> {renameLabel}
-        </DropdownMenuItem>
         {onMove && (
           <DropdownMenuItem
             onSelect={() => {
@@ -140,16 +153,34 @@ export function RowMenu({
             <FolderInput /> Move to…
           </DropdownMenuItem>
         )}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          variant="destructive"
-          onSelect={() => {
-            actionChosenRef.current = true;
-            onDelete(triggerRef.current);
-          }}
-        >
-          <Trash2 /> Move to trash
-        </DropdownMenuItem>
+        {onDelete && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              variant="destructive"
+              onSelect={() => {
+                actionChosenRef.current = true;
+                onDelete(triggerRef.current);
+              }}
+            >
+              <Trash2 /> Move to trash
+            </DropdownMenuItem>
+          </>
+        )}
+        {onLeave && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              variant="destructive"
+              onSelect={() => {
+                actionChosenRef.current = true;
+                onLeave(triggerRef.current);
+              }}
+            >
+              <LogOut /> Leave dataroom
+            </DropdownMenuItem>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

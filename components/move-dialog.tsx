@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ChevronRight, CornerDownRight, Folder, Loader2 } from "lucide-react";
 import type { Node } from "@/types";
-import { listChildren } from "@/lib/storage";
+import { listChildren, listRooms } from "@/lib/storage";
 import { cn } from "@/lib/utils";
 import { useAsync } from "@/lib/hooks/use-async";
 import { Button } from "@/components/ui/button";
@@ -44,7 +44,15 @@ export function MoveDialog({
   onConfirm,
   onClose,
 }: MoveDialogProps) {
-  const rooms = useAsync(() => listChildren(null), "move-dialog-rooms");
+  // Destinations the caller can WRITE into: owned rooms + editor rooms.
+  // Viewer rooms are read-only and never valid targets.
+  const rooms = useAsync(
+    async () =>
+      (await listRooms())
+        .filter((r) => r.access !== "viewer")
+        .map((r) => r.node),
+    "move-dialog-rooms",
+  );
   const [target, setTarget] = useState<Node | null>(null);
   const [submitting, setSubmitting] = useState(false);
 

@@ -9,8 +9,9 @@ import {
   compareNodes,
   createNode,
   isDuplicateNameError,
+  leaveRoom,
   listChildCounts,
-  listChildren,
+  listRooms,
   reorderDatarooms,
   restoreNode,
   searchAllNodes,
@@ -43,11 +44,13 @@ import {
   DataroomDialog,
   type DataroomValues,
 } from "@/components/dataroom-dialog";
+import { MembersDialog } from "@/components/members-dialog";
 
 type DialogState =
   | { kind: "none" }
   | { kind: "create" }
-  | { kind: "edit"; room: Node };
+  | { kind: "edit"; room: Node }
+  | { kind: "members"; room: Node };
 
 /** The toolbar/CTA button is focused by its own click — capture it. */
 const activeTrigger = () =>
@@ -56,12 +59,15 @@ const activeTrigger = () =>
     : null;
 
 async function loadRooms(): Promise<DataroomListItem[]> {
-  // Exactly two requests regardless of how many rooms exist.
-  const rooms = await listChildren(null);
-  const counts = await listChildCounts(rooms.map((r) => r.id));
-  return rooms.map((node) => ({
+  // Exactly two requests regardless of how many rooms exist. listRooms
+  // returns owned AND shared-with-me rooms, each with the caller's role.
+  const rooms = await listRooms();
+  const counts = await listChildCounts(rooms.map((r) => r.node.id));
+  return rooms.map(({ node, access, memberCount }) => ({
     node,
     itemCount: counts.get(node.id) ?? 0,
+    access,
+    memberCount,
   }));
 }
 
@@ -198,21 +204,34 @@ function HomeView() {
   const [returnTo, setReturnTo] = useState<HTMLElement | null>(null);
   const closeDialog = () => setDialog({ kind: "none" });
 
-  // Drag-to-reorder: reflect the new order immediately (with matching
-  // sort_order values so later create/edit re-sorts agree), then persist.
+  // Drag-to-reorder (owned rooms only): reflect the new order immediately
+  // (with matching sort_order values so later create/edit re-sorts agree),
+  // then persist. Shared-with-me rooms live in their own section untouched.
   const reorderRooms = (orderedIds: string[]) => {
     setData((items) => {
       const byId = new Map(items.map((it) => [it.node.id, it]));
-      return orderedIds.flatMap((id, i) => {
+      const reordered = orderedIds.flatMap((id, i) => {
         const it = byId.get(id);
         return it ? [{ ...it, node: { ...it.node, sortOrder: i + 1 } }] : [];
       });
+      const rest = items.filter((it) => !orderedIds.includes(it.node.id));
+      return [...reordered, ...rest];
     });
     void reorderDatarooms(orderedIds).catch(() => {
       toast.error("Couldn't save the new order");
       reload();
     });
   };
+
+  /** The member's own exit from a shared room — the card leaves at once. */
+  const leaveShared = useMutation((room: Node) => leaveRoom(room.id), {
+    optimistic: (room) => {
+      setData((items) => items.filter((i) => i.node.id !== room.id));
+      return () => reload();
+    },
+    successToast: (_r) => "You left the dataroom",
+    errorToast: () => "Couldn't leave the dataroom",
+  });
 
   const createRoom = useMutation(
     (values: DataroomValues) => createNode({ type: "dataroom", ...values }),
@@ -221,7 +240,12 @@ function HomeView() {
       errorToast: (e) =>
         isDuplicateNameError(e) ? null : "Couldn't create the dataroom",
       onSuccess: (node) => {
-        setData((items) => sortItems([...items, { node, itemCount: 0 }]));
+        setData((items) =>
+          sortItems([
+            ...items,
+            { node, itemCount: 0, access: "owner", memberCount: 0 },
+          ]),
+        );
         // Belt for the cold path: if the initial list is still loading the
         // patch above has nothing to apply to — refetch post-commit so the
         // new card can never be missing.
@@ -430,34 +454,70 @@ function HomeView() {
               {state.status === "loading" && <ListSkeleton variant="cards" />}
               {state.status === "error" && <ErrorState onRetry={reload} />}
               {state.status === "success" &&
-                (state.data.length === 0 ? (
-                  <EmptyState
-                    variant="no-datarooms"
-                    action={
-                      <Button
-                        onClick={() => {
-                          setReturnTo(activeTrigger());
-                          openDialog({ kind: "create" });
-                        }}
-                      >
-                        <Plus /> Create dataroom
-                      </Button>
-                    }
-                  />
-                ) : (
-                  <DataroomGrid
-                    items={state.data}
-                    onEdit={(room, trigger) => {
-                      setReturnTo(trigger);
-                      openDialog({ kind: "edit", room });
-                    }}
-                    onDelete={(room) => void trashRoom.run(room).catch(() => {})}
-                    onDropRestore={(ids, room) =>
-                      void handleRestoreDrop(ids, room)
-                    }
-                    onReorder={reorderRooms}
-                  />
-                ))}
+                (() => {
+                  const owned = state.data.filter(
+                    (it) => it.access === "owner",
+                  );
+                  const shared = state.data.filter(
+                    (it) => it.access !== "owner",
+                  );
+                  if (owned.length === 0 && shared.length === 0) {
+                    return (
+                      <EmptyState
+                        variant="no-datarooms"
+                        action={
+                          <Button
+                            onClick={() => {
+                              setReturnTo(activeTrigger());
+                              openDialog({ kind: "create" });
+                            }}
+                          >
+                            <Plus /> Create dataroom
+                          </Button>
+                        }
+                      />
+                    );
+                  }
+                  return (
+                    <>
+                      {owned.length > 0 && (
+                        <DataroomGrid
+                          items={owned}
+                          onEdit={(room, trigger) => {
+                            setReturnTo(trigger);
+                            openDialog({ kind: "edit", room });
+                          }}
+                          onDelete={(room) =>
+                            void trashRoom.run(room).catch(() => {})
+                          }
+                          onManageAccess={(room, trigger) => {
+                            setReturnTo(trigger);
+                            openDialog({ kind: "members", room });
+                          }}
+                          onDropRestore={(ids, room) =>
+                            void handleRestoreDrop(ids, room)
+                          }
+                          onReorder={reorderRooms}
+                        />
+                      )}
+                      {shared.length > 0 && (
+                        <div className={owned.length > 0 ? "mt-8" : undefined}>
+                          {/* The ledger register, same as table headers —
+                              these rooms belong to someone else. */}
+                          <h2 className="mb-3 text-[11px] font-medium tracking-[0.08em] uppercase text-muted-foreground">
+                            Shared with you
+                          </h2>
+                          <DataroomGrid
+                            items={shared}
+                            onLeave={(room) =>
+                              void leaveShared.run(room).catch(() => {})
+                            }
+                          />
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
             </>
           )}
         </section>
@@ -468,6 +528,13 @@ function HomeView() {
         onClose={() => setViewerFile(null)}
         returnFocusTo={viewerReturn}
         initialFind={viewerFind}
+      />
+
+      <MembersDialog
+        key={`members-${dialogGen}`}
+        room={dialog.kind === "members" ? dialog.room : null}
+        onClose={closeDialog}
+        returnFocusTo={returnTo}
       />
 
       <DataroomDialog

@@ -8,16 +8,18 @@ import {
   useSearchParams,
 } from "next/navigation";
 import { toast } from "sonner";
-import { RotateCcw, Search, Upload, X } from "lucide-react";
+import { RotateCcw, Search, Upload, Users, X } from "lucide-react";
 import type { Node } from "@/types";
 import {
   compareNodes,
   createNode,
   getBlob,
+  getMyRoomAccess,
   getNode,
   isDuplicateNameError,
   listChildCounts,
   listChildren,
+  listShareStatus,
   moveNodes,
   renameNode,
   restoreFileVersion,
@@ -69,6 +71,7 @@ import { UploadPanel, type UploadState } from "@/components/upload-panel";
 import { PdfViewerDialog } from "@/components/pdf-viewer-dialog";
 import { VersionHistoryDialog } from "@/components/version-history-dialog";
 import { ShareDialog } from "@/components/share-dialog";
+import { MembersDialog } from "@/components/members-dialog";
 
 type DialogState =
   | { kind: "none" }
@@ -76,7 +79,8 @@ type DialogState =
   | { kind: "rename"; node: Node }
   | { kind: "move"; nodes: Node[] }
   | { kind: "versions"; node: Node }
-  | { kind: "share"; node: Node };
+  | { kind: "share"; node: Node }
+  | { kind: "members"; room: Node };
 
 /** The toolbar button is focused by its own click — capture it. */
 const activeTrigger = () =>
@@ -133,6 +137,29 @@ function RoomView() {
   useDocumentTitle(
     currentCrumb ? `${currentCrumb.name} — Acme Corp. Dataroom` : null,
   );
+
+  // The caller's role decides which controls exist at all: viewers get a
+  // read-only room, editors full content CRUD, owners also access management.
+  const access = useAsync(() => getMyRoomAccess(roomId), `access:${roomId}`);
+  const role = access.state.status === "success" ? access.state.data : null;
+  const roleResolved = access.state.status !== "loading";
+  const canEdit = role === "owner" || role === "editor";
+  const canManage = role === "owner";
+
+  // Deep link straight after signup: the crumbs query can race the invite
+  // claim and settle as notFound before membership lands. Once the role
+  // resolves to a real value, give the crumbs one more chance.
+  const retriedCrumbsRef = useRef(false);
+  useEffect(() => {
+    if (
+      role !== null &&
+      crumbs.notFound &&
+      !retriedCrumbsRef.current
+    ) {
+      retriedCrumbsRef.current = true;
+      crumbs.reload();
+    }
+  }, [role, crumbs]);
   const { state, isStale, reload, setData } = useAsync(
     () => listChildren(currentFolderId),
     currentFolderId,
@@ -174,27 +201,38 @@ function RoomView() {
   const [sortState, setSortState] = useState<ItemsSort>(null);
   const closeDialog = () => setDialog({ kind: "none" });
 
-  // Folder rows show what's inside them — one query per folder list.
+  // Folder rows show what's inside them — one query per folder list. The
+  // same pass batches the share-status lookup that powers the row badges
+  // (owner only: links are the owner's objects).
   const [childCounts, setChildCounts] = useState<ReadonlyMap<string, number>>(
     new Map(),
   );
+  const [sharedIds, setSharedIds] = useState<ReadonlySet<string>>(new Set());
   useEffect(() => {
     if (state.status !== "success") return;
     const folderIds = state.data
       .filter((n) => n.type !== "file")
       .map((n) => n.id);
-    // Stale ids in the old map are harmless — unknown ids read undefined.
-    if (folderIds.length === 0) return;
     let cancelled = false;
-    listChildCounts(folderIds)
-      .then((counts) => {
-        if (!cancelled) setChildCounts(counts);
-      })
-      .catch(() => undefined); // cosmetic — folders fall back to "—"
+    // Stale ids in the old map are harmless — unknown ids read undefined.
+    if (folderIds.length > 0) {
+      listChildCounts(folderIds)
+        .then((counts) => {
+          if (!cancelled) setChildCounts(counts);
+        })
+        .catch(() => undefined); // cosmetic — folders fall back to "—"
+    }
+    if (canManage && state.data.length > 0) {
+      listShareStatus(state.data.map((n) => n.id))
+        .then((ids) => {
+          if (!cancelled) setSharedIds(ids);
+        })
+        .catch(() => undefined); // cosmetic — badges just don't show
+    }
     return () => {
       cancelled = true;
     };
-  }, [state]);
+  }, [state, canManage]);
 
   // The viewer flips through files in the same order the table shows them.
   const viewerFiles = useMemo(
@@ -708,23 +746,28 @@ function RoomView() {
   };
 
   // The shell (header + rail) lives in the /room layout and persists;
-  // every state here fills only the content column.
+  // every state here fills only the content column. The role gates which
+  // controls render at all, so the page waits for BOTH crumbs and access —
+  // an owner must never see their toolbar pop in late.
   if (crumbs.error) return <ErrorState onRetry={crumbs.reload} />;
   if (crumbs.notFound)
     return <NotFoundState kind={isRoot ? "room" : "folder"} />;
-  if (crumbs.loading || !crumbs.crumbs) return <RoomFallback />;
+  if (crumbs.loading || !crumbs.crumbs || !roleResolved)
+    return <RoomFallback />;
+  const roomNode = crumbs.crumbs[0];
 
   return (
     <>
       {/* The visible location lives in the breadcrumbs; this names the
           page for screen readers and heading navigation. */}
       {currentCrumb && <h1 className="sr-only">{currentCrumb.name}</h1>}
-      <UploadDropzone onFiles={handleFiles}>
+      <UploadDropzone onFiles={handleFiles} disabled={!canEdit}>
         {({ open }) => (
           <div
             data-restore-zone
             className="relative flex flex-1 flex-col"
             onDragOver={(e) => {
+              if (!canEdit) return;
               if (!e.dataTransfer.types.includes(RESTORE_MIME)) return;
               e.preventDefault();
               e.dataTransfer.dropEffect = "move";
@@ -737,6 +780,7 @@ function RoomView() {
             }}
             onDrop={(e) => {
               setRestoreOver(false);
+              if (!canEdit) return;
               const ids = readIds(e.dataTransfer, RESTORE_MIME);
               if (ids.length === 0) return;
               e.preventDefault();
@@ -791,16 +835,29 @@ function RoomView() {
                     </button>
                   )}
                 </div>
-                <RoomToolbar
-                  onNewFolder={() => {
-                    setReturnTo(activeTrigger());
-                    openDialog({ kind: "create" });
-                  }}
-                >
-                  <Button onClick={open}>
-                    <Upload /> Upload
+                {canManage && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setReturnTo(activeTrigger());
+                      openDialog({ kind: "members", room: roomNode });
+                    }}
+                  >
+                    <Users /> Share
                   </Button>
-                </RoomToolbar>
+                )}
+                {canEdit && (
+                  <RoomToolbar
+                    onNewFolder={() => {
+                      setReturnTo(activeTrigger());
+                      openDialog({ kind: "create" });
+                    }}
+                  >
+                    <Button onClick={open}>
+                      <Upload /> Upload
+                    </Button>
+                  </RoomToolbar>
+                )}
               </div>
             </div>
             {/* Keyed by folder: navigating fades the new location's content
@@ -901,16 +958,29 @@ function RoomView() {
                   {state.status === "success" &&
                     !crossRoomStale &&
                     (state.data.length === 0 ? (
-                      // The dashed frame IS the drop target: it lights up on
-                      // hover and a click opens the file picker.
-                      <button
-                        type="button"
-                        aria-label="Upload PDF files"
-                        onClick={open}
-                        className="group w-full cursor-pointer rounded-card border border-dashed border-line-strong transition-colors duration-200 outline-none hover:border-brand hover:bg-folder-bg/40 focus-visible:border-brand focus-visible:ring-3 focus-visible:ring-ring/70"
-                      >
-                        <EmptyState variant="empty-folder" />
-                      </button>
+                      canEdit ? (
+                        // The dashed frame IS the drop target: it lights up
+                        // on hover and a click opens the file picker.
+                        <button
+                          type="button"
+                          aria-label="Upload PDF files"
+                          onClick={open}
+                          className="group w-full cursor-pointer rounded-card border border-dashed border-line-strong transition-colors duration-200 outline-none hover:border-brand hover:bg-folder-bg/40 focus-visible:border-brand focus-visible:ring-3 focus-visible:ring-ring/70"
+                        >
+                          <EmptyState variant="empty-folder" />
+                        </button>
+                      ) : (
+                        // Viewers can't upload — the frame is plain fact,
+                        // not an invitation.
+                        <div className="flex flex-col items-center gap-2 rounded-card border bg-card px-6 py-14 text-center">
+                          <p className="font-heading text-lg font-medium">
+                            This folder is empty
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            Nothing has been added here yet.
+                          </p>
+                        </div>
+                      )
                     ) : (
                       <ItemsTable
                         key={currentFolderId} // navigation clears selection
@@ -920,40 +990,63 @@ function RoomView() {
                         onDownloadNode={(node) =>
                           void handleBulkDownload([node])
                         }
-                        onMoveNode={(node) =>
-                          openDialog({ kind: "move", nodes: [node] })
+                        onMoveNode={
+                          canEdit
+                            ? (node) =>
+                                openDialog({ kind: "move", nodes: [node] })
+                            : undefined
                         }
-                        onUploadVersion={handleUploadVersion}
+                        onUploadVersion={
+                          canEdit ? handleUploadVersion : undefined
+                        }
                         onVersionHistory={(node, trigger) => {
                           setReturnTo(trigger);
                           openDialog({ kind: "versions", node });
                         }}
-                        onShare={(node, trigger) => {
-                          setReturnTo(trigger);
-                          openDialog({ kind: "share", node });
-                        }}
+                        onShare={
+                          canManage
+                            ? (node, trigger) => {
+                                setReturnTo(trigger);
+                                openDialog({ kind: "share", node });
+                              }
+                            : undefined
+                        }
                         onPrefetch={(id) =>
                           prefetchAsync(id, () => listChildren(id))
                         }
                         childCounts={childCounts}
+                        sharedIds={sharedIds}
+                        disableDrag={!canEdit}
                         hrefFor={hrefFor}
                         onOpenFile={(file, trigger) => {
                           setReturnTo(trigger);
                           openViewer(file);
                         }}
-                        onRename={(node, trigger) => {
-                          setReturnTo(trigger);
-                          openDialog({ kind: "rename", node });
-                        }}
-                        onDelete={(node) =>
-                          void trashItem.run(node).catch(() => {})
+                        onRename={
+                          canEdit
+                            ? (node, trigger) => {
+                                setReturnTo(trigger);
+                                openDialog({ kind: "rename", node });
+                              }
+                            : undefined
                         }
-                        onBulkTrash={(nodes) => void handleBulkTrash(nodes)}
+                        onDelete={
+                          canEdit
+                            ? (node) => void trashItem.run(node).catch(() => {})
+                            : undefined
+                        }
+                        onBulkTrash={
+                          canEdit
+                            ? (nodes) => void handleBulkTrash(nodes)
+                            : undefined
+                        }
                         onBulkDownload={(files) =>
                           void handleBulkDownload(files)
                         }
-                        onBulkMove={(nodes) =>
-                          openDialog({ kind: "move", nodes })
+                        onBulkMove={
+                          canEdit
+                            ? (nodes) => openDialog({ kind: "move", nodes })
+                            : undefined
                         }
                         onDropNodes={(ids, target) =>
                           void handleMove(ids, target)
@@ -1058,10 +1151,17 @@ function RoomView() {
         onClose={closeDialog}
         returnFocusTo={returnTo}
         onRestore={handleRestoreVersion}
+        canRestore={canEdit}
       />
       <ShareDialog
         key={`share-${dialogGen}`}
         node={dialog.kind === "share" ? dialog.node : null}
+        onClose={closeDialog}
+        returnFocusTo={returnTo}
+      />
+      <MembersDialog
+        key={`members-${dialogGen}`}
+        room={dialog.kind === "members" ? dialog.room : null}
         onClose={closeDialog}
         returnFocusTo={returnTo}
       />

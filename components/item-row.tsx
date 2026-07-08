@@ -35,8 +35,9 @@ interface ItemRowProps {
   hrefFor: (id: string) => string;
   /** File rows open the viewer; the trigger element restores focus on close. */
   onOpenFile: (node: Node, trigger: HTMLElement | null) => void;
-  onRename: (node: Node, trigger: HTMLElement | null) => void;
-  onDelete: (node: Node, trigger: HTMLElement | null) => void;
+  /** Optional: viewers see no mutating controls at all. */
+  onRename?: (node: Node, trigger: HTMLElement | null) => void;
+  onDelete?: (node: Node, trigger: HTMLElement | null) => void;
   /** File rows only: single-item download. */
   onDownload?: (node: Node) => void;
   /** File rows only: replace content as a new version (keeps name/id). */
@@ -51,6 +52,10 @@ interface ItemRowProps {
   onPrefetch?: (id: string) => void;
   /** Folders: direct child count, shown where files show their size. */
   childCount?: number;
+  /** This node carries an active public link — show the badge. */
+  shared?: boolean;
+  /** Viewer mode: rows can't be dragged (no move powers). */
+  disableDrag?: boolean;
   selected: boolean;
   /** While a selection exists, every row's checkbox stays visible. */
   selectionActive: boolean;
@@ -83,6 +88,8 @@ export function ItemRow({
   onMove,
   onPrefetch,
   childCount,
+  shared,
+  disableDrag,
   selected,
   selectionActive,
   onToggleSelect,
@@ -107,7 +114,7 @@ export function ItemRow({
   // The source row dims while its drag is in flight.
   const [dragging, setDragging] = useState(false);
 
-  const dropProps = isFolder
+  const dropProps = isFolder && !disableDrag
     ? {
         onDragOver: (e: React.DragEvent) => {
           if (!e.dataTransfer.types.includes(MOVE_MIME)) return;
@@ -140,9 +147,20 @@ export function ItemRow({
         )}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-medium" title={node.name}>
-          {node.name}
-          <span className="sr-only">{isFolder ? ", folder" : ", PDF"}</span>
+        <span className="flex items-center gap-2">
+          <span
+            className="block min-w-0 truncate text-sm font-medium"
+            title={node.name}
+          >
+            {node.name}
+            <span className="sr-only">{isFolder ? ", folder" : ", PDF"}</span>
+          </span>
+          {shared && (
+            <span className="flex shrink-0 items-center gap-1 rounded-full bg-folder-bg px-2 py-0.5 text-xs font-medium text-brand ring-1 ring-brand/15 ring-inset">
+              <Link2 className="size-3" aria-hidden />
+              Shared
+            </span>
+          )}
         </span>
         <span className="block truncate text-xs tabular-nums text-muted-foreground md:hidden">
           {size
@@ -159,7 +177,7 @@ export function ItemRow({
     <ContextMenu>
       <ContextMenuTrigger asChild>
         <TableRow
-          draggable
+          draggable={!disableDrag}
           data-node-id={node.id}
           data-node-kind={isFolder ? "folder" : "file"}
           onClick={(e: React.MouseEvent) => {
@@ -267,8 +285,12 @@ export function ItemRow({
             <RowMenu
               className="text-muted-foreground opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100 aria-expanded:opacity-100 pointer-coarse:opacity-100"
               subject={node.name}
-              onRename={(trigger) => onRename(node, trigger)}
-              onDelete={(trigger) => onDelete(node, trigger)}
+              onRename={
+                onRename ? (trigger) => onRename(node, trigger) : undefined
+              }
+              onDelete={
+                onDelete ? (trigger) => onDelete(node, trigger) : undefined
+              }
               onDownload={
                 !isFolder && onDownload ? () => onDownload(node) : undefined
               }
@@ -321,21 +343,27 @@ export function ItemRow({
             <Link2 /> Share
           </ContextMenuItem>
         )}
-        <ContextMenuItem onSelect={() => onRename(node, null)}>
-          <Pencil /> Rename
-        </ContextMenuItem>
+        {onRename && (
+          <ContextMenuItem onSelect={() => onRename(node, null)}>
+            <Pencil /> Rename
+          </ContextMenuItem>
+        )}
         {onMove && (
           <ContextMenuItem onSelect={() => onMove(node)}>
             <FolderInput /> Move to…
           </ContextMenuItem>
         )}
-        <ContextMenuSeparator />
-        <ContextMenuItem
-          variant="destructive"
-          onSelect={() => onDelete(node, null)}
-        >
-          <Trash2 /> Move to trash
-        </ContextMenuItem>
+        {onDelete && (
+          <>
+            <ContextMenuSeparator />
+            <ContextMenuItem
+              variant="destructive"
+              onSelect={() => onDelete(node, null)}
+            >
+              <Trash2 /> Move to trash
+            </ContextMenuItem>
+          </>
+        )}
       </ContextMenuContent>
     </ContextMenu>
   );

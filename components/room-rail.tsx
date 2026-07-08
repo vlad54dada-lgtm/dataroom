@@ -6,7 +6,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import type { Node } from "@/types";
-import { listChildren, moveNodes } from "@/lib/storage";
+import { listChildren, listRooms, moveNodes } from "@/lib/storage";
 import { MOVE_MIME, readIds } from "@/lib/dnd";
 import {
   prefetchAsync,
@@ -133,8 +133,14 @@ export function RoomRail() {
   const { id: currentId } = useParams<{ id: string }>();
   const searchParams = useSearchParams();
   // Distinct cache key from home's "datarooms" (different data shape).
-  const { state } = useAsync(() => listChildren(null), "rail:datarooms");
-  const rooms: Node[] = state.status === "success" ? state.data : [];
+  const { state } = useAsync(() => listRooms(), "rail:datarooms");
+  const entries = state.status === "success" ? state.data : [];
+  const ownedRooms = entries.filter((e) => e.access === "owner");
+  const sharedRooms = entries.filter((e) => e.access !== "owner");
+  // Viewer rooms are read-only — never valid move-drop targets.
+  const dropTargets = new Set(
+    entries.filter((e) => e.access !== "viewer").map((e) => e.node.id),
+  );
   // Where dragged rows come from: the current folder, or the room root.
   const sourceId = searchParams.get("folder") ?? currentId;
 
@@ -206,7 +212,7 @@ export function RoomRail() {
     const observer = new ResizeObserver(measure);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [measure, rooms.length, collapsed]);
+  }, [measure, entries.length, collapsed]);
 
   const maskImage =
     fade.top && fade.bottom
@@ -292,7 +298,7 @@ export function RoomRail() {
               {!collapsed && <Skeleton className="h-3.5 w-28" />}
             </div>
           ))}
-        {rooms.map((room) => (
+        {ownedRooms.map(({ node: room }) => (
           <RailItem
             key={room.id}
             room={room}
@@ -302,6 +308,33 @@ export function RoomRail() {
             onDropNodes={(ids, target) => void onDropNodes(ids, target)}
           />
         ))}
+        {sharedRooms.length > 0 && (
+          <>
+            {/* Divider between mine and theirs — collapsed keeps a hairline. */}
+            {collapsed ? (
+              <span aria-hidden className="mx-3 my-1.5 h-px shrink-0 bg-border" />
+            ) : (
+              <span className="mt-3 mb-1 px-2.5 text-[11px] font-medium tracking-[0.08em] uppercase text-muted-foreground">
+                Shared with you
+              </span>
+            )}
+            {sharedRooms.map(({ node: room }) => (
+              <RailItem
+                key={room.id}
+                room={room}
+                active={room.id === currentId}
+                collapsed={collapsed}
+                sourceId={sourceId}
+                // Viewer rooms are read-only — drops would 403 at the DB.
+                onDropNodes={
+                  dropTargets.has(room.id)
+                    ? (ids, target) => void onDropNodes(ids, target)
+                    : undefined
+                }
+              />
+            ))}
+          </>
+        )}
       </div>
     </nav>
   );

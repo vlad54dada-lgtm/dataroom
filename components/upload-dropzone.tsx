@@ -12,6 +12,8 @@ interface UploadDropzoneProps {
    * never trusted to the picker: drag&drop bypasses `accept`.
    */
   onFiles: (files: File[]) => void;
+  /** Viewer mode: drops are ignored and the overlay never appears. */
+  disabled?: boolean;
   /** Render prop exposing `open` so the toolbar Upload button owns the picker. */
   children: (controls: { open: () => void }) => React.ReactNode;
 }
@@ -21,7 +23,11 @@ interface UploadDropzoneProps {
  * one deliberate motion moment: a short fade with a dashed accent border.
  * `noClick` keeps row clicks from opening the picker.
  */
-export function UploadDropzone({ onFiles, children }: UploadDropzoneProps) {
+export function UploadDropzone({
+  onFiles,
+  disabled,
+  children,
+}: UploadDropzoneProps) {
   const onDrop = useCallback(
     (accepted: File[], rejections: FileRejection[]) => {
       onFiles([...accepted, ...rejections.map((r) => r.file)]);
@@ -31,6 +37,7 @@ export function UploadDropzone({ onFiles, children }: UploadDropzoneProps) {
 
   const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
     onDrop,
+    disabled,
     noClick: true,
     noKeyboard: true,
     accept: { "application/pdf": [".pdf"] }, // picker happy path only

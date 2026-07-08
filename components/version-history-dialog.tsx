@@ -23,6 +23,8 @@ interface VersionHistoryDialogProps {
   returnFocusTo?: HTMLElement | null;
   /** Makes `version` current again; resolves to the updated node. */
   onRestore: (file: Node, version: FileVersion) => Promise<Node>;
+  /** Viewers browse and download history but can't change what's current. */
+  canRestore?: boolean;
 }
 
 /**
@@ -35,6 +37,7 @@ export function VersionHistoryDialog({
   onClose,
   returnFocusTo,
   onRestore,
+  canRestore = true,
 }: VersionHistoryDialogProps) {
   // Held past close for the exit animation (adjust-during-render).
   const [shownFile, setShownFile] = useState<Node | null>(file);
@@ -189,7 +192,7 @@ export function VersionHistoryDialog({
                 >
                   <Download />
                 </Button>
-                {!v.isCurrent && (
+                {!v.isCurrent && canRestore && (
                   <Button
                     variant="outline"
                     size="sm"
