@@ -3,8 +3,14 @@ import { SearchX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface NotFoundStateProps {
-  kind: "room" | "folder";
+  kind: "room" | "folder" | "file";
 }
+
+const TITLE = {
+  room: "Dataroom not found",
+  folder: "Folder not found",
+  file: "File not found",
+} as const;
 
 export function NotFoundState({ kind }: NotFoundStateProps) {
   return (
@@ -12,9 +18,7 @@ export function NotFoundState({ kind }: NotFoundStateProps) {
       <span className="flex size-12 items-center justify-center rounded-xl bg-muted">
         <SearchX className="size-6 text-muted-foreground" strokeWidth={1.75} />
       </span>
-      <p className="mt-4 font-heading text-lg font-medium">
-        {kind === "room" ? "Dataroom not found" : "Folder not found"}
-      </p>
+      <p className="mt-4 font-heading text-lg font-medium">{TITLE[kind]}</p>
       <p className="mt-1 text-sm text-muted-foreground">
         It may have been deleted, or the link may be wrong.
       </p>

@@ -282,10 +282,16 @@ function AccessView() {
     }
   };
 
-  const copyNodeLink = async (nodeId: string) => {
+  const copyNodeLink = async (group: NodeGrantsGroup) => {
+    // Folders link straight to the room (no home redirect to loop on); files
+    // resolve via the home "?shared" handler.
+    const url =
+      group.nodeType === "file"
+        ? `${siteOrigin()}/file/${group.nodeId}`
+        : `${siteOrigin()}/room/${group.roomId}?folder=${group.nodeId}`;
     try {
-      await navigator.clipboard.writeText(`${siteOrigin()}/?shared=${nodeId}`);
-      setCopiedToken(`node:${nodeId}`);
+      await navigator.clipboard.writeText(url);
+      setCopiedToken(`node:${group.nodeId}`);
       setTimeout(() => setCopiedToken(null), 2000);
     } catch {
       toast.error("Couldn't copy the link");
@@ -625,7 +631,7 @@ function AccessView() {
                                 size="sm"
                                 className="shrink-0 text-muted-foreground"
                                 title="Copy the link to send invited people"
-                                onClick={() => void copyNodeLink(group.nodeId)}
+                                onClick={() => void copyNodeLink(group)}
                               >
                                 {copiedToken === `node:${group.nodeId}` ? (
                                   <Check />

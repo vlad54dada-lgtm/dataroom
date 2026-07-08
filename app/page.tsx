@@ -238,12 +238,11 @@ function HomeView() {
         toast.error("That shared item isn't available to you");
         return;
       }
+      // Redirect to a REAL destination (a pathname change, which the App
+      // Router applies reliably in production — unlike clearing a same-path
+      // query). Files get their own /file route; folders open in the room.
       if (node.type === "file") {
-        // Stay on home (behind the viewer), just drop the param.
-        router.replace(cleared, { scroll: false });
-        setViewerReturn(null);
-        setViewerFind(undefined);
-        setViewerFile(node);
+        router.replace(`/file/${node.id}`);
       } else {
         router.replace(
           node.type === "dataroom" || !node.roomId

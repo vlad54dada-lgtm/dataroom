@@ -154,12 +154,19 @@ export function PeopleWithAccess({ node }: PeopleWithAccessProps) {
     }
   };
 
-  // The link to hand invited people: it opens the shared item once they sign
-  // in with the invited email (access is still gated by the grant — a stranger
-  // who opens it gets nothing).
+  // The link to hand invited people (access is still gated by the grant — a
+  // stranger who opens it gets nothing). Folders deep-link STRAIGHT to the
+  // room, so there is no home redirect to loop on; files (no room-browse URL)
+  // resolve through the home "?shared" handler.
   const copyLink = async () => {
+    const url =
+      node.type === "file"
+        ? `${siteOrigin()}/file/${node.id}`
+        : node.roomId
+          ? `${siteOrigin()}/room/${node.roomId}?folder=${node.id}`
+          : `${siteOrigin()}/?shared=${node.id}`;
     try {
-      await navigator.clipboard.writeText(`${siteOrigin()}/?shared=${node.id}`);
+      await navigator.clipboard.writeText(url);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
