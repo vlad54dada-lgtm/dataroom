@@ -864,6 +864,196 @@ export async function leaveRoom(roomId: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Per-node grants — share ONE file or folder with people by email + role.
+// The owner-side CRUD mirrors the room-member surface exactly (owner-only by
+// RLS); the grantee side (getMyNodeAccess, listSharedWithMeNodes) resolves
+// through node_access / list_shared_with_me. Access to the shared subtree
+// itself reuses the ordinary reads (getNode/listChildren/getBlob/…) — RLS now
+// admits grantees, so no special browse functions are needed.
+// ---------------------------------------------------------------------------
+
+/** A person granted access to a single file/folder (shape mirrors RoomMember). */
+export interface NodeGrant {
+  id: string;
+  email: string;
+  role: Exclude<RoomRole, "owner">;
+  /** True until the invitee signs up/in with the invited email. */
+  pending: boolean;
+  createdAt: number;
+}
+
+interface NodeGrantRow {
+  id: string;
+  email: string;
+  role: "viewer" | "editor";
+  user_id: string | null;
+  created_at: string;
+}
+
+function toNodeGrant(row: NodeGrantRow): NodeGrant {
+  return {
+    id: row.id,
+    email: row.email,
+    role: row.role,
+    pending: row.user_id === null,
+    createdAt: Date.parse(row.created_at),
+  };
+}
+
+/** People granted this file/folder (owner-only by RLS), oldest first. */
+export async function listNodeGrants(nodeId: string): Promise<NodeGrant[]> {
+  const { data, error } = await supabase
+    .from("node_grants")
+    .select("id, email, role, user_id, created_at")
+    .eq("node_id", nodeId)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return ((data ?? []) as NodeGrantRow[]).map(toNodeGrant);
+}
+
+/**
+ * Grants an email access to one file/folder. Throws InvalidNameError for a
+ * malformed or own address and DuplicateInviteError when already granted.
+ */
+export async function inviteToNode(
+  nodeId: string,
+  email: string,
+  role: "viewer" | "editor",
+): Promise<NodeGrant> {
+  const normalized = email.trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
+    throw new InvalidNameError("Enter a valid email address");
+  }
+  const { data: session } = await supabase.auth.getSession();
+  const me = session.session?.user;
+  if (!me) throw new Error("Not signed in");
+  if (me.email && me.email.toLowerCase() === normalized) {
+    throw new InvalidNameError("That's your own email");
+  }
+  // A DB trigger links user_id when the email already has an account.
+  const { data, error } = await supabase
+    .from("node_grants")
+    .insert({ node_id: nodeId, email: normalized, role, invited_by: me.id })
+    .select("id, email, role, user_id, created_at")
+    .single<NodeGrantRow>();
+  if (error) {
+    if (isUniqueViolation(error)) throw new DuplicateInviteError();
+    throw error;
+  }
+  return toNodeGrant(data);
+}
+
+/** Switches a grant between viewer and editor (owner-only by RLS). */
+export async function setNodeGrantRole(
+  grantId: string,
+  role: "viewer" | "editor",
+): Promise<void> {
+  const { error } = await supabase
+    .from("node_grants")
+    .update({ role })
+    .eq("id", grantId);
+  if (error) throw error;
+}
+
+/** Removes a grant — access ends at the database, immediately. */
+export async function removeNodeGrant(grantId: string): Promise<void> {
+  const { error } = await supabase.from("node_grants").delete().eq("id", grantId);
+  if (error) throw error;
+}
+
+/** The grantee's own exit from a shared file/folder. */
+export async function leaveSharedNode(nodeId: string): Promise<void> {
+  const userId = await currentUserId();
+  const { error } = await supabase
+    .from("node_grants")
+    .delete()
+    .eq("node_id", nodeId)
+    .eq("user_id", userId);
+  if (error) throw error;
+}
+
+/**
+ * Which of these nodes have at least one active grant — one batch query per
+ * listing, powering the owner's "shared" badges alongside listShareStatus.
+ */
+export async function listNodeGrantStatus(
+  nodeIds: string[],
+): Promise<Set<string>> {
+  if (nodeIds.length === 0) return new Set();
+  const { data, error } = await supabase
+    .from("node_grants")
+    .select("node_id")
+    .in("node_id", nodeIds);
+  if (error) throw error;
+  return new Set(((data ?? []) as { node_id: string }[]).map((r) => r.node_id));
+}
+
+/**
+ * The caller's effective role on a node — owner/editor/viewer via room
+ * membership OR a grant on the node/an ancestor (strongest wins), else null.
+ * Powers the room page's role gating for grantees.
+ */
+export async function getMyNodeAccess(
+  nodeId: string,
+): Promise<RoomRole | null> {
+  await claimInvitesOnce();
+  const { data, error } = await supabase.rpc("node_access", { node: nodeId });
+  if (error) {
+    if (error.code === "22P02") return null;
+    throw error;
+  }
+  return (data ?? null) as RoomRole | null;
+}
+
+export interface SharedNodeEntry {
+  id: string;
+  roomId: string;
+  roomName: string;
+  type: "file" | "folder";
+  name: string;
+  role: Exclude<RoomRole, "owner">;
+  size: number | null;
+  blobKey: string | null;
+  icon: string | null;
+  color: string | null;
+}
+
+interface SharedNodeRow2 {
+  id: string;
+  room_id: string;
+  room_name: string;
+  type: "file" | "folder";
+  name: string;
+  role: "viewer" | "editor";
+  size: number | null;
+  blob_path: string | null;
+  icon: string | null;
+  color: string | null;
+}
+
+/**
+ * Files & folders shared directly with the caller — TOP-MOST grants only (a
+ * grant on F and F/sub shows only F). Feeds the "Shared with you" surfaces.
+ */
+export async function listSharedWithMeNodes(): Promise<SharedNodeEntry[]> {
+  await claimInvitesOnce();
+  const { data, error } = await supabase.rpc("list_shared_with_me");
+  if (error) throw error;
+  return ((data ?? []) as SharedNodeRow2[]).map((row) => ({
+    id: row.id,
+    roomId: row.room_id,
+    roomName: row.room_name,
+    type: row.type,
+    name: row.name,
+    role: row.role,
+    size: row.size,
+    blobKey: row.blob_path,
+    icon: row.icon,
+    color: row.color,
+  }));
+}
+
+// ---------------------------------------------------------------------------
 // Sharing & access panel queries
 // ---------------------------------------------------------------------------
 
