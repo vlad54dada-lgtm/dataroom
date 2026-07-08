@@ -10,10 +10,12 @@ import {
   Folder,
   FolderInput,
   FolderOpen,
+  Globe,
   History,
   Link2,
   Pencil,
   Trash2,
+  Users,
 } from "lucide-react";
 import type { Node } from "@/types";
 import { MOVE_MIME, readIds, startDragGhost } from "@/lib/dnd";
@@ -52,8 +54,10 @@ interface ItemRowProps {
   onPrefetch?: (id: string) => void;
   /** Folders: direct child count, shown where files show their size. */
   childCount?: number;
-  /** This node carries an active public link — show the badge. */
-  shared?: boolean;
+  /** This node carries an active public link — show the globe badge. */
+  sharedViaLink?: boolean;
+  /** This node is shared with specific people (grants) — show the people badge. */
+  sharedViaPeople?: boolean;
   /** Viewer mode: rows can't be dragged (no move powers). */
   disableDrag?: boolean;
   selected: boolean;
@@ -88,7 +92,8 @@ export function ItemRow({
   onMove,
   onPrefetch,
   childCount,
-  shared,
+  sharedViaLink,
+  sharedViaPeople,
   disableDrag,
   selected,
   selectionActive,
@@ -155,10 +160,30 @@ export function ItemRow({
             {node.name}
             <span className="sr-only">{isFolder ? ", folder" : ", PDF"}</span>
           </span>
-          {shared && (
-            <span className="flex shrink-0 items-center gap-1 rounded-full bg-folder-bg px-2 py-0.5 text-xs font-medium text-brand ring-1 ring-brand/15 ring-inset">
-              <Link2 className="size-3" aria-hidden />
-              Shared
+          {/* Two distinct share signals: a navy globe = a public link
+              (anyone with it), a slate people icon = invited by email. Both
+              can be present. Icon-only keeps the ledger row dense; the meaning
+              lives in the tooltip + sr-only label. */}
+          {(sharedViaLink || sharedViaPeople) && (
+            <span className="flex shrink-0 items-center gap-1">
+              {sharedViaLink && (
+                <span
+                  title="Public link — anyone with the link can open it"
+                  className="flex size-5 items-center justify-center rounded-full bg-folder-bg text-brand ring-1 ring-brand/25 ring-inset"
+                >
+                  <Globe className="size-3.5" strokeWidth={2} aria-hidden />
+                  <span className="sr-only">Public link</span>
+                </span>
+              )}
+              {sharedViaPeople && (
+                <span
+                  title="Shared with specific people"
+                  className="flex size-5 items-center justify-center rounded-full bg-file-bg text-file ring-1 ring-file/25 ring-inset"
+                >
+                  <Users className="size-3.5" strokeWidth={2} aria-hidden />
+                  <span className="sr-only">Shared with specific people</span>
+                </span>
+              )}
             </span>
           )}
         </span>

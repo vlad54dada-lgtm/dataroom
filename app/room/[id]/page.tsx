@@ -221,7 +221,12 @@ function RoomView() {
   const [childCounts, setChildCounts] = useState<ReadonlyMap<string, number>>(
     new Map(),
   );
-  const [sharedIds, setSharedIds] = useState<ReadonlySet<string>>(new Set());
+  const [linkSharedIds, setLinkSharedIds] = useState<ReadonlySet<string>>(
+    new Set(),
+  );
+  const [peopleSharedIds, setPeopleSharedIds] = useState<ReadonlySet<string>>(
+    new Set(),
+  );
   useEffect(() => {
     if (state.status !== "success") return;
     const folderIds = state.data
@@ -238,10 +243,14 @@ function RoomView() {
     }
     if (canManage && state.data.length > 0) {
       const ids = state.data.map((n) => n.id);
-      // A node is "shared" if it carries a public link OR a per-person grant.
+      // Two independent signals, badged differently on the row: a public link
+      // (anyone) vs. a per-person grant (invited people).
       Promise.all([listShareStatus(ids), listNodeGrantStatus(ids)])
         .then(([links, grants]) => {
-          if (!cancelled) setSharedIds(new Set([...links, ...grants]));
+          if (!cancelled) {
+            setLinkSharedIds(links);
+            setPeopleSharedIds(grants);
+          }
         })
         .catch(() => undefined); // cosmetic — badges just don't show
     }
@@ -1041,7 +1050,8 @@ function RoomView() {
                           prefetchAsync(id, () => listChildren(id))
                         }
                         childCounts={childCounts}
-                        sharedIds={sharedIds}
+                        linkSharedIds={linkSharedIds}
+                        peopleSharedIds={peopleSharedIds}
                         disableDrag={!canEdit}
                         hrefFor={hrefFor}
                         onOpenFile={(file, trigger) => {

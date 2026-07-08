@@ -126,8 +126,10 @@ interface ItemsTableProps {
   onPrefetch?: (id: string) => void;
   /** Direct child counts per folder id — folders show them in Size. */
   childCounts?: ReadonlyMap<string, number>;
-  /** Nodes carrying an active public link — rows show the badge. */
-  sharedIds?: ReadonlySet<string>;
+  /** Nodes carrying an active public link — rows show the globe badge. */
+  linkSharedIds?: ReadonlySet<string>;
+  /** Nodes shared with specific people (grants) — rows show the people badge. */
+  peopleSharedIds?: ReadonlySet<string>;
   /** Viewer mode: no drag sources or folder drop targets. */
   disableDrag?: boolean;
   /** Bulk actions for the selection bar (absent in viewer mode). */
@@ -160,7 +162,8 @@ export function ItemsTable({
   onShare,
   onPrefetch,
   childCounts,
-  sharedIds,
+  linkSharedIds,
+  peopleSharedIds,
   disableDrag,
   onBulkTrash,
   onBulkDownload,
@@ -395,7 +398,8 @@ export function ItemsTable({
                 onShare={onShare}
                 onPrefetch={onPrefetch}
                 childCount={childCounts?.get(node.id)}
-                shared={sharedIds?.has(node.id)}
+                sharedViaLink={linkSharedIds?.has(node.id)}
+                sharedViaPeople={peopleSharedIds?.has(node.id)}
                 disableDrag={disableDrag}
                 selected={selectedIds.has(node.id)}
                 selectionActive={selectionActive}

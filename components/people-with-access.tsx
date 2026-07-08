@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { ChevronDown, Loader2, UserPlus, X } from "lucide-react";
+import { ChevronDown, Loader2, UserPlus, Users, X } from "lucide-react";
 import type { Node } from "@/types";
 import {
   InvalidNameError,
@@ -156,9 +156,22 @@ export function PeopleWithAccess({ node }: PeopleWithAccessProps) {
 
   return (
     <div className="space-y-3">
-      <p className="text-[11px] font-medium tracking-[0.08em] uppercase text-muted-foreground">
-        People with access
-      </p>
+      {/* Iconed header pairs with the globe on the public-link section below,
+          so the two ways to share read as two distinct modes. */}
+      <div className="flex items-start gap-2.5">
+        <Users
+          className="mt-px size-4 shrink-0 text-muted-foreground"
+          strokeWidth={1.75}
+          aria-hidden
+        />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium leading-none">People with access</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Invite specific people by email to just this{" "}
+            {isFolder ? "folder" : "file"}.
+          </p>
+        </div>
+      </div>
 
       {/* Invite form — always-pressable submit + shake on invalid input. */}
       <form onSubmit={(e) => void handleInvite(e)} className="space-y-2">
@@ -246,8 +259,7 @@ export function PeopleWithAccess({ node }: PeopleWithAccessProps) {
         </div>
       ) : grants.length === 0 ? (
         <p className="rounded-card border px-3 py-3 text-sm text-muted-foreground">
-          No one yet. Invite someone by email to give them access to just this{" "}
-          {isFolder ? "folder" : "file"}.
+          No one has been invited yet.
         </p>
       ) : (
         <ul className="max-h-56 divide-y overflow-y-auto rounded-card border">
