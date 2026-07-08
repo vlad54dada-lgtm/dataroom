@@ -9,6 +9,10 @@
 > Updated 2026-07-08: access & sharing v2 — public file/folder links,
 > dataroom membership with viewer/editor roles, open tracking, and the
 > Sharing & access panel. The former "no sharing" scope line is history.
+>
+> Updated 2026-07-08: access & sharing v3 — per-file/per-folder email grants
+> with viewer/editor roles (Drive-style), a grantee "Shared with you" that
+> lists individual files/folders, and a subtree-scoped view for shared folders.
 
 ## What is this
 
@@ -38,7 +42,8 @@ Deal teams — lawyers, finance people, founders — who need to organize hundre
 8. **Theme** — light and dark, toggle on every screen including login; gentle cross-fade on switch.
 9. **Public share links** — a file or folder can be made "anyone with the link": an unguessable token URL opens the document (or a read-only folder browser) in the product UI with no account. Links are always view-only, revocable, and track opens (count + last opened).
 10. **Dataroom membership** — the owner invites people by email with a role: **viewer** (read and download everything) or **editor** (full content CRUD — upload, rename, move, trash, versions — but no access management and no changes to the room itself). Invitees sign up with the invited email and the room appears in their home and rail under "Shared with you".
-11. **Sharing & access panel** — one page (`/access`, via the account menu) listing every public link (with open stats, copy, revoke) and every room member (change role, remove), plus rooms shared with you (leave).
+11. **Per-file & per-folder grants** — the owner can also share a single file or folder with specific people by email, with the same viewer/editor roles (Drive-style). A grantee sees ONLY that object under "Shared with you" — never the rest of the dataroom — and opens a shared folder in a subtree-scoped view (breadcrumbs stop at the shared node). Only the room owner grants; grants die when the object is moved to another owner's room.
+12. **Sharing & access panel** — one page (`/access`, via the account menu) listing every public link (with open stats, copy, revoke), every room member and every file/folder grant (change role, remove), plus everything shared with you — rooms, files, and folders (leave).
 
 ## Screens & flows
 
@@ -84,7 +89,8 @@ A serious legal/finance platform — the register of an institution handling a m
 ## Sharing rules — all must hold
 
 1. Public links are **view-only** and exist for files and folders, never for a whole dataroom.
-2. Only the **room owner** creates or revokes public links and manages members. Editors and viewers see no sharing controls at all.
+2. Only the **room owner** creates or revokes public links and manages members and per-node grants. Editors and viewers see no sharing controls at all.
+2a. A **per-node grantee** sees only the shared file/folder and its subtree — never siblings, ancestors, or the room's trash. Tampering with a URL above or outside the grant reads as "not found". Access derives from a grant on the node OR any ancestor; the strongest role wins if someone is both a room member and a grantee.
 3. An anonymous visitor with a folder link can browse **only that subtree** — tampering with ids outside it reads as "link isn't available".
 4. Revoking a link or removing a member takes effect immediately (database-enforced, not UI-enforced).
 5. A viewer can read and download everything in the room but cannot change anything — including restoring versions or seeing the room's trash.
@@ -93,7 +99,7 @@ A serious legal/finance platform — the register of an institution handling a m
 
 ## Out of scope
 
-Audit logs beyond link-open counts, per-folder membership (membership is per-dataroom), link passwords/expiry UI, email notifications for invites, non-PDF file types, Q&A workflows. Do not build any UI for these.
+Audit logs beyond link-open counts, link passwords/expiry UI, email notifications for invites, non-PDF file types, Q&A workflows. Do not build any UI for these.
 
 ## Success criteria
 

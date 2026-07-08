@@ -19,7 +19,7 @@ The brief asks for folder/file CRUD. This ships that, plus what a deal team actu
 - **Trash + Undo instead of confirmation dialogs.** Deletes are instant and reversible; a single file can be pulled out of a deleted folder.
 - **Drive-grade interactions.** Full keyboard model, right-click menus, shift-range selection, drag & drop for move, delete, restore, and reorder.
 - **Security enforced by the database, not the UI.** Row-level security scopes every tree to its owner and invited members in Postgres; PDFs live in a private bucket; the browser only ever holds the publishable key.
-- **Sharing that matches how deals work.** Public view-only links for files *and* folders (anonymous browsing of just that subtree), dataroom membership with viewer/editor roles, open tracking, and a single Sharing & access panel to see and revoke everything.
+- **Sharing that matches how deals work.** Public view-only links for files *and* folders (anonymous browsing of just that subtree), dataroom membership with viewer/editor roles, *per-file and per-folder* email grants with the same roles (a grantee sees only what was shared, in a subtree-scoped view), open tracking, and a single Sharing & access panel to see and revoke everything.
 - **CI you can click.** The badge above runs lint, the production build, and 45 end-to-end scenarios in three engines — Chromium, WebKit, and mobile Safari — against the real backend on every push.
 
 ## Feature summary
@@ -71,6 +71,8 @@ The whole tree is one table — `nodes (id, parent_id, type, name, size, blob_pa
 **Why the seam matters:** the app started on IndexedDB, as the brief suggests. Moving to a real backend was one commit that rewrote `lib/storage.ts` — no component changed. Sharing and roles then followed the same path: a denormalized `root_id` on every node, membership-aware RLS policies, and a handful of `SECURITY DEFINER` functions for the anonymous link surface — all behind the same seam.
 
 **The access model in one paragraph:** every node carries the id of its dataroom (`root_id`, trigger-maintained). One SQL function, `room_access(room)`, answers "owner / editor / viewer / stranger" and every RLS policy on nodes, texts, versions, and storage objects delegates to it. Public links are capability tokens: anonymous visitors resolve them through narrow `SECURITY DEFINER` RPCs that return exactly the shared subtree and nothing else. An editor's move/rename/upload powers are symmetric with the owner's over *content*, but the room row itself and all sharing controls answer only to the owner.
+
+**Per-node grants layer on additively.** A `node_grants` table shares a single file or folder with a person by email. Each RLS policy grows one extra arm — `node_grant_role(node)`, a bounded ancestor walk — placed *after* the room check, so it is reached only when `room_access` returns null. A solo owner or an existing room member never evaluates it: the room arm short-circuits, and their behavior and cost are byte-identical to before. A grantee sees only their subtree (RLS is the guard; navigation just floors the breadcrumbs at the shared node), and the strongest of {room role, grant role} wins.
 
 ## Design
 
