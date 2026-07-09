@@ -440,9 +440,18 @@ function HomeView() {
                 </button>
               )}
             </div>
-            {/* The empty state carries its own CTA — never two primary
-                "Create dataroom" buttons on one screen. */}
-            {!(state.status === "success" && state.data.length === 0) && (
+            {/* The centered empty state carries its own CTA — never two
+                primary "Create dataroom" buttons on one screen. Hide the
+                toolbar button ONLY when that empty state actually shows: no
+                rooms AND no shared files/folders (a freshly-invited user has
+                shared nodes but zero rooms, and must still be able to create
+                their own). */}
+            {!(
+              state.status === "success" &&
+              state.data.length === 0 &&
+              sharedNodeList.length === 0 &&
+              sharedNodes.state.status !== "loading"
+            ) && (
               <Button
                 onClick={() => {
                   setReturnTo(activeTrigger());
@@ -532,6 +541,11 @@ function HomeView() {
                     shared.length === 0 &&
                     sharedNodeList.length === 0
                   ) {
+                    // A freshly-invited user has shared files but no rooms;
+                    // don't flash "no datarooms yet" while that list loads —
+                    // it would replace itself a frame later with the share.
+                    if (sharedNodes.state.status === "loading")
+                      return <ListSkeleton variant="cards" />;
                     return (
                       <EmptyState
                         variant="no-datarooms"
